@@ -147,7 +147,7 @@ def run_hand_tracker():
         cv2.imshow('CONJURE Hand Tracker', frame)
 
         # Check for 'q' key to quit
-        if cv2.waitKey(5) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     # Cleanup

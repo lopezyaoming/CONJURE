@@ -13,6 +13,7 @@ import mathutils
 import bmesh
 import time
 from pathlib import Path
+import math
 
 # --- CORE CONFIGURATION ---
 # Using pathlib to create a robust, OS-agnostic path.
@@ -26,7 +27,19 @@ except NameError:
     
 DATA_DIR = PROJECT_ROOT / "data"
 FINGERTIPS_JSON_PATH = DATA_DIR / "input" / "fingertips.json"
-DEFORM_OBJ_NAME = "Mesh"  # The name of the mesh we will manipulate
+DEFORM_OBJ_NAME = "DeformableMesh"  # The name of the mesh we will manipulate
+GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based mapping
+
+# --- REFRESH RATE ---
+# The target interval in seconds for the operator to update.
+# A smaller value means a higher refresh rate. 30 FPS is a good balance
+# between smooth interaction and preventing I/O contention with the hand tracker.
+REFRESH_RATE_SECONDS = 1 / 30  # Target 30 updates per second.
+
+# --- SMOOTHING ---
+# How much to smooth the movement of the visual fingertip markers.
+# A value closer to 0 is smoother but has more "lag". A value of 1 is no smoothing.
+SMOOTHING_FACTOR = 0.3
 
 # --- DEFORMATION PARAMETERS ---
 # These control how the mesh reacts to the user's hand.
@@ -38,13 +51,23 @@ MAX_DISPLACEMENT_PER_FRAME = 0.1 # Safety limit to prevent vertices from moving 
 # === 1. INITIAL SCENE SETUP ===
 def setup_scene():
     """
-    Ensures that a deformable mesh and fingertip marker templates exist.
+    Ensures that a deformable mesh, fingertip markers, and the gesture camera exist.
     """
+    # Ensure the main deformable mesh exists.
     if DEFORM_OBJ_NAME not in bpy.data.objects:
         bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=5, radius=1, location=(0, 0, 0))
         bpy.context.active_object.name = DEFORM_OBJ_NAME
         print(f"Created '{DEFORM_OBJ_NAME}'.")
 
+    # Ensure the GestureCamera exists
+    if GESTURE_CAMERA_NAME not in bpy.data.objects:
+        bpy.ops.object.camera_add(location=(0, -5, 0))
+        bpy.context.active_object.name = GESTURE_CAMERA_NAME
+        # Point the camera towards the origin
+        bpy.context.active_object.rotation_euler = (math.radians(90), 0, 0)
+        print(f"Created '{GESTURE_CAMERA_NAME}'.")
+
+    # Ensure a template object for fingertip markers exists.
     if "FingertipTemplate" not in bpy.data.objects:
         bpy.ops.mesh.primitive_ico_sphere_add(radius=0.05, location=(0, 0, -10))
         bpy.context.active_object.name = "FingertipTemplate"
@@ -64,15 +87,40 @@ def setup_scene():
 # === 2. COORDINATE MAPPING ===
 def map_hand_to_3d_space(x_norm, y_norm, z_norm, scale=2.0):
     """
-    Maps normalized (0-1) coordinates from Mediapipe to Blender's 3D world space.
-    - Hand X -> World X
-    - Hand Y -> World Z (up/down)
-    - Hand Z (depth) -> World Y (forward/backward, inverted)
+    Maps normalized (0-1) hand coordinates to Blender's 3D world space,
+    relative to the perspective of the GestureCamera.
     """
-    x = (x_norm - 0.5) * scale
-    y = z_norm * -scale
-    z = (0.5 - y_norm) * scale
-    return mathutils.Vector((x, y, z))
+    # 1. Get the camera object
+    camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
+    
+    # 2. Define a base coordinate vector from the normalized inputs
+    #    (x is side-to-side, y is forward-back, z is up-down)
+    local_point = mathutils.Vector((
+        (x_norm - 0.5) * scale,
+        z_norm * -scale,
+        (0.5 - y_norm) * scale
+    ))
+
+    if camera:
+        # 3. Get the camera's orientation vectors in world space
+        cam_matrix = camera.matrix_world
+        # The camera's right, up, and forward vectors
+        cam_right = cam_matrix.to_3x3().col[0]
+        cam_up = cam_matrix.to_3x3().col[1]
+        # Blender cameras look down their local -Z axis
+        cam_forward = -cam_matrix.to_3x3().col[2]
+
+        # 4. Project the local point onto the camera's axes
+        #    This transforms the hand movements into the camera's perspective.
+        world_vector = (cam_right * local_point.x) + \
+                       (cam_up * local_point.z) + \
+                       (cam_forward * local_point.y)
+        
+        return world_vector
+    else:
+        # Fallback to world-space mapping if the camera isn't found
+        print(f"Warning: '{GESTURE_CAMERA_NAME}' not found. Using world-space mapping.")
+        return local_point
 
 
 # === 3. MESH DEFORMATION ===
@@ -141,6 +189,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
     bl_label = "Conjure Fingertip Operator"
 
     _timer = None
+    last_marker_positions = []
 
     def modal(self, context, event):
         if event.type in {'RIGHTMOUSE', 'ESC'}:
@@ -167,12 +216,26 @@ class ConjureFingertipOperator(bpy.types.Operator):
             finger_positions_3d = []
             for i, tip in enumerate(all_fingertips):
                 if tip:
-                    pos_3d = map_hand_to_3d_space(tip['x'], tip['y'], tip['z'])
-                    finger_positions_3d.append(pos_3d)
+                    # The target position is the actual, precise location from the hand tracker.
+                    target_pos_3d = map_hand_to_3d_space(tip['x'], tip['y'], tip['z'])
+                    
+                    # The deformation logic should use the precise coordinates for responsiveness.
+                    finger_positions_3d.append(target_pos_3d)
+                    
                     marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
                     if marker_obj:
-                        marker_obj.location = pos_3d
+                        # Get the marker's last position.
+                        last_pos = self.last_marker_positions[i]
+                        
+                        # Calculate the new smoothed position using linear interpolation (lerp).
+                        smoothed_pos = last_pos.lerp(target_pos_3d, SMOOTHING_FACTOR)
+                        
+                        # Apply the smoothed position to the visual marker only.
+                        marker_obj.location = smoothed_pos
                         marker_obj.hide_viewport = False
+                        
+                        # Store the new smoothed position for the next frame's calculation.
+                        self.last_marker_positions[i] = smoothed_pos
             
             # Hide unused markers
             for i in range(len(all_fingertips), 10):
@@ -189,7 +252,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
     def execute(self, context):
         setup_scene()
-        self._timer = context.window_manager.event_timer_add(0.05, window=context.window)
+
+        # Initialize the list that will store the last known position of each marker.
+        self.last_marker_positions = [mathutils.Vector((0,0,0))] * 10
+        for i in range(10):
+            marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
+            if marker_obj:
+                self.last_marker_positions[i] = marker_obj.location.copy()
+
+        self._timer = context.window_manager.event_timer_add(REFRESH_RATE_SECONDS, window=context.window)
         context.window_manager.modal_handler_add(self)
         print("Conjure Fingertip Operator is now running.")
         return {'RUNNING_MODAL'}
