@@ -65,9 +65,9 @@ GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based ma
 # --- MAPPING SCALE ---
 # These values control how sensitive the hand tracking is.
 # Larger values mean the virtual hand moves more for a given physical hand movement.
-HAND_SCALE_X = 2.0 # Controls side-to-side movement.
-HAND_SCALE_Y = 2.0 # Controls forward-backward movement (from hand depth).
-HAND_SCALE_Z = 2.0 # Controls up-down movement.
+HAND_SCALE_X = 5.0 # Controls side-to-side movement.
+HAND_SCALE_Y = 5.0 # Controls forward-backward movement (from hand depth).
+HAND_SCALE_Z = 5.0 # Controls up-down movement.
 
 # --- VISUALIZATION ---
 MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to prevent flickering.
