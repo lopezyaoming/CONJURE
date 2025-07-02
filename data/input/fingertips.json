@@ -1,0 +1,11 @@
+{
+    "command": null,
+    "deform_active": false,
+    "left_hand": null,
+    "right_hand": null,
+    "anchors": [],
+    "rotation": 0.0,
+    "rotation_speed": 0.0,
+    "scale_axis": "XYZ",
+    "remesh_type": "BLOCKS"
+} 
