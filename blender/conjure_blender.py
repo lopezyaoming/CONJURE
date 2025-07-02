@@ -295,13 +295,8 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _timer = None
     _last_command = "none"
     _active_cube = None
-    last_marker_positions = []
-    
-    # --- For view reset ---
     _initial_camera_matrix = None
-    _is_resetting_view = False
-    _reset_view_start_time = 0.0
-    RESET_DURATION_SECONDS = 1.0 # How long the smooth reset should take
+    last_marker_positions = []
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
@@ -312,42 +307,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
             return self.cancel(context)
 
         if event.type == 'TIMER':
-            # --- Handle Smooth View Reset ---
-            if self._is_resetting_view:
-                camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
-                if not camera:
-                    self._is_resetting_view = False
-                    return {'PASS_THROUGH'}
-
-                elapsed = time.time() - self._reset_view_start_time
-                
-                if elapsed >= self.RESET_DURATION_SECONDS:
-                    # Reset complete, snap to final matrix and stop resetting
-                    if self._initial_camera_matrix:
-                        camera.matrix_world = self._initial_camera_matrix
-                    self._is_resetting_view = False
-                else:
-                    # Interpolate
-                    factor = elapsed / self.RESET_DURATION_SECONDS
-                    
-                    if self._initial_camera_matrix:
-                        # Decompose matrices into loc, rot, scale
-                        orig_loc, orig_rot, orig_scale = self._initial_camera_matrix.decompose()
-                        curr_loc, curr_rot, curr_scale = camera.matrix_world.decompose()
-                        
-                        # Interpolate location and rotation (slerp for quaternions is best)
-                        new_loc = curr_loc.lerp(orig_loc, factor)
-                        new_rot = curr_rot.slerp(orig_rot, factor)
-                        
-                        # Rebuild the matrix and assign it
-                        new_matrix = mathutils.Matrix.Translation(new_loc) @ new_rot.to_matrix().to_4x4()
-                        camera.matrix_world = new_matrix
-                    else:
-                        # If for some reason the initial matrix was never set, just stop.
-                        self._is_resetting_view = False
-
-                return {'PASS_THROUGH'} # Skip other logic while resetting
-
             live_data = {}
             if os.path.exists(FINGERTIPS_JSON_PATH):
                 with open(FINGERTIPS_JSON_PATH, "r") as f:
@@ -401,12 +360,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 print(f"'{DEFORM_OBJ_NAME}' not found. Cannot execute commands.")
                 return {'PASS_THROUGH'}
 
-            if command == "reset_view" and not self._is_resetting_view:
-                self._is_resetting_view = True
-                self._reset_view_start_time = time.time()
-                # We don't return here, just start the process for the next timer event
-
-            elif command == "deform":
+            if command == "deform":
                 if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 2:
                     # Per instructions, only thumb and index finger on right hand cause deformation
                     thumb_tip = right_hand_data["fingertips"][0] # Thumb
@@ -439,6 +393,11 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     # Apply the rotation
                     camera.matrix_world = rot_mat @ camera.matrix_world
 
+            elif command == "reset_rotation":
+                camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
+                if camera and self._initial_camera_matrix:
+                    camera.matrix_world = self._initial_camera_matrix
+
             elif command == "create_cube":
                 if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 5:
                     # Get thumb and pinky from right hand
@@ -462,15 +421,16 @@ class ConjureFingertipOperator(bpy.types.Operator):
     def execute(self, context):
         setup_scene()
 
-        # Store initial camera state for the reset view feature
-        camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
-        if camera:
-            self._initial_camera_matrix = camera.matrix_world.copy()
-        self._is_resetting_view = False
-
         # Set custom properties on the window manager to track operator state for the UI
         context.window_manager.conjure_is_running = True
         context.window_manager.conjure_should_stop = False
+
+        # Store the camera's initial transform matrix
+        camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
+        if camera:
+            self._initial_camera_matrix = camera.matrix_world.copy()
+        else:
+            self._initial_camera_matrix = mathutils.Matrix() # Fallback to identity matrix
 
         # Initialize the list that will store the last known position of each marker.
         self.last_marker_positions = [mathutils.Vector((0,0,0))] * 10

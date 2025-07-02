@@ -1,98 +1,26 @@
-# CONJURE - Step-by-Step Development Plan
+Log
 
-This document outlines a logical and sequential development path for the CONJURE project. Each phase builds upon the last, ensuring that we have a working, testable system at every stage.
+Date: 2024-07-25
 
----
+Today's session focused on implementing a comprehensive gesture-based control system and improving the overall user experience.
 
-### **Phase 1: Core Interaction Loop (✅ Completed)**
+Advances:
+1.  **Gesture Lexicon Implementation**: A full set of hand gestures has been integrated to control the main modeling functions. The system now recognizes touches between the thumb and other fingers on both hands.
 
-The goal of this phase was to establish the fundamental real-time link between hand gestures and mesh deformation.
+2.  **Right-Hand Commands**:
+    *   **Deformation (Thumb + Index)**: Activates mesh deformation. This is now weighted to only be influenced by the thumb and index fingertips for more precise control.
+    *   **Camera Orbit (Thumb + Middle/Ring)**: The camera now orbits around the central mesh on the Z-axis (middle finger) or Y-axis (ring finger), providing a more intuitive inspection experience. This replaces the previous object-centric rotation.
+    *   **Cube Creation (Thumb + Pinky)**: Allows the user to dynamically create a cube primitive. The cube is finalized and merged with the main mesh upon gesture release.
 
--   [x] **Setup Project Structure:** Create the initial folders and files (`launcher`, `blender`, `data`, etc.).
--   [x] **Implement Hand Tracker:** Create `hand_tracker.py` to capture webcam feed, use Mediapipe to detect hands, and write data to `fingertips.json`.
--   [x] **Implement Blender Script:** Create `conjure_blender.py` to read `fingertips.json`, plot visual markers for fingertips, and deform a target mesh.
--   [x] **Establish I/O Bridge:** Successfully link the two scripts via the `fingertips.json` file.
--   [x] **Refine Interaction:** Implement camera-relative mapping, refresh rate optimization, and visual smoothing for an intuitive user experience.
+3.  **Left-Hand Commands**:
+    *   **Camera Reset (Thumb + Index)**: A new "home" button functionality. Holding this gesture for one second resets the camera to its initial position, preventing disorientation.
 
----
+4.  **User Experience Enhancements**:
+    *   **Flicker Correction**: Eliminated the flickering of fingertip markers by moving them to a distant location instead of toggling their visibility.
+    *   **Gesture Hold Mechanism**: Implemented a one-second hold requirement for the camera reset gesture to prevent accidental activation.
+    *   **Blender UI Panel**: Added a dedicated "CONJURE" panel in the Blender UI to cleanly initiate and finalize the script, removing the need to manually stop it.
+    *   **Coordinate Mapping Scale**: Introduced configurable scaling factors (X, Y, Z) for hand mapping, allowing for fine-tuning of gesture sensitivity.
 
-### **Phase 2: Expanding Gestures & Blender Actions**
-
-The goal of this phase is to move beyond simple deformation and implement the other core interaction modes described in `masterPrompt.txt`.
-
-1.  **Implement Rotation:**
-    -   In `hand_tracker.py`: Add gesture detection for rotation (e.g., thumb-to-middle-finger pinch).
-    -   In `hand_tracker.py`: Add a `"rotate"` command to the JSON output.
-    -   In `conjure_blender.py`: When the `"rotate"` command is received, rotate the `GestureCamera` around the `DeformableMesh`.
-
-2.  **Implement Scaling:**
-    -   In `hand_tracker.py`: Add gesture detection for scaling (e.g., thumb-to-ring-finger pinch).
-    -   In `hand_tracker.py`: Add a `"scale"` command to the JSON output.
-    -   In `conjure_blender.py`: When the `"scale"` command is received, uniformly scale the `DeformableMesh`.
-
-3.  **Implement Anchors (Left Hand):**
-    -   In `hand_tracker.py`: Add gesture detection for the left hand to create and clear anchor points.
-    -   In `hand_tracker.py`: Populate the `"anchors"` list in the JSON output.
-    -   In `conjure_blender.py`: Add logic to the `deform_mesh` function to use these anchor points as areas of stronger influence, effectively pinning the mesh.
-
----
-
-### **Phase 3: The `Launcher` as an Orchestrator**
-
-The goal of this phase is to build out the main application that manages all the subprocesses, as described in `README.md`.
-
-1.  **Create the Main Executable:**
-    -   In `launcher/main.py`: Write the script that will serve as the application's entry point.
-    -   In `launcher/subprocess_manager.py`: Implement functions to start and stop the `hand_tracker.py` script as a background process.
-    -   In `launcher/subprocess_manager.py`: Add logic to launch Blender with the `conjure_blender.py` script automatically (`blender --background scene.blend --python conjure_blender.py`).
-
-2.  **Implement State Management:**
-    -   In `launcher/state_manager.py`: Create a class to read and write to `state.json`.
-    -   The main loop in `launcher/main.py` will now be driven by this state, which will eventually coordinate Blender, ComfyUI, and the Agent.
-
----
-
-### **Phase 4: ComfyUI Integration (2D `promptMaker` Workflow)**
-
-The goal is to get the first end-to-end generative loop working: from a Blender render to AI image options.
-
-1.  **Implement Render Command:**
-    -   In `hand_tracker.py`: Add a "render" gesture (e.g., a closed fist).
-    -   In `conjure_blender.py`: When the "render" command is received, render an image from the `GestureCamera`'s perspective and save it to a known location (e.g., `data/output/gesture_render.png`).
-
-2.  **Implement ComfyUI Wrapper:**
-    -   In `comfyui/api_wrapper.py`: Write functions to connect to the ComfyUI server's API and trigger a workflow execution.
-    -   Ensure the `promptMaker.json` workflow is correctly configured to accept an input image.
-
-3.  **Create Basic GUI:**
-    -   In `launcher/gui.py`: Using PyQt6, create a very simple, non-interactive window that can display three images side-by-side.
-    -   In `launcher/main.py`: When the Blender render is complete (by checking for the file's existence), use the `api_wrapper` to send the image to ComfyUI.
-    -   When ComfyUI returns the 3 generated images, display them in the GUI window.
-
----
-
-### **Phase 5: ComfyUI Integration (3D `mvto3D` Workflow)**
-
-The goal is to implement the full multi-view 2D-to-3D generation pipeline.
-
-1.  **Implement Multi-View Rendering:**
-    -   In `conjure_blender.py`: Create a function that, when triggered, renders the `DeformableMesh` from 6 specific angles using the `MVCamera` and saves them to `data/input/multiview/`.
-    -   This should be triggered by a specific user action (e.g., selecting one of the 3 images from the GUI in Phase 4).
-
-2.  **Trigger `mvto3D` Workflow:**
-    -   In `launcher/main.py`: Once all 6 renders are present, use the `api_wrapper` to trigger the `mvto3D` workflow in ComfyUI, passing the images and a selected prompt.
-
-3.  **Import Generated Mesh:**
-    -   In `conjure_blender.py`: Add a "file watcher" that periodically checks for a new `.glb` file in `data/output/`.
-    -   When a new mesh is detected, automatically import it, replace the current `DeformableMesh`, and normalize it to fit the bounding box.
-
----
-
-### **Phase 6 & Beyond: Agent, Segmentation, and Polish**
-
-Once the core generative loop is working, we can add the final layers of functionality.
-
-1.  **Conversational Agent (`agent_api.py`):** Integrate ElevenLabs for voice-to-text and text-to-speech to generate prompts and provide narrative feedback.
-2.  **CGAL Segmenter:** Implement the subprocess call to the C++ segmenter and the Blender logic to parse the resulting vertex-colored mesh.
-3.  **Full GUI Implementation:** Build out the complete, interactive GUI with chat boxes, loading screens, and segment selection.
-4.  **Refinement and Testing:** Thoroughly test each phase and optimize for performance and usability. 
+5.  **Code & Stability**:
+    *   Refactored Blender script to correctly register and handle custom properties, resolving `AttributeError` tracebacks.
+    *   Resolved `ModuleNotFoundError` for the `mediapipe` library by adjusting import statements for better environment compatibility. 

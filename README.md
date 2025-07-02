@@ -71,8 +71,32 @@ For the most precise and intuitive control, a one-time calibration process will 
 ### Step 3: Interact
 
 - With both scripts running, you can now interact with the default mesh in Blender.
-- Make a **pinching gesture** with your right hand to activate the deformation mode.
-- Move your hand to sculpt the mesh in real-time.
+- Find the **CONJURE** panel in the 3D Viewport's UI shelf (press `N` if not visible) and click **"Initiate CONJURE"**.
+
+---
+
+## User Manual: Gesture Controls
+
+CONJURE is designed to be controlled with intuitive hand gestures. All actions are performed relative to the camera's view, giving you a stable and predictable workspace.
+
+### Right-Hand Gestures: Primary Actions
+
+Your right hand is your primary tool for creating and shaping.
+
+| Gesture                 | Action                                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Thumb + Index Finger**  | **Deform Mesh:** Activates sculpting mode. Only the thumb and index finger will pull and push the mesh, allowing for fine control. |
+| **Thumb + Middle Finger** | **Orbit Camera (Z-axis):** Rotates your view horizontally around the object.                                                      |
+| **Thumb + Ring Finger**   | **Orbit Camera (Y-axis):** Rotates your view vertically around the object.                                                         |
+| **Thumb + Pinky Finger**  | **Create Cube:** Spawns a cube. The size is controlled by the distance between your thumb and pinky. Release to merge it.           |
+
+### Left-Hand Gestures: Utility Actions
+
+Your left hand is used for support and utility functions.
+
+| Gesture                            | Action                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| **Thumb + Index Finger (Hold 1s)** | **Reset Camera:** Snaps the camera back to its original starting position.    |
 
 ---
 

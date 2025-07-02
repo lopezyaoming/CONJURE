@@ -5,17 +5,11 @@
 
 import cv2
 import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-from mediapipe.framework.formats import landmark_pb2
 import json
 import os
 import math
 import time
 from pathlib import Path
-
-# Global variable to store the latest gesture recognition result
-latest_result = None
 
 # --- Configuration ---
 # This setup allows the script to be run from anywhere and still find the project root.
@@ -24,12 +18,11 @@ try:
     PROJECT_ROOT = Path(__file__).parent.parent
 except NameError:
     # Fallback for running from a different context or IDE
-    PROJECT_ROOT = Path(os.path.abspath(''))
+    PROJECT_ROOT = Path(os.path.abspath('')).parent
 
 DATA_DIR = PROJECT_ROOT / "data"
 INPUT_DIR = DATA_DIR / "input"
 FINGERTIPS_JSON_PATH = INPUT_DIR / "fingertips.json"
-GESTURE_MODEL_PATH = DATA_DIR / "gesture_recognizer.task"
 
 # Touch distance threshold
 TOUCH_THRESHOLD = 0.07 # Increased slightly for more reliable detection
@@ -47,33 +40,26 @@ def is_thumb_and_finger_touching(hand_landmarks, finger_tip_id):
     if not hand_landmarks:
         return False
     
-    thumb_tip = hand_landmarks[mp.solutions.hands.HandLandmark.THUMB_TIP]
-    finger_tip = hand_landmarks[finger_tip_id]
+    thumb_tip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.THUMB_TIP]
+    finger_tip = hand_landmarks.landmark[finger_tip_id]
     
     distance = get_distance(thumb_tip, finger_tip)
     
     return distance < TOUCH_THRESHOLD
 
-# --- Result Callback ---
-def print_result(result: vision.GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
-    """A callback function to receive and process the gesture recognition result."""
-    global latest_result
-    latest_result = result
-
-
 # --- Main Application Logic ---
 def run_hand_tracker():
     """Initializes camera, runs Mediapipe, and writes data to JSON."""
     
-    # --- Recognizer Initialization ---
-    base_options = python.BaseOptions(model_asset_path=str(GESTURE_MODEL_PATH))
-    options = vision.GestureRecognizerOptions(
-        base_options=base_options,
-        running_mode=vision.RunningMode.LIVE_STREAM,
-        num_hands=2,
-        result_callback=print_result
+    # Initialize Mediapipe
+    mp_hands = mp.solutions.hands
+    mp_drawing = mp.solutions.drawing_utils
+    hands = mp_hands.Hands(
+        static_image_mode=False,
+        max_num_hands=2,
+        min_detection_confidence=0.7,
+        min_tracking_confidence=0.5
     )
-    recognizer = vision.GestureRecognizer.create_from_options(options)
 
     # Initialize Webcam
     cap = cv2.VideoCapture(0)
@@ -83,7 +69,9 @@ def run_hand_tracker():
 
     print("Hand tracker running. Press 'q' to quit.")
 
-    frame_timestamp_ms = 0
+    reset_gesture_start_time = None
+    reset_gesture_fired = False
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -93,73 +81,76 @@ def run_hand_tracker():
         # Flip the frame horizontally for a later selfie-view display
         frame = cv2.flip(frame, 1)
         
-        # Convert the BGR image to RGB and create a MediaPipe Image object
+        # Convert the BGR image to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        
-        # Increment timestamp
-        frame_timestamp_ms = int(time.time() * 1000)
         
         # Process the frame and find hands
-        recognizer.recognize_async(mp_image, frame_timestamp_ms)
+        results = hands.process(rgb_frame)
 
-        # --- Process the latest result ---
+        # Prepare data for JSON
         left_hand_fingertips = None
         right_hand_fingertips = None
-        command = "none"
-        
-        if latest_result:
-            # Draw the hand annotations on the image
-            if latest_result.hand_landmarks:
-                for hand_idx, hand_landmarks in enumerate(latest_result.hand_landmarks):
-                    # Draw landmarks for debugging
-                    hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-                    hand_landmarks_proto.landmark.extend([
-                        landmark_pb2.NormalizedLandmark(x=lm.x, y=lm.y, z=lm.z) for lm in hand_landmarks
-                    ])
-                    mp.solutions.drawing_utils.draw_landmarks(
-                        frame,
-                        hand_landmarks_proto,
-                        mp.solutions.hands.HAND_CONNECTIONS
-                    )
+        right_hand_command = "none"
+        left_hand_command = "none"
 
-                    # Extract fingertip data
-                    fingertips = []
-                    # THUMB_TIP, INDEX_FINGER_TIP, etc.
-                    for tip_id in [4, 8, 12, 16, 20]:
-                        lm = hand_landmarks[tip_id]
-                        fingertips.append({"x": lm.x, "y": lm.y, "z": lm.z})
+        # Draw the hand annotations on the image
+        if results.multi_hand_landmarks:
+            for hand_idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                # Draw landmarks and connections for debugging
+                mp_drawing.draw_landmarks(
+                    frame,
+                    hand_landmarks,
+                    mp_hands.HAND_CONNECTIONS
+                )
 
-                    # Check handedness
-                    handedness = latest_result.handedness[hand_idx][0].category_name
-                    if handedness == "Left":
-                        left_hand_fingertips = fingertips
-                    else: # Right
-                        right_hand_fingertips = fingertips
-                        
-                        # Check for our existing gestures
-                        if is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP):
-                            command = "deform"
-                        elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP):
-                            command = "rotate_z"
-                        elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.RING_FINGER_TIP):
-                            command = "rotate_y"
-                        elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.PINKY_TIP):
-                            command = "create_cube"
-            
-            # Check for classified gestures (like Closed_Fist)
-            if latest_result.gestures:
-                for hand_gestures in latest_result.gestures:
-                    if hand_gestures: # Check if list is not empty
-                        top_gesture = hand_gestures[0]
-                        if top_gesture.category_name == "Closed_Fist":
-                            command = "reset_view"
+                # Extract fingertip data
+                fingertips = []
+                for tip_id in [4, 8, 12, 16, 20]: # THUMB_TIP, INDEX_FINGER_TIP, etc.
+                    lm = hand_landmarks.landmark[tip_id]
+                    fingertips.append({"x": lm.x, "y": lm.y, "z": lm.z})
+
+                # Check handedness
+                handedness = results.multi_handedness[hand_idx].classification[0].label
+                if handedness == "Left":
+                    left_hand_fingertips = fingertips
+                    # Check for reset gesture on the left hand, with a 1-second hold
+                    if is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP):
+                        if reset_gesture_start_time is None:
+                            reset_gesture_start_time = time.time() # Start the timer
+
+                        # Check if held for 1 second and hasn't already fired
+                        if time.time() - reset_gesture_start_time >= 1.0 and not reset_gesture_fired:
+                            left_hand_command = "reset_rotation"
+                            reset_gesture_fired = True # Ensure it only fires once per hold
+                    else:
+                        # If the gesture is released, reset the timer and the fired state
+                        reset_gesture_start_time = None
+                        reset_gesture_fired = False
+                else: # Right
+                    right_hand_fingertips = fingertips
+                    # Check for gestures on the right hand to determine the command
+                    if is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP):
+                        right_hand_command = "deform"
+                    elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP):
+                        right_hand_command = "rotate_z"
+                    elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.RING_FINGER_TIP):
+                        right_hand_command = "rotate_y"
+                    elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.PINKY_TIP):
+                        right_hand_command = "create_cube"
+
+        # Prioritize left hand command (reset) over right hand commands
+        command = left_hand_command if left_hand_command != "none" else right_hand_command
 
         # --- Structure and Write JSON ---
         output_data = {
             "command": command,
             "left_hand": {"fingertips": left_hand_fingertips} if left_hand_fingertips else None,
             "right_hand": {"fingertips": right_hand_fingertips} if right_hand_fingertips else None,
+            "anchors": [],
+            "rotation": 0.0,
+            "rotation_speed": 0.0,
+            "scale_axis": "XYZ",
+            "remesh_type": "BLOCKS"
         }
 
         try:
@@ -169,6 +160,7 @@ def run_hand_tracker():
             print(f"Error writing to JSON file: {e}")
 
         # --- Display Debugging View ---
+        # Add a status text to the frame
         status_text = f"Command: {command}"
         color = (0, 255, 0) if command != "none" else (0, 0, 255)
         cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
@@ -180,7 +172,7 @@ def run_hand_tracker():
             break
 
     # Cleanup
-    recognizer.close()
+    hands.close()
     cap.release()
     cv2.destroyAllWindows()
     print("Hand tracker stopped.")
