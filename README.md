@@ -20,30 +20,46 @@ ComfyUI: This will be used to generate the 3D models, 2D images, display text an
 Generates 3D models from Multiview
 Generates image options from multiview
 
-## Project Structure
-```
 CONJURE/
-├── assets/
-│   ├── materials/
-│   └── prebuilt_meshes/
+├── launcher/
+│   ├── main.py                   # Main controller (.exe entry point)
+│   ├── gui.py                    # PyQt6 interface
+│   ├── agent_api.py              # ElevenLabs conversational agent
+│   ├── state_manager.py          # Event loop from state.json
+│   ├── subprocess_manager.py     # Launches Blender, CGAL, ComfyUI
+│   ├── config.py                 # Global constants and paths
+│   └── utils.py                  # Shared helper functions
+
+├── blender/
+│   ├── scene.blend               # Base scene file with cameras, primitives, fingertip object
+│   └── conjure_blender.py        # Single entry script run via --python
+
 ├── comfyui/
-│   ├── custom_nodes/
-│   └── workflows/
+│   ├── workflows/
+│   │   ├── promptMaker.json
+│   │   └── mvto3D.json
+│   └── api_wrapper.py
+
+├── cgal/
+│   ├── segment_mesh.exe
+│   └── segmenter_wrapper.py
+
 ├── data/
-│   ├── generated_images/
-│   ├── generated_models/
-│   └── hand_data/
-├── docs/
-├── src/
-│   ├── blender_scripts/
-│   └── overlay/
-│       ├── api_agent/
-│       ├── communication/
-│       ├── gui/
-│       ├── hand_tracking/
-│       └── segmenter/
-├── tests/
-├── LICENSE
-├── masterPrompt.txt
+│   ├── input/
+│   │   ├── fingertips.json
+│   │   ├── state.json
+│   │   ├── gesture_render.png
+│   │   ├── multiview/
+│   │   │   └── front.png ...     # 6-view images
+│   ├── output/
+│   │   ├── generated.glb
+│   │   ├── segmented.ply
+│   │   └── renders/
+│   └── assets/
+│       ├── primitives/
+│       └── materials/
+
+├── logs/
+│   └── system.log
+
 └── README.md
-```

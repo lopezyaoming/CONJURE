@@ -26,7 +26,7 @@ except NameError:
     
 DATA_DIR = PROJECT_ROOT / "data"
 FINGERTIPS_JSON_PATH = DATA_DIR / "input" / "fingertips.json"
-DEFORM_OBJ_NAME = "DeformableMesh"  # The name of the mesh we will manipulate
+DEFORM_OBJ_NAME = "Mesh"  # The name of the mesh we will manipulate
 
 # --- DEFORMATION PARAMETERS ---
 # These control how the mesh reacts to the user's hand.
@@ -79,34 +79,59 @@ def map_hand_to_3d_space(x_norm, y_norm, z_norm, scale=2.0):
 def deform_mesh(mesh_obj, finger_positions_3d):
     """
     Deforms the mesh using bmesh based on the 3D positions of the fingertips.
+    This version operates on mesh data directly for stability and performance,
+    avoiding repeated mode switching.
     """
     if not mesh_obj or not finger_positions_3d:
         return
 
-    bpy.context.view_layer.objects.active = mesh_obj
-    bpy.ops.object.mode_set(mode='EDIT')
-    bm = bmesh.from_edit_mesh(mesh_obj.data)
+    # 1. Create a bmesh from the object's mesh data
+    bm = bmesh.new()
+    bm.from_mesh(mesh_obj.data)
 
+    # Ensure the lookup table is current before any indexed access
+    bm.verts.ensure_lookup_table()
+
+    # The mesh's vertices are in its own local space, but the fingertip
+    # positions are in world space. We must convert the fingertips to local space.
+    inv_matrix = mesh_obj.matrix_world.inverted()
+    local_finger_positions = [inv_matrix @ pos for pos in finger_positions_3d]
+
+    # 2. Build a KDTree for efficient spatial lookups of vertices
     size = len(bm.verts)
     kd = mathutils.kdtree.KDTree(size)
     for i, v in enumerate(bm.verts):
         kd.insert(v.co, i)
     kd.balance()
 
-    for finger_pos in finger_positions_3d:
+    # 3. Calculate all displacements first, storing them in a dictionary.
+    # This avoids modifying the mesh while iterating over it.
+    displacements = {}  # {vertex_index: displacement_vector}
+    for finger_pos in local_finger_positions:
         for (co, index, dist) in kd.find_range(finger_pos, FINGER_INFLUENCE_RADIUS):
-            vertex = bm.verts[index]
-            falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS)) ** 2
-            direction = (finger_pos - vertex.co).normalized()
-            displacement = direction * FINGER_FORCE_STRENGTH * falloff
+            if dist > 0:
+                falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
+                direction = (finger_pos - co).normalized()
+                
+                # Add to existing displacement for this vertex or create a new one
+                current_displacement = displacements.get(index, mathutils.Vector((0, 0, 0)))
+                displacements[index] = current_displacement + (direction * FINGER_FORCE_STRENGTH * falloff)
 
+    # 4. Apply the calculated displacements to the bmesh vertices
+    if displacements:
+        for index, displacement in displacements.items():
+            # Safety clamp to prevent extreme, glitchy movements
             if displacement.length > MAX_DISPLACEMENT_PER_FRAME:
                 displacement = displacement.normalized() * MAX_DISPLACEMENT_PER_FRAME
             
-            vertex.co += displacement
+            bm.verts[index].co += displacement
 
-    bmesh.update_edit_mesh(mesh_obj.data)
-    bpy.ops.object.mode_set(mode='OBJECT')
+    # 5. Write the modified bmesh data back to the mesh
+    bm.to_mesh(mesh_obj.data)
+    bm.free()
+
+    # 6. Tag the mesh to ensure the viewport updates
+    mesh_obj.data.update()
 
 
 # === BLENDER MODAL OPERATOR ===
