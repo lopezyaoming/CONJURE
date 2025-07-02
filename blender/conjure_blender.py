@@ -15,6 +15,38 @@ import time
 from pathlib import Path
 import math
 
+
+# === 1. UI PANEL ===
+class CONJURE_PT_control_panel(bpy.types.Panel):
+    """Creates a Panel in the 3D Viewport UI to control the script."""
+    bl_label = "CONJURE Control"
+    bl_idname = "CONJURE_PT_control_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'CONJURE'
+
+    def draw(self, context):
+        layout = self.layout
+        wm = context.window_manager
+
+        # Check a custom property to see if the modal operator is running
+        if wm.conjure_is_running:
+            layout.operator("conjure.stop_operator", text="Finalize CONJURE", icon='PAUSE')
+        else:
+            # The 'conjure.fingertip_operator' is the main operator defined below
+            layout.operator("conjure.fingertip_operator", text="Initiate CONJURE", icon='PLAY')
+
+class CONJURE_OT_stop_operator(bpy.types.Operator):
+    """A simple operator that sets a flag to signal the modal operator to stop."""
+    bl_idname = "conjure.stop_operator"
+    bl_label = "Stop Conjure Operator"
+
+    def execute(self, context):
+        # This property will be checked by the modal operator in its main loop
+        context.window_manager.conjure_should_stop = True
+        return {'FINISHED'}
+
+
 # --- CORE CONFIGURATION ---
 # Using pathlib to create a robust, OS-agnostic path.
 # This assumes the script is run from a context where the project root can be determined.
@@ -30,11 +62,24 @@ FINGERTIPS_JSON_PATH = DATA_DIR / "input" / "fingertips.json"
 DEFORM_OBJ_NAME = "DeformableMesh"  # The name of the mesh we will manipulate
 GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based mapping
 
+# --- MAPPING SCALE ---
+# These values control how sensitive the hand tracking is.
+# Larger values mean the virtual hand moves more for a given physical hand movement.
+HAND_SCALE_X = 2.0 # Controls side-to-side movement.
+HAND_SCALE_Y = 2.0 # Controls forward-backward movement (from hand depth).
+HAND_SCALE_Z = 2.0 # Controls up-down movement.
+
+# --- VISUALIZATION ---
+MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to prevent flickering.
+
 # --- REFRESH RATE ---
 # The target interval in seconds for the operator to update.
 # A smaller value means a higher refresh rate. 30 FPS is a good balance
 # between smooth interaction and preventing I/O contention with the hand tracker.
 REFRESH_RATE_SECONDS = 1 / 30  # Target 30 updates per second.
+
+# --- ROTATION ---
+ROTATION_SPEED_DEGREES_PER_SEC = 45.0 # How fast the object rotates
 
 # --- SMOOTHING ---
 # How much to smooth the movement of the visual fingertip markers.
@@ -85,7 +130,7 @@ def setup_scene():
 
 
 # === 2. COORDINATE MAPPING ===
-def map_hand_to_3d_space(x_norm, y_norm, z_norm, scale=2.0):
+def map_hand_to_3d_space(x_norm, y_norm, z_norm):
     """
     Maps normalized (0-1) hand coordinates to Blender's 3D world space,
     relative to the perspective of the GestureCamera.
@@ -96,9 +141,9 @@ def map_hand_to_3d_space(x_norm, y_norm, z_norm, scale=2.0):
     # 2. Define a base coordinate vector from the normalized inputs
     #    (x is side-to-side, y is forward-back, z is up-down)
     local_point = mathutils.Vector((
-        (x_norm - 0.5) * scale,
-        z_norm * -scale,
-        (0.5 - y_norm) * scale
+        (x_norm - 0.5) * HAND_SCALE_X,
+        z_norm * -HAND_SCALE_Y, # The negative sign inverts depth from the camera
+        (0.5 - y_norm) * HAND_SCALE_Z
     ))
 
     if camera:
@@ -182,6 +227,65 @@ def deform_mesh(mesh_obj, finger_positions_3d):
     mesh_obj.data.update()
 
 
+# === 4. CUBE CREATION ===
+def create_new_cube(pos1, pos2):
+    """Creates a new cube object between two points in space."""
+    if not pos1 or not pos2:
+        return None
+    
+    center = (pos1 + pos2) / 2.0
+    size = (pos1 - pos2).length
+    if size < 0.01:
+        size = 0.01
+
+    bpy.ops.mesh.primitive_cube_add(size=1, location=center, scale=(size, size, size))
+    cube = bpy.context.active_object
+    cube.name = "ConjureCube"
+    return cube
+
+def update_cube(cube, pos1, pos2):
+    """Updates an existing cube's position and scale based on two points."""
+    if not cube or not pos1 or not pos2:
+        return
+        
+    center = (pos1 + pos2) / 2.0
+    size = (pos1 - pos2).length
+    if size < 0.01:
+        size = 0.01
+        
+    cube.location = center
+    cube.scale = (size, size, size)
+
+def finalize_cube_creation(deform_obj, cube_obj):
+    """Applies a boolean union to merge the cube with the deform mesh."""
+    if not deform_obj or not cube_obj:
+        return
+
+    print(f"Finalizing cube: applying UNION with {deform_obj.name}")
+    
+    # Ensure deform_obj is active and selected
+    bpy.ops.object.select_all(action='DESELECT')
+    deform_obj.select_set(True)
+    bpy.context.view_layer.objects.active = deform_obj
+
+    # Create and configure the boolean modifier
+    bool_mod = deform_obj.modifiers.new(name="ConjureUnion", type='BOOLEAN')
+    bool_mod.operation = 'UNION'
+    bool_mod.object = cube_obj
+    
+    # Apply the modifier
+    try:
+        bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+        print("Boolean modifier applied.")
+    except RuntimeError as e:
+        print(f"Error applying boolean modifier: {e}. Removing modifier.")
+        deform_obj.modifiers.remove(bool_mod)
+
+    # Clean up the temporary cube
+    bpy.data.objects.remove(cube_obj, do_unlink=True)
+    print("Temporary cube removed.")
+
+
 # === BLENDER MODAL OPERATOR ===
 class ConjureFingertipOperator(bpy.types.Operator):
     """The main operator that reads hand data and orchestrates actions."""
@@ -189,69 +293,184 @@ class ConjureFingertipOperator(bpy.types.Operator):
     bl_label = "Conjure Fingertip Operator"
 
     _timer = None
+    _last_command = "none"
+    _active_cube = None
     last_marker_positions = []
+    
+    # --- For view reset ---
+    _initial_camera_matrix = None
+    _is_resetting_view = False
+    _reset_view_start_time = 0.0
+    RESET_DURATION_SECONDS = 1.0 # How long the smooth reset should take
 
     def modal(self, context, event):
+        # The UI panel can set this property to signal the operator to stop
+        if context.window_manager.conjure_should_stop:
+            return self.cancel(context)
+
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             return self.cancel(context)
 
         if event.type == 'TIMER':
+            # --- Handle Smooth View Reset ---
+            if self._is_resetting_view:
+                camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
+                if not camera:
+                    self._is_resetting_view = False
+                    return {'PASS_THROUGH'}
+
+                elapsed = time.time() - self._reset_view_start_time
+                
+                if elapsed >= self.RESET_DURATION_SECONDS:
+                    # Reset complete, snap to final matrix and stop resetting
+                    if self._initial_camera_matrix:
+                        camera.matrix_world = self._initial_camera_matrix
+                    self._is_resetting_view = False
+                else:
+                    # Interpolate
+                    factor = elapsed / self.RESET_DURATION_SECONDS
+                    
+                    if self._initial_camera_matrix:
+                        # Decompose matrices into loc, rot, scale
+                        orig_loc, orig_rot, orig_scale = self._initial_camera_matrix.decompose()
+                        curr_loc, curr_rot, curr_scale = camera.matrix_world.decompose()
+                        
+                        # Interpolate location and rotation (slerp for quaternions is best)
+                        new_loc = curr_loc.lerp(orig_loc, factor)
+                        new_rot = curr_rot.slerp(orig_rot, factor)
+                        
+                        # Rebuild the matrix and assign it
+                        new_matrix = mathutils.Matrix.Translation(new_loc) @ new_rot.to_matrix().to_4x4()
+                        camera.matrix_world = new_matrix
+                    else:
+                        # If for some reason the initial matrix was never set, just stop.
+                        self._is_resetting_view = False
+
+                return {'PASS_THROUGH'} # Skip other logic while resetting
+
             live_data = {}
             if os.path.exists(FINGERTIPS_JSON_PATH):
                 with open(FINGERTIPS_JSON_PATH, "r") as f:
                     try:
                         live_data = json.load(f)
                     except json.JSONDecodeError:
-                        live_data = {}
+                        live_data = {} # Keep going with empty data
 
             command = live_data.get("command", "none")
+            mesh_obj = bpy.data.objects.get(DEFORM_OBJ_NAME)
+
+            # --- Handle state transitions (e.g., finishing a cube creation) ---
+            if self._last_command == "create_cube" and command != "create_cube":
+                if self._active_cube and mesh_obj:
+                    finalize_cube_creation(mesh_obj, self._active_cube)
+                self._active_cube = None # Reset cube state
+
+            # --- Process Fingertips for Visualization ---
             all_fingertips = []
-            
-            # Process both left and right hands
-            for hand_type in ["left_hand", "right_hand"]:
-                hand_data = live_data.get(hand_type)
+            right_hand_data = live_data.get("right_hand")
+            left_hand_data = live_data.get("left_hand")
+
+            # Process both left and right hands for visual markers
+            for hand_data in [left_hand_data, right_hand_data]:
                 if hand_data and "fingertips" in hand_data:
                     all_fingertips.extend(hand_data["fingertips"])
 
             finger_positions_3d = []
+            # This loop updates the visual markers for all fingers
             for i, tip in enumerate(all_fingertips):
                 if tip:
-                    # The target position is the actual, precise location from the hand tracker.
                     target_pos_3d = map_hand_to_3d_space(tip['x'], tip['y'], tip['z'])
-                    
-                    # The deformation logic should use the precise coordinates for responsiveness.
                     finger_positions_3d.append(target_pos_3d)
-                    
                     marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
                     if marker_obj:
-                        # Get the marker's last position.
                         last_pos = self.last_marker_positions[i]
-                        
-                        # Calculate the new smoothed position using linear interpolation (lerp).
                         smoothed_pos = last_pos.lerp(target_pos_3d, SMOOTHING_FACTOR)
-                        
-                        # Apply the smoothed position to the visual marker only.
                         marker_obj.location = smoothed_pos
+                        # Ensure the marker is always visible when in use.
                         marker_obj.hide_viewport = False
-                        
-                        # Store the new smoothed position for the next frame's calculation.
                         self.last_marker_positions[i] = smoothed_pos
             
-            # Hide unused markers
+            # Move unused markers out of view instead of hiding them
             for i in range(len(all_fingertips), 10):
                 marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
                 if marker_obj:
-                    marker_obj.hide_viewport = True
+                    marker_obj.location = MARKER_OUT_OF_VIEW_LOCATION
 
-            if command == "deform" and live_data.get("deform_active", False):
-                mesh_obj = bpy.data.objects.get(DEFORM_OBJ_NAME)
-                if mesh_obj:
-                    deform_mesh(mesh_obj, finger_positions_3d)
+            # --- Execute Commands ---
+            if not mesh_obj:
+                print(f"'{DEFORM_OBJ_NAME}' not found. Cannot execute commands.")
+                return {'PASS_THROUGH'}
+
+            if command == "reset_view" and not self._is_resetting_view:
+                self._is_resetting_view = True
+                self._reset_view_start_time = time.time()
+                # We don't return here, just start the process for the next timer event
+
+            elif command == "deform":
+                if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 2:
+                    # Per instructions, only thumb and index finger on right hand cause deformation
+                    thumb_tip = right_hand_data["fingertips"][0] # Thumb
+                    index_tip = right_hand_data["fingertips"][1] # Index
+                    
+                    deform_points = [
+                        map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z']),
+                        map_hand_to_3d_space(index_tip['x'], index_tip['y'], index_tip['z'])
+                    ]
+                    deform_mesh(mesh_obj, deform_points)
+
+            elif command == "rotate_z":
+                camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
+                if camera:
+                    # Orbit the camera around the world Z-axis
+                    angle_rad = math.radians(ROTATION_SPEED_DEGREES_PER_SEC * REFRESH_RATE_SECONDS)
+                    # Create a rotation matrix around the Z axis
+                    rot_mat = mathutils.Matrix.Rotation(angle_rad, 4, 'Z')
+                    # Apply the rotation to the camera's matrix_world.
+                    # This rotates the camera's location and orientation around the world origin.
+                    camera.matrix_world = rot_mat @ camera.matrix_world
+            
+            elif command == "rotate_y":
+                camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
+                if camera:
+                    # Orbit the camera around the world Y-axis
+                    angle_rad = math.radians(ROTATION_SPEED_DEGREES_PER_SEC * REFRESH_RATE_SECONDS)
+                    # Create a rotation matrix around the Y axis
+                    rot_mat = mathutils.Matrix.Rotation(angle_rad, 4, 'Y')
+                    # Apply the rotation
+                    camera.matrix_world = rot_mat @ camera.matrix_world
+
+            elif command == "create_cube":
+                if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 5:
+                    # Get thumb and pinky from right hand
+                    thumb_tip = right_hand_data["fingertips"][0]
+                    pinky_tip = right_hand_data["fingertips"][4]
+
+                    thumb_pos_3d = map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z'])
+                    pinky_pos_3d = map_hand_to_3d_space(pinky_tip['x'], pinky_tip['y'], pinky_tip['z'])
+
+                    if self._active_cube is None:
+                        # Create the cube for the first time
+                        self._active_cube = create_new_cube(thumb_pos_3d, pinky_pos_3d)
+                    else:
+                        # Update the existing cube's position and scale
+                        update_cube(self._active_cube, thumb_pos_3d, pinky_pos_3d)
+
+            self._last_command = command
 
         return {'PASS_THROUGH'}
 
     def execute(self, context):
         setup_scene()
+
+        # Store initial camera state for the reset view feature
+        camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
+        if camera:
+            self._initial_camera_matrix = camera.matrix_world.copy()
+        self._is_resetting_view = False
+
+        # Set custom properties on the window manager to track operator state for the UI
+        context.window_manager.conjure_is_running = True
+        context.window_manager.conjure_should_stop = False
 
         # Initialize the list that will store the last known position of each marker.
         self.last_marker_positions = [mathutils.Vector((0,0,0))] * 10
@@ -266,18 +485,39 @@ class ConjureFingertipOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def cancel(self, context):
+        # Clear the state-tracking properties when the operator stops
+        context.window_manager.conjure_is_running = False
+        context.window_manager.conjure_should_stop = False
+
         context.window_manager.event_timer_remove(self._timer)
+        # Clean up any leftover cube
+        if self._active_cube:
+            bpy.data.objects.remove(self._active_cube, do_unlink=True)
+            self._active_cube = None
         print("Conjure Fingertip Operator has been cancelled.")
         return {'CANCELLED'}
 
 
 # --- REGISTRATION ---
 def register():
+    bpy.utils.register_class(CONJURE_PT_control_panel)
+    bpy.utils.register_class(CONJURE_OT_stop_operator)
     bpy.utils.register_class(ConjureFingertipOperator)
+    # Register custom properties to the WindowManager
+    bpy.types.WindowManager.conjure_is_running = bpy.props.BoolProperty(default=False)
+    bpy.types.WindowManager.conjure_should_stop = bpy.props.BoolProperty(default=False)
+
 
 def unregister():
+    bpy.utils.unregister_class(CONJURE_PT_control_panel)
+    bpy.utils.unregister_class(CONJURE_OT_stop_operator)
     bpy.utils.unregister_class(ConjureFingertipOperator)
+    # Clean up the custom properties
+    del bpy.types.WindowManager.conjure_is_running
+    del bpy.types.WindowManager.conjure_should_stop
+
 
 if __name__ == "__main__":
     register()
-    bpy.ops.conjure.fingertip_operator() 
+    # We no longer call the operator directly. It must be started from the UI panel.
+    # bpy.ops.conjure.fingertip_operator() 

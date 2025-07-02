@@ -1,0 +1,269 @@
+What is CONJURE?
+CONJURE is an AI-powered, gesture- and conversation-based platform that transforms ideas into production-ready 3D models—instantly and intuitively.
+It bypasses traditional, technical modeling interfaces by allowing users to design using natural gestures and spoken instructions, bridging human intent with generative intelligence.
+CONJURE core purpose
+To make 3D modeling feel like intuitive expression
+
+Key components
+Overlay Executable: Is the main orchestrator between all the subcomponents and Blender. It is a python-based executable that coordinates Blender, ComfyUI and CGAL. It manages:
+GUI: Transparent UI that displays image options, information, and The AI chat boxes, and loading screens. (maybe managed through PyQt6+QtCSS)
+Mediapipe: Camera and mediapipe models that track hand movement and writes coordinates into fingertips.json
+Communication: Communicate between Blender and ComfyUI. Operates event-based loop, triggered up by updates from state.json. can write/read shared .json files. 
+API Agent: Listen, and play by hosting an ElevenLabs API call with an agent. 
+Subprocess Control: Launches and monitors background processes for ComfyUI workflows and CGAL segmentation modules as needed.
+
+API Agent: The Agent is a conversational AI interface powered by ElevenLabs with support for the Modular Control Protocol (MCP). Its purpose is to guide, interpret, and respond to user intent in both dialogue and design actions.
+It performs the following:
+Voice Understanding: Listens continuously to user speech and determines high-level intent. At critical points (e.g., after a mesh is completed or inspected), the Agent may autonomously trigger actions.
+Prompt Generation: Converts spoken input and scene context into clear textual prompts, which are sent to ComfyUI to generate images, variations, or 3D models.
+Scene Interpretation (Planned): The Agent may eventually evaluate screenshots or live camera feed to augment its decision-making (e.g., identify a mesh part, reaction, or user gesture).
+Narrative and Material Framing (Phase IV): In the final phase, the Agent becomes narratively active. It uses MCP to access predefined PBR materials and reconfigures the object into a cohesive design story. For example, it may label a segment as “sensor array,” assign it a metallic finish, and explain its use based on prior user cues.
+
+Blender: Blender is the central modeling environment in CONJURE. All 3D operations—including deformation, segmentation, remeshing, and rendering—are handled using bpy without the need for custom add-ons.
+Blender is launched automatically when the CONJURE .exe is executed.
+This is achieved by calling Blender via CLI using subprocess inside the Overlay executable, along with a startup .blend file and an initialization Python script.
+Example:
+bash
+CopyEdit
+blender --background scene.blend --python startup.py
+
+Blender BPY should:
+
+map fingertip positions in the 3D space by reading fingertips.json
+manage mesh deformation using fingertips
+import/export models
+render images on given cameras to given directories
+
+Camera Setup
+The scene includes 3 primary cameras, each with a defined role:
+AxoCamera
+Fixed top-down or axonometric view
+Used for UI display and static representations (e.g., segment previews)
+GestureCamera
+Rotates dynamically based on user input or gesture orientation
+Used for generating reference images to be sent to promptMaker
+Captures render when the user signals “done” via closed fist
+MVCamera
+Static multiview render camera
+Used to generate 6 render angles: ["front", "right", "right-front", "back", "left", "left-front"]
+Resolution: 1024 × 1024 px (native to SDXL)
+Renders are saved as .png files in /input
+
+Fingertip UI
+Each detected fingertip is represented by a glowing marker in the Blender scene.
+Geometry: Instanced Icosphere with an emission shader
+Behavior:
+On script initialization, Blender duplicates the base Fingertip object into Fingertip.01 to Fingertip.10
+Each fingertip is dynamically positioned using values from fingertips.json
+Refresh Rate: Synced with file updates (e.g., via bpy.app.timers) — configurable through a RefreshRate variable
+
+
+
+
+ComfyUI: ComfyUI serves as the generative backbone of the CONJURE platform, responsible for both image generation and 3D reconstruction via multi-view inference. It runs persistently in the background and communicates through its internal API server and it will be used to generate the 3D models, 2D images, display text and other outputs that will be re-imported back to blender via Overlay. ComfyUI would be running on the background with different workflows in JSON format ready to be loaded.
+
+promptMaker Workflow
+Inputs:
+Single render image from GestureCamera (PNG)
+AI-written prompt string (.txt) from the conversational Agent
+Process:
+The Agent writes 3 distinct prompts based on context and user input.
+These are injected into the promptMaker workflow, which returns 3 corresponding images.
+Output:
+3 preview images displayed in the GUI for the user to choose from.
+The selected image determines which prompt is forwarded to the next stage.
+mvto3D Workflow
+Inputs:
+6 render images from MVCamera capturing multiview angles in the strict order: ["front", "right", "right-front", "back", "left", "left-front"]
+The user-selected prompt string
+Process:
+These are fed into a multi-view 2D-to-3D diffusion agent.
+Output:
+A newly synthesized 3D mesh matching the prompt and user edits.
+The mesh is imported back into Blender via the Overlay controller.
+
+Triggered through ComfyUI’s internal API from the Overlay executable.
+All workflows are stored as JSON configuration files and dynamically loaded depending on the current modeling phase.
+Renders and prompts are passed via the file system (disk), ensuring compatibility with both Blender and the Agent.
+
+.json
+state.json: master file that operates overlay’s main loop. 
+fingertips.json: json that translates hand gestures and fingertip coordinates in real time
+
+Hand-Tracking: Mediapipe handles real-time hand tracking using the system's camera input. It outputs a fingertips.json file at frame-rate speed, which contains both raw positional data and control flags.
+Key features:
+Real-Time Tracking: Continuously tracks both left and right hands. If a hand is not detected, it is marked as null.
+Standardized Output: Writes structured JSON including:
+Finger tip coordinates for each visible hand
+Rotation, scale, and deformation commands
+Optional gesture tags (deform_active, rotation, scale_axis, etc.)
+Example schema:
+json
+CopyEdit
+{ "command": "deform", "deform_active": true, "left_hand": null, "right_hand": { "fingertips": [ {"x": 0.618, "y": 0.683, "z": 0.019}, ... ] }, "anchors": [], "rotation": 0.0, "rotation_speed": 0.0, "scale_axis": "XYZ", "remesh_type": "BLOCKS"}
+Gesture Recognition: In addition to finger positions, the tracker recognizes gestures (like a closed fist) to signal transitions between modeling stages or confirm user intent.
+Integration: Blender reads this file on a timer using bpy.app.timers, ensuring non-blocking, real-time updates to fingertip markers and deformation operations.
+
+CGAL Segmenter: A standalone C++ executable that integrates the CGAL Surface Mesh Segmentation algorithm. It operates as a fast, reliable way to segment 3D meshes based on curvature and surface features.
+How it works:
+Input:  A .ply mesh file exported from Blender (typically the currently selected or generated mesh).
+Processing:  The executable performs segmentation and encodes the results as vertex color groups, with each segment assigned a unique RGB value.
+Output:  A .ply file with the same geometry but color-tagged vertices denoting distinct segments.
+Integration Flow:
+
+Blender exports the mesh to disk.
+The Overlay executable launches the segmenter as a subprocess.
+Once segmentation is complete, Blender re-imports the colored .ply file.
+Segments are parsed by vertex color and converted into discrete editable mesh objects or grouped selections.
+
+
+SETUP
+Blender scene setup
+
+cameras: 
+AXOCamera: used for segmenting representation and selection of segment. Fixed top-down or axonometric view. Used for UI display and static representations (e.g., segment previews)
+GestureCamera: used for UI view of mesh when gesture modelling. Rotates dynamically based on user input or gesture orientation. Used for generating reference images to be sent to promptMaker. Captures render when the user signals “done” via closed fist
+MVCamera: used for rendering and exporting for MV usage (6 views). tatic multiview render camera
+Used to generate 6 render angles: ["front", "right", "right-front", "back", "left", "left-front"] Resolution: 1024 × 1024 px (native to SDXL) Renders are saved as .png files in /input directory.
+
+
+boundingBox: The bounding box is a 2x2x2 cube at 0,0,0. (default cube) is the universal spatial reference frame for the entire CONJURE pipeline. It ensures geometric consistency, camera alignment, gesture mapping, and voxel resolution stability across all phases of the modeling process. Every mesh that is being worked on must be constantly checked so it’s size matches and centroid with the bounding box. 
+Core Functions:
+Size Normalization:
+All meshes (prebuilt, generated, segmented, or imported) must be scaled and fitted into the bounding box before processing.
+Camera Framing:
+The MVCamera and GestureCamera are both calibrated to the bounding box dimensions to maintain consistent framing across renders and views.
+Gesture Mapping:
+Fingertip coordinates from fingertips.json are interpreted relative to the bounding box volume, ensuring spatially accurate deformation and selection.
+Voxel Remeshing:
+As voxel size is a global parameter, a fixed bounding box assures that this value is displayed and applied consistenly
+During Segment Selection:
+A temporary bounding box is generated around the selected segment.
+The segment is:
+Centered and scaled to fit the main bounding box
+Parented to it for consistent positioning
+Once operations are complete, the segment is rescaled and repositioned into its original location in the global mesh.
+Import/Export:
+All meshes exported (e.g., to CGAL or ComfyUI) must be:
+Normalized to fit within the bounding box
+Centered at origin (or consistently offset) for downstream processes
+Imported meshes (e.g., from mvto3D) are assumed to conform to this bounding box and are scaled accordingly upon reentry.
+In summary: The bounding box ensures that all spatial reasoning—from fingertip input to AI output—remains consistent, calibrated, and accurate throughout CONJURE.
+fingertip: UI element that displays the position of fingertips in scene space
+Mesh: Main mesh being modified. segments are parented to Mesh and look like [Mesh1, Mesh2, Mesh3...]
+
+
+
+FLOW
+One cycle (from start to end) is divided into four main phases:
+ I: creates or selects the mesh to modify 
+II: user modifies the mesh with hand gesture+voice prompting
+III: user selects segment and modifies the segment with the same logic as II
+IV: Material is selected and concept is defined.
+
+
+PHASE I: Start the Model
+1. Prompt and Primitive
+The Agent asks the user: “What would you like to start with?”
+Based on voice response, the system spawns a selected primitive in Blender (e.g., Sphere, Cube, Head).
+The user then modifies this primitive using hand gestures, tracked in real time via fingertips.json.
+2. Deformation
+The mesh is manipulated like digital clay. Fingertip positions deform the mesh in space.
+A closed fist gesture signals that the model is ready to be refined.
+3. Optional Segmentation
+After gesture modeling, the user may choose to segment the mesh:
+Prebuilt meshes come with precomputed segments.
+Custom meshes are sent to the CGAL segmenter.
+Segments are imported back into Blender (via vertex colors) and presented as selectable units.
+PHASE II: Refinement by Prompt
+This phase repeats three times, increasing geometric resolution in each stage.
+The mesh get’s imported from mvto3D and gets bounding box scaled and positioned.
+1. Remeshing
+The mesh is voxel-remeshed using the following resolution cascade:
+Stage 1: 0.1 → 0.05
+Stage 2: 0.05 → 0.025
+Stage 3: 0.025 → 0.0125
+2. User Modification
+The user sculpts at each stage using real-time hand gestures.
+A closed fist again signals completion.
+3. Image Prompting
+The GestureCamera renders the current mesh from a design-friendly angle.
+This image is saved in /input and, alongside the conversational prompt from the Agent, passed to ComfyUI’s promptMaker.
+4. Selection
+promptMaker returns:
+3 images (for GUI display)
+3 backend prompts (linked to the images)
+The user selects one image → this indirectly selects its associated prompt.
+5. Multiview Generation
+The MVCamera renders the mesh from 6 defined angles:
+["front", "right", "right-front", "back", "left", "left-front"]
+These 6 images + the selected prompt are passed to ComfyUI’s mvto3D.
+6. 3D Generation
+A new, refined mesh is created by the multiview agent.
+The resulting .glb file is reimported into Blender.
+PHASE III: Segment Refinement
+Same structure as Phase II, applied to an individual mesh segment.
+1. Segment Selection
+The user selects a segment of the main mesh.
+The selected segment is isolated and reloaded for editing.
+2–6. Repeat Phase II Logic
+Gesture modeling → closed fist → render → image selection → multiview → new .glb mesh.
+The new segment mesh is imported and boolean unioned into the main model inside Blender.
+PHASE IV: Material + Narrative
+Final stage for expressive and narrative-driven transformation.
+1. Material Application
+The full mesh is presented with segment outlines and exploded views.
+The Agent activates and enters narrative mode, using context and prior interaction history.
+2. Narrative Remapping
+Using MCP, the Agent applies a selection of preloaded PBR materials to each segment.
+Materials are chosen based on narrative framing (e.g., “sensor node,” “bio-casing,” “armored core”) derived from the conversation.
+3. Export + Save
+Final renders, metadata, and the .glb model are exported for documentation or downstream fabrication.
+
+
+
+CONJURE/
+├── launcher/
+│   ├── main.py                   # Main controller (.exe entry point)
+│   ├── gui.py                    # PyQt6 interface
+│   ├── agent_api.py              # ElevenLabs conversational agent
+│   ├── state_manager.py          # Event loop from state.json
+│   ├── subprocess_manager.py     # Launches Blender, CGAL, ComfyUI
+│   ├── config.py                 # Global constants and paths
+│   └── utils.py                  # Shared helper functions
+
+├── blender/
+│   ├── scene.blend               # Base scene file with cameras, primitives, fingertip object
+│   └── conjure_blender.py        # Single entry script run via --python
+
+├── comfyui/
+│   ├── workflows/
+│   │   ├── promptMaker.json
+│   │   └── mvto3D.json
+│   └── api_wrapper.py
+
+├── cgal/
+│   ├── segment_mesh.exe
+│   └── segmenter_wrapper.py
+
+├── data/
+│   ├── input/
+│   │   ├── fingertips.json
+│   │   ├── state.json
+│   │   ├── gesture_render.png
+│   │   ├── multiview/
+│   │   │   └── front.png ...     # 6-view images
+│   ├── output/
+│   │   ├── generated.glb
+│   │   ├── segmented.ply
+│   │   └── renders/
+│   └── assets/
+│       ├── primitives/
+│       └── materials/
+
+├── logs/
+│   └── system.log
+└── README.md
+
+
+
