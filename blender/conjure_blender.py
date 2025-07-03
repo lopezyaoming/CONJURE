@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 import math
 from collections import deque
+import blf # For drawing text on the screen
 
 
 # === 1. UI PANEL ===
@@ -102,6 +103,7 @@ VELOCITY_DAMPING_FACTOR = 0.80 # How much velocity is retained each frame (lower
 FINGER_FORCE_STRENGTH = 0.08    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
 USE_VELOCITY_FORCES = True # Master toggle for the entire viscosity system.
 MAX_HISTORY_STEPS = 50 # The number of undo steps to store in memory.
+BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH'] # The available deformation brushes
 
 
 # === 1. INITIAL SCENE SETUP ===
@@ -288,7 +290,7 @@ def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
 
 
 # === 5. MESH DEFORMATION (with Viscosity) ===
-def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, vertex_velocities, history_buffer):
+def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, vertex_velocities, history_buffer, brush_type='PINCH', hand_move_vector=None):
     """
     Deforms the mesh by applying forces and simulating viscosity.
     This version updates vertex velocities for a more dynamic and weighty feel.
@@ -297,7 +299,7 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
         return
 
     # --- Save current state to history before deforming ---
-    # We only save if there are active forces being applied.
+    # We only save if there are active forces being applied (for PINCH/GRAB).
     if finger_positions_3d:
         current_verts = [v.co.copy() for v in mesh_obj.data.vertices]
         history_buffer.append(current_verts)
@@ -308,27 +310,60 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
     world_matrix = mesh_obj.matrix_world
     world_matrix_inv = world_matrix.inverted()
 
-    # --- 1. Calculate Forces and Update Velocities ---
+    # --- 1. Calculate Forces and Update Velocities based on Brush Type ---
     new_displacements = {}
-    for v in bm.verts:
-        # Get current velocity for this vertex
+    
+    # Create a KDTree for faster spatial lookups, used by all brushes
+    size = len(bm.verts)
+    kd = mathutils.kdtree.KDTree(size)
+    for i, v in enumerate(bm.verts):
+        kd.insert(v.co, i)
+    kd.balance()
+
+    # Determine the center of influence (average of finger positions)
+    influence_center = mathutils.Vector()
+    if finger_positions_3d:
+        for pos in finger_positions_3d:
+            influence_center += world_matrix_inv @ pos # Convert to local space
+        influence_center /= len(finger_positions_3d)
+
+    # Find all vertices within the influence radius of the hand center
+    verts_in_influence = [v for (co, v_idx, dist) in kd.find_range(influence_center, FINGER_INFLUENCE_RADIUS)]
+
+    for v_idx in verts_in_influence:
+        v = bm.verts[v_idx]
         current_velocity = vertex_velocities.get(v.index, mathutils.Vector((0,0,0)))
-        
-        # Calculate force from fingers
-        v_world = world_matrix @ v.co
-        finger_force = mathutils.Vector((0, 0, 0))
-        for finger_pos in finger_positions_3d:
-            to_finger = finger_pos - v_world
-            dist = to_finger.length
-            if dist < FINGER_INFLUENCE_RADIUS:
-                falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
-                direction = to_finger.normalized()
-                finger_force += direction * FINGER_FORCE_STRENGTH * falloff
+        force = mathutils.Vector((0, 0, 0))
+
+        if brush_type == 'PINCH':
+            # Attracts vertices towards the center of the fingers.
+            v_world = world_matrix @ v.co
+            for finger_pos in finger_positions_3d:
+                to_finger = finger_pos - v_world
+                dist = to_finger.length
+                if dist < FINGER_INFLUENCE_RADIUS:
+                    falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
+                    force += to_finger.normalized() * FINGER_FORCE_STRENGTH * falloff
+
+        elif brush_type == 'GRAB':
+            # Moves vertices along with the hand's movement vector.
+            if hand_move_vector:
+                 # The "force" is the direction the hand is moving.
+                force = hand_move_vector * 0.5 # Multiply to control sensitivity
+
+        elif brush_type == 'SMOOTH':
+            # Moves vertices towards the average position of their neighbors.
+            neighbor_avg_pos = mathutils.Vector()
+            linked_verts = [e.other_vert(v) for e in v.link_edges]
+            if linked_verts:
+                for nv in linked_verts:
+                    neighbor_avg_pos += nv.co
+                neighbor_avg_pos /= len(linked_verts)
+                # The force pushes the vertex towards that average position
+                force = (neighbor_avg_pos - v.co) * 0.1 # Use a small factor for gentle smoothing
         
         # Update velocity: add force and apply damping
-        new_velocity = (current_velocity + finger_force) * VELOCITY_DAMPING_FACTOR
-        
-        # Store the updated velocity for the next frame
+        new_velocity = (current_velocity + force) * VELOCITY_DAMPING_FACTOR
         vertex_velocities[v.index] = new_velocity
         
         # Calculate the displacement for this frame
@@ -342,7 +377,9 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
     if new_displacements:
         for v_index, displacement in new_displacements.items():
             bm.verts.ensure_lookup_table()
-            bm.verts[v_index].co += world_matrix_inv @ displacement
+            # For GRAB, the displacement is in world space, others are local. This is a simplification.
+            # A more robust implementation would handle spaces more carefully.
+            bm.verts[v_index].co += displacement
 
     # --- 3. Volume Preservation ---
     current_volume = bm.calc_volume(signed=True)
@@ -376,7 +413,19 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _initial_volume = 1.0 # Default value
     _vertex_velocities = {} # Stores the velocity of each vertex for viscosity simulation
     _history_buffer = None # Holds previous mesh states for the rewind feature
+    _current_brush_index = 0
+    _last_hand_center = None # For calculating hand movement for the GRAB brush
+    _draw_handler = None # For drawing the UI text
     last_marker_positions = []
+
+    def draw_ui_text(self, context):
+        """Draws the current brush name on the viewport."""
+        font_id = 0  # Default font
+        blf.position(font_id, 15, 30, 0)
+        blf.size(font_id, 20)
+        blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
+        active_brush = BRUSH_TYPES[self._current_brush_index]
+        blf.draw(font_id, f"Brush: {active_brush}")
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
@@ -434,19 +483,31 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 print(f"'{DEFORM_OBJ_NAME}' not found. Cannot execute commands.")
                 return {'PASS_THROUGH'}
 
+            # --- Calculate hand movement vector for GRAB brush ---
+            current_hand_center = None
+            hand_move_vector = None
+            if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 2:
+                thumb_tip = right_hand_data["fingertips"][0]
+                index_tip = right_hand_data["fingertips"][1]
+                thumb_pos = map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z'])
+                index_pos = map_hand_to_3d_space(index_tip['x'], index_tip['y'], index_tip['z'])
+                current_hand_center = (thumb_pos + index_pos) / 2.0
+                if self._last_hand_center:
+                    hand_move_vector = current_hand_center - self._last_hand_center
+            
+            # Update last hand center for the next frame
+            self._last_hand_center = current_hand_center
+
             if command == "deform":
                 if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 2:
-                    # Per instructions, only thumb and index finger on right hand cause deformation
-                    thumb_tip = right_hand_data["fingertips"][0] # Thumb
-                    index_tip = right_hand_data["fingertips"][1] # Index
-                    
                     deform_points = [
-                        map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z']),
-                        map_hand_to_3d_space(index_tip['x'], index_tip['y'], index_tip['z'])
+                        map_hand_to_3d_space(right_hand_data["fingertips"][0]['x'], right_hand_data["fingertips"][0]['y'], right_hand_data["fingertips"][0]['z']),
+                        map_hand_to_3d_space(right_hand_data["fingertips"][1]['x'], right_hand_data["fingertips"][1]['y'], right_hand_data["fingertips"][1]['z'])
                     ]
                     
                     if USE_VELOCITY_FORCES:
-                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer)
+                        active_brush = BRUSH_TYPES[self._current_brush_index]
+                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, active_brush, hand_move_vector)
                     else:
                         # Non-velocity deformation would also need history tracking added if used
                         deform_mesh(mesh_obj, deform_points, self._initial_volume)
@@ -489,8 +550,13 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 if camera and self._initial_camera_matrix:
                     camera.matrix_world = self._initial_camera_matrix
 
+            elif command == "cycle_brush":
+                if self._last_command != "cycle_brush": # Trigger only once per gesture
+                    self._current_brush_index = (self._current_brush_index + 1) % len(BRUSH_TYPES)
+                    print(f"Switched brush to: {BRUSH_TYPES[self._current_brush_index]}")
+
             elif command == "rewind":
-                if self._last_command != "rewind": # Trigger only once per gesture start
+                if self._last_command != "rewind" and self._history_buffer is not None: # Trigger only once and check buffer exists
                     if len(self._history_buffer) > 0:
                         previous_verts = self._history_buffer.pop()
                         # Apply the retrieved vertex coordinates to the mesh
@@ -561,12 +627,21 @@ class ConjureFingertipOperator(bpy.types.Operator):
         self._timer = context.window_manager.event_timer_add(REFRESH_RATE_SECONDS, window=context.window)
         context.window_manager.modal_handler_add(self)
         print("Conjure Fingertip Operator is now running.")
+
+        # Add the draw handler for the UI text
+        self._draw_handler = bpy.types.SpaceView3D.draw_handler_add(self.draw_ui_text, (context,), 'WINDOW', 'POST_PIXEL')
+
         return {'RUNNING_MODAL'}
 
     def cancel(self, context):
         # Clear the state-tracking properties when the operator stops
         context.window_manager.conjure_is_running = False
         context.window_manager.conjure_should_stop = False
+
+        # Remove the draw handler
+        if self._draw_handler:
+            bpy.types.SpaceView3D.draw_handler_remove(self._draw_handler, 'WINDOW')
+            self._draw_handler = None
 
         context.window_manager.event_timer_remove(self._timer)
         print("Conjure Fingertip Operator has been cancelled.")

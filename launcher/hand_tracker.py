@@ -71,6 +71,7 @@ def run_hand_tracker():
 
     reset_gesture_start_time = None
     reset_gesture_fired = False
+    cycle_brush_fired = False
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -126,6 +127,14 @@ def run_hand_tracker():
                         # If the gesture is released, reset the timer and the fired state
                         reset_gesture_start_time = None
                         reset_gesture_fired = False
+
+                    # Check for cycle brush gesture (one-shot)
+                    if is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP):
+                        if not cycle_brush_fired:
+                            left_hand_command = "cycle_brush"
+                            cycle_brush_fired = True
+                    else:
+                        cycle_brush_fired = False
                 else: # Right
                     right_hand_fingertips = fingertips
                     # Check for gestures on the right hand to determine the command
