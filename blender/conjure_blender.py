@@ -14,6 +14,7 @@ import bmesh
 import time
 from pathlib import Path
 import math
+from collections import deque
 
 
 # === 1. UI PANEL ===
@@ -59,7 +60,7 @@ except NameError:
     
 DATA_DIR = PROJECT_ROOT / "data"
 FINGERTIPS_JSON_PATH = DATA_DIR / "input" / "fingertips.json"
-DEFORM_OBJ_NAME = "DeformableMesh"  # The name of the mesh we will manipulate
+DEFORM_OBJ_NAME = "Mesh"  # The name of the mesh we will manipulate
 GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based mapping
 
 # --- MAPPING SCALE ---
@@ -88,9 +89,19 @@ SMOOTHING_FACTOR = 0.3
 
 # --- DEFORMATION PARAMETERS ---
 # These control how the mesh reacts to the user's hand.
-FINGER_INFLUENCE_RADIUS = 0.5  # How far the influence of a finger reaches.
-FINGER_FORCE_STRENGTH = 0.1    # How strongly the finger pushes/pulls the mesh.
-MAX_DISPLACEMENT_PER_FRAME = 0.1 # Safety limit to prevent vertices from moving too far in one frame.
+FINGER_INFLUENCE_RADIUS = 3.0  # How far the influence of a finger reaches.
+MAX_DISPLACEMENT_PER_FRAME = 0.25 # Safety limit to prevent vertices from moving too far in one frame.
+MASS_COHESION_FACTOR = 0.62 # How much vertices stick together to create a smoother deformation.
+DEFORM_TIMESTEP = 0.05 # Multiplier for displacement per frame to create a continuous effect.
+VOLUME_LOWER_LIMIT = 0.8 # The mesh cannot shrink to less than 80% of its original volume.
+VOLUME_UPPER_LIMIT = 1.2 # The mesh cannot expand to more than 120% of its original volume.
+
+# --- VELOCITY & VISCOSITY ---
+# These parameters add a sense of weight and momentum to the mesh.
+VELOCITY_DAMPING_FACTOR = 0.80 # How much velocity is retained each frame (lower is 'thicker' viscosity).
+FINGER_FORCE_STRENGTH = 0.08    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
+USE_VELOCITY_FORCES = True # Master toggle for the entire viscosity system.
+MAX_HISTORY_STEPS = 50 # The number of undo steps to store in memory.
 
 
 # === 1. INITIAL SCENE SETUP ===
@@ -168,56 +179,105 @@ def map_hand_to_3d_space(x_norm, y_norm, z_norm):
         return local_point
 
 
-# === 3. MESH DEFORMATION ===
-def deform_mesh(mesh_obj, finger_positions_3d):
+# === 4. MESH DEFORMATION ===
+def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
     """
     Deforms the mesh using bmesh based on the 3D positions of the fingertips.
     This version operates on mesh data directly for stability and performance,
-    avoiding repeated mode switching.
+    and is based on the robust implementation from fingertipmain.py.
     """
     if not mesh_obj or not finger_positions_3d:
         return
 
-    # 1. Create a bmesh from the object's mesh data
     bm = bmesh.new()
     bm.from_mesh(mesh_obj.data)
+    
+    world_matrix = mesh_obj.matrix_world
+    world_matrix_inv = world_matrix.inverted()
 
-    # Ensure the lookup table is current before any indexed access
-    bm.verts.ensure_lookup_table()
-
-    # The mesh's vertices are in its own local space, but the fingertip
-    # positions are in world space. We must convert the fingertips to local space.
-    inv_matrix = mesh_obj.matrix_world.inverted()
-    local_finger_positions = [inv_matrix @ pos for pos in finger_positions_3d]
-
-    # 2. Build a KDTree for efficient spatial lookups of vertices
-    size = len(bm.verts)
-    kd = mathutils.kdtree.KDTree(size)
-    for i, v in enumerate(bm.verts):
-        kd.insert(v.co, i)
-    kd.balance()
-
-    # 3. Calculate all displacements first, storing them in a dictionary.
-    # This avoids modifying the mesh while iterating over it.
-    displacements = {}  # {vertex_index: displacement_vector}
-    for finger_pos in local_finger_positions:
-        for (co, index, dist) in kd.find_range(finger_pos, FINGER_INFLUENCE_RADIUS):
-            if dist > 0:
-                falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
-                direction = (finger_pos - co).normalized()
-                
-                # Add to existing displacement for this vertex or create a new one
-                current_displacement = displacements.get(index, mathutils.Vector((0, 0, 0)))
-                displacements[index] = current_displacement + (direction * FINGER_FORCE_STRENGTH * falloff)
-
-    # 4. Apply the calculated displacements to the bmesh vertices
-    if displacements:
-        for index, displacement in displacements.items():
-            # Safety clamp to prevent extreme, glitchy movements
-            if displacement.length > MAX_DISPLACEMENT_PER_FRAME:
-                displacement = displacement.normalized() * MAX_DISPLACEMENT_PER_FRAME
+    # 1. Calculate raw vertex displacements
+    vertex_displacements = {}
+    for v in bm.verts:
+        v_world = world_matrix @ v.co
+        net_displacement = mathutils.Vector((0, 0, 0))
+        
+        for finger_pos in finger_positions_3d:
+            to_finger = finger_pos - v_world
+            dist = to_finger.length
             
-            bm.verts[index].co += displacement
+            if dist < FINGER_INFLUENCE_RADIUS:
+                # Use a squared falloff for a smoother gradient
+                falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
+                direction = to_finger.normalized()
+                force = direction * FINGER_FORCE_STRENGTH * falloff
+                net_displacement += force
+        
+        if net_displacement.length > 0.0001:
+            # Clamp displacement to avoid extreme results
+            if net_displacement.length > MAX_DISPLACEMENT_PER_FRAME:
+                net_displacement = net_displacement.normalized() * MAX_DISPLACEMENT_PER_FRAME
+            vertex_displacements[v.index] = net_displacement
+
+    # 2. Smooth the displacements for a more cohesive mass-like effect
+    smoothed_displacements = {}
+    if not vertex_displacements:
+        bm.free()
+        return # No vertices were affected, so we can exit early.
+        
+    for v in bm.verts:
+        if v.index not in vertex_displacements:
+            continue
+        
+        original_displacement = vertex_displacements[v.index]
+        neighbor_verts = [e.other_vert(v) for e in v.link_edges]
+        
+        if not neighbor_verts:
+            smoothed_displacements[v.index] = original_displacement
+            continue
+            
+        neighbor_avg = mathutils.Vector((0, 0, 0))
+        for nv in neighbor_verts:
+            if nv.index in vertex_displacements:
+                neighbor_avg += vertex_displacements[nv.index]
+        
+        if len(neighbor_verts) > 0:
+            neighbor_avg /= len(neighbor_verts)
+            
+        # Interpolate between the raw displacement and the average of its neighbors
+        smoothed_displacement = original_displacement.lerp(neighbor_avg, MASS_COHESION_FACTOR)
+        smoothed_displacements[v.index] = smoothed_displacement
+        
+    # 3. Apply the smoothed displacements to the vertices
+    if smoothed_displacements:
+        for v_index, displacement in smoothed_displacements.items():
+            # Ensure lookup table is fresh before indexed access
+            bm.verts.ensure_lookup_table()
+            v = bm.verts[v_index]
+            v_world = world_matrix @ v.co
+            # Apply the smoothed displacement over time for a continuous effect
+            v_world += displacement * DEFORM_TIMESTEP
+            # Convert back to local space to update the vertex
+            v.co = world_matrix_inv @ v_world
+
+    # 4. Volume Preservation
+    # This crucial step prevents the mesh from collapsing on itself.
+    current_volume = bm.calc_volume(signed=True)
+    if initial_volume != 0: # Avoid division by zero
+        volume_ratio = current_volume / initial_volume
+        
+        if volume_ratio < VOLUME_LOWER_LIMIT or volume_ratio > VOLUME_UPPER_LIMIT:
+            target_ratio = max(VOLUME_LOWER_LIMIT, min(volume_ratio, VOLUME_UPPER_LIMIT))
+            scale_factor = (target_ratio / volume_ratio)**(1/3)
+            
+            # Calculate the centroid of the mesh to scale from the center
+            centroid = mathutils.Vector()
+            for v in bm.verts:
+                centroid += v.co
+            centroid /= len(bm.verts)
+            
+            # Apply corrective scaling to each vertex
+            for v in bm.verts:
+                v.co = centroid + (v.co - centroid) * scale_factor
 
     # 5. Write the modified bmesh data back to the mesh
     bm.to_mesh(mesh_obj.data)
@@ -227,66 +287,84 @@ def deform_mesh(mesh_obj, finger_positions_3d):
     mesh_obj.data.update()
 
 
-# === 4. CUBE CREATION ===
-def create_new_cube(pos1, pos2):
-    """Creates a new cube object between two points in space."""
-    if not pos1 or not pos2:
-        return None
-    
-    center = (pos1 + pos2) / 2.0
-    size = (pos1 - pos2).length
-    if size < 0.01:
-        size = 0.01
-
-    bpy.ops.mesh.primitive_cube_add(size=1, location=center, scale=(size, size, size))
-    cube = bpy.context.active_object
-    cube.name = "ConjureCube"
-    return cube
-
-def update_cube(cube, pos1, pos2):
-    """Updates an existing cube's position and scale based on two points."""
-    if not cube or not pos1 or not pos2:
-        return
-        
-    center = (pos1 + pos2) / 2.0
-    size = (pos1 - pos2).length
-    if size < 0.01:
-        size = 0.01
-        
-    cube.location = center
-    cube.scale = (size, size, size)
-
-def finalize_cube_creation(deform_obj, cube_obj):
-    """Applies a boolean union to merge the cube with the deform mesh."""
-    if not deform_obj or not cube_obj:
+# === 5. MESH DEFORMATION (with Viscosity) ===
+def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, vertex_velocities, history_buffer):
+    """
+    Deforms the mesh by applying forces and simulating viscosity.
+    This version updates vertex velocities for a more dynamic and weighty feel.
+    """
+    if not mesh_obj:
         return
 
-    print(f"Finalizing cube: applying UNION with {deform_obj.name}")
-    
-    # Ensure deform_obj is active and selected
-    bpy.ops.object.select_all(action='DESELECT')
-    deform_obj.select_set(True)
-    bpy.context.view_layer.objects.active = deform_obj
+    # --- Save current state to history before deforming ---
+    # We only save if there are active forces being applied.
+    if finger_positions_3d:
+        current_verts = [v.co.copy() for v in mesh_obj.data.vertices]
+        history_buffer.append(current_verts)
 
-    # Create and configure the boolean modifier
-    bool_mod = deform_obj.modifiers.new(name="ConjureUnion", type='BOOLEAN')
-    bool_mod.operation = 'UNION'
-    bool_mod.object = cube_obj
-    
-    # Apply the modifier
-    try:
-        bpy.ops.object.modifier_apply(modifier=bool_mod.name)
-        print("Boolean modifier applied.")
-    except RuntimeError as e:
-        print(f"Error applying boolean modifier: {e}. Removing modifier.")
-        deform_obj.modifiers.remove(bool_mod)
+    bm = bmesh.new()
+    bm.from_mesh(mesh_obj.data)
 
-    # Clean up the temporary cube
-    bpy.data.objects.remove(cube_obj, do_unlink=True)
-    print("Temporary cube removed.")
+    world_matrix = mesh_obj.matrix_world
+    world_matrix_inv = world_matrix.inverted()
+
+    # --- 1. Calculate Forces and Update Velocities ---
+    new_displacements = {}
+    for v in bm.verts:
+        # Get current velocity for this vertex
+        current_velocity = vertex_velocities.get(v.index, mathutils.Vector((0,0,0)))
+        
+        # Calculate force from fingers
+        v_world = world_matrix @ v.co
+        finger_force = mathutils.Vector((0, 0, 0))
+        for finger_pos in finger_positions_3d:
+            to_finger = finger_pos - v_world
+            dist = to_finger.length
+            if dist < FINGER_INFLUENCE_RADIUS:
+                falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
+                direction = to_finger.normalized()
+                finger_force += direction * FINGER_FORCE_STRENGTH * falloff
+        
+        # Update velocity: add force and apply damping
+        new_velocity = (current_velocity + finger_force) * VELOCITY_DAMPING_FACTOR
+        
+        # Store the updated velocity for the next frame
+        vertex_velocities[v.index] = new_velocity
+        
+        # Calculate the displacement for this frame
+        displacement = new_velocity * DEFORM_TIMESTEP
+        if displacement.length > MAX_DISPLACEMENT_PER_FRAME:
+            displacement = displacement.normalized() * MAX_DISPLACEMENT_PER_FRAME
+        
+        new_displacements[v.index] = displacement
+
+    # --- 2. Apply Displacements ---
+    if new_displacements:
+        for v_index, displacement in new_displacements.items():
+            bm.verts.ensure_lookup_table()
+            bm.verts[v_index].co += world_matrix_inv @ displacement
+
+    # --- 3. Volume Preservation ---
+    current_volume = bm.calc_volume(signed=True)
+    if initial_volume != 0:
+        volume_ratio = current_volume / initial_volume
+        if volume_ratio < VOLUME_LOWER_LIMIT or volume_ratio > VOLUME_UPPER_LIMIT:
+            target_ratio = max(VOLUME_LOWER_LIMIT, min(volume_ratio, VOLUME_UPPER_LIMIT))
+            scale_factor = (target_ratio / volume_ratio)**(1/3)
+            centroid = mathutils.Vector()
+            for v in bm.verts:
+                centroid += v.co
+            centroid /= len(bm.verts)
+            for v in bm.verts:
+                v.co = centroid + (v.co - centroid) * scale_factor
+
+    # --- 4. Finalize ---
+    bm.to_mesh(mesh_obj.data)
+    bm.free()
+    mesh_obj.data.update()
 
 
-# === BLENDER MODAL OPERATOR ===
+# === 6. BLENDER MODAL OPERATOR ===
 class ConjureFingertipOperator(bpy.types.Operator):
     """The main operator that reads hand data and orchestrates actions."""
     bl_idname = "conjure.fingertip_operator"
@@ -294,8 +372,10 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
     _timer = None
     _last_command = "none"
-    _active_cube = None
     _initial_camera_matrix = None
+    _initial_volume = 1.0 # Default value
+    _vertex_velocities = {} # Stores the velocity of each vertex for viscosity simulation
+    _history_buffer = None # Holds previous mesh states for the rewind feature
     last_marker_positions = []
 
     def modal(self, context, event):
@@ -317,12 +397,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
             command = live_data.get("command", "none")
             mesh_obj = bpy.data.objects.get(DEFORM_OBJ_NAME)
-
-            # --- Handle state transitions (e.g., finishing a cube creation) ---
-            if self._last_command == "create_cube" and command != "create_cube":
-                if self._active_cube and mesh_obj:
-                    finalize_cube_creation(mesh_obj, self._active_cube)
-                self._active_cube = None # Reset cube state
 
             # --- Process Fingertips for Visualization ---
             all_fingertips = []
@@ -370,9 +444,18 @@ class ConjureFingertipOperator(bpy.types.Operator):
                         map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z']),
                         map_hand_to_3d_space(index_tip['x'], index_tip['y'], index_tip['z'])
                     ]
-                    deform_mesh(mesh_obj, deform_points)
+                    
+                    if USE_VELOCITY_FORCES:
+                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer)
+                    else:
+                        # Non-velocity deformation would also need history tracking added if used
+                        deform_mesh(mesh_obj, deform_points, self._initial_volume)
 
             elif command == "rotate_z":
+                # When rotating, gradually bring vertex velocities to a halt
+                for index in self._vertex_velocities:
+                    self._vertex_velocities[index] *= 0.9 # Dampen significantly
+                
                 camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
                 if camera:
                     # Orbit the camera around the world Z-axis
@@ -384,6 +467,10 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     camera.matrix_world = rot_mat @ camera.matrix_world
             
             elif command == "rotate_y":
+                # When rotating, gradually bring vertex velocities to a halt
+                for index in self._vertex_velocities:
+                    self._vertex_velocities[index] *= 0.9 # Dampen significantly
+
                 camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
                 if camera:
                     # Orbit the camera around the world Y-axis
@@ -394,25 +481,39 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     camera.matrix_world = rot_mat @ camera.matrix_world
 
             elif command == "reset_rotation":
+                # Also reset velocities when resetting camera for a clean stop
+                for index in self._vertex_velocities:
+                    self._vertex_velocities[index] = mathutils.Vector((0,0,0))
+
                 camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
                 if camera and self._initial_camera_matrix:
                     camera.matrix_world = self._initial_camera_matrix
 
-            elif command == "create_cube":
-                if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 5:
-                    # Get thumb and pinky from right hand
-                    thumb_tip = right_hand_data["fingertips"][0]
-                    pinky_tip = right_hand_data["fingertips"][4]
-
-                    thumb_pos_3d = map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z'])
-                    pinky_pos_3d = map_hand_to_3d_space(pinky_tip['x'], pinky_tip['y'], pinky_tip['z'])
-
-                    if self._active_cube is None:
-                        # Create the cube for the first time
-                        self._active_cube = create_new_cube(thumb_pos_3d, pinky_pos_3d)
+            elif command == "rewind":
+                if self._last_command != "rewind": # Trigger only once per gesture start
+                    if len(self._history_buffer) > 0:
+                        previous_verts = self._history_buffer.pop()
+                        # Apply the retrieved vertex coordinates to the mesh
+                        for i, v_co in enumerate(previous_verts):
+                            mesh_obj.data.vertices[i].co = v_co
+                        mesh_obj.data.update()
+                        print(f"Rewind successful. History has {len(self._history_buffer)} steps remaining.")
                     else:
-                        # Update the existing cube's position and scale
-                        update_cube(self._active_cube, thumb_pos_3d, pinky_pos_3d)
+                        print("History buffer is empty. Nothing to rewind.")
+
+            else:
+                # If no command is active, gradually bring all vertex velocities to a stop.
+                # This makes the mesh feel like it's settling in a viscous fluid.
+                if USE_VELOCITY_FORCES:
+                    is_settling = False
+                    for index, vel in self._vertex_velocities.items():
+                        if vel.length > 0.001:
+                            self._vertex_velocities[index] *= VELOCITY_DAMPING_FACTOR
+                            is_settling = True
+                    
+                    # If any vertex is still moving, we need to update the mesh
+                    if is_settling:
+                        deform_mesh_with_viscosity(mesh_obj, [], self._initial_volume, self._vertex_velocities, self._history_buffer)
 
             self._last_command = command
 
@@ -432,6 +533,24 @@ class ConjureFingertipOperator(bpy.types.Operator):
         else:
             self._initial_camera_matrix = mathutils.Matrix() # Fallback to identity matrix
 
+        # Initialize the history buffer as a deque with a max length
+        self._history_buffer = deque(maxlen=MAX_HISTORY_STEPS)
+
+        # Calculate and store the initial volume of the mesh
+        mesh_obj = bpy.data.objects.get(DEFORM_OBJ_NAME)
+        if mesh_obj:
+            bm = bmesh.new()
+            bm.from_mesh(mesh_obj.data)
+            self._initial_volume = bm.calc_volume(signed=True)
+            # Initialize velocities for all vertices to zero
+            self._vertex_velocities = {v.index: mathutils.Vector((0,0,0)) for v in bm.verts}
+            bm.free()
+            print(f"Initial mesh volume calculated: {self._initial_volume}")
+        else:
+            self._initial_volume = 1.0
+            self._vertex_velocities = {}
+            print("Warning: Could not find 'Mesh' object to calculate initial volume.")
+
         # Initialize the list that will store the last known position of each marker.
         self.last_marker_positions = [mathutils.Vector((0,0,0))] * 10
         for i in range(10):
@@ -450,10 +569,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
         context.window_manager.conjure_should_stop = False
 
         context.window_manager.event_timer_remove(self._timer)
-        # Clean up any leftover cube
-        if self._active_cube:
-            bpy.data.objects.remove(self._active_cube, do_unlink=True)
-            self._active_cube = None
         print("Conjure Fingertip Operator has been cancelled.")
         return {'CANCELLED'}
 

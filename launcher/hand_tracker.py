@@ -136,7 +136,7 @@ def run_hand_tracker():
                     elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.RING_FINGER_TIP):
                         right_hand_command = "rotate_y"
                     elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.PINKY_TIP):
-                        right_hand_command = "create_cube"
+                        right_hand_command = "rewind"
 
         # Prioritize left hand command (reset) over right hand commands
         command = left_hand_command if left_hand_command != "none" else right_hand_command
