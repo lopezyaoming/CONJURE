@@ -81,7 +81,7 @@ MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to p
 REFRESH_RATE_SECONDS = 1 / 30  # Target 30 updates per second.
 
 # --- ROTATION ---
-ORBIT_SENSITIVITY = 200.0 # How sensitive the orbit control is. Higher is faster.
+ORBIT_SENSITIVITY = 300.0 # How sensitive the orbit control is. Higher is faster.
 ORBIT_SMOOTHING_FACTOR = 0.25 # How much to smooth the orbit motion. Lower is smoother.
 
 # --- SMOOTHING ---
