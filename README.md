@@ -88,7 +88,7 @@ Your right hand is your primary tool for creating and shaping.
 | **Thumb + Index Finger**  | **Deform Mesh:** Activates sculpting mode. Only the thumb and index finger will pull and push the mesh, allowing for fine control. |
 | **Thumb + Middle Finger** | **Orbit Camera (Z-axis):** Rotates your view horizontally around the object.                                                      |
 | **Thumb + Ring Finger**   | **Orbit Camera (Y-axis):** Rotates your view vertically around the object.                                                         |
-| **Thumb + Pinky Finger**  | **Create Cube:** Spawns a cube. The size is controlled by the distance between your thumb and pinky. Release to merge it.           |
+| **Thumb + Pinky Finger**  | **Rewind:** Undoes the last deformation, allowing you to step back through your changes.                                            |
 
 ### Left-Hand Gestures: Utility Actions
 
@@ -97,6 +97,7 @@ Your left hand is used for support and utility functions.
 | Gesture                            | Action                                                                      |
 | ---------------------------------- | --------------------------------------------------------------------------- |
 | **Thumb + Index Finger (Hold 1s)** | **Reset Camera:** Snaps the camera back to its original starting position.    |
+| **Thumb + Middle Finger**          | **Cycle Brush:** Switches between `PINCH`, `GRAB`, and `SMOOTH` brushes.      |
 
 ---
 

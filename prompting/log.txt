@@ -24,3 +24,30 @@ Advances:
 5.  **Code & Stability**:
     *   Refactored Blender script to correctly register and handle custom properties, resolving `AttributeError` tracebacks.
     *   Resolved `ModuleNotFoundError` for the `mediapipe` library by adjusting import statements for better environment compatibility. 
+
+---
+Date: 2024-07-25 (Afternoon Session)
+
+Focus shifted to refining the sculpting experience, adding more advanced and intuitive user controls.
+
+Advances:
+1.  **Physics-Based Deformation**:
+    *   **Volume Preservation**: Implemented a system to maintain the mesh's volume during deformation, preventing the "deflated balloon" effect and making the object feel solid.
+    *   **Viscosity & Damping**: Added a velocity-based physics model. The mesh now has a sense of momentum and viscosity, making the sculpting feel more natural and less like manipulating a static set of points.
+    *   **Parameter Tuning**: Refined force and damping parameters to prevent simulation explosion and provide a stable, controllable sculpting feel.
+
+2.  **Rewind Functionality**:
+    *   Replaced the "Create Cube" gesture (Right Thumb + Pinky) with a much more useful **"Rewind"** feature.
+    *   The system now keeps a history of mesh states, allowing the user to step back through their modifications instantly.
+
+3.  **Sculpting Brush System**:
+    *   Introduced a multi-brush system to move beyond simple pinching.
+    *   **New Gesture**: The Left Thumb + Middle Finger gesture now cycles through the available brushes.
+    *   **Brush Types**: Implemented three distinct brushes:
+        *   `PINCH`: The original behavior, pulls vertices towards the fingers.
+        *   `GRAB`: Moves the affected vertices along with the hand's movement.
+        *   `SMOOTH`: Averages vertices to soften and blend the mesh.
+    *   **UI Feedback**: Added an on-screen text display in the Blender viewport to show the currently active brush.
+
+4.  **Bug Fixes & Stability**:
+    *   Resolved multiple `bmesh` tracebacks (`AttributeError: invalid key` and `IndexError: outdated internal index table`) by ensuring correct vertex indexing and lookup table management. 

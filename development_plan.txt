@@ -21,19 +21,21 @@ The goal of this phase was to establish the fundamental real-time link between h
 The goal of this phase is to move beyond simple deformation and implement the other core interaction modes described in `masterPrompt.txt`.
 
 1.  **Implement Rotation:**
-    -   In `hand_tracker.py`: Add gesture detection for rotation (e.g., thumb-to-middle-finger pinch).
-    -   In `hand_tracker.py`: Add a `"rotate"` command to the JSON output.
-    -   In `conjure_blender.py`: When the `"rotate"` command is received, rotate the `GestureCamera` around the `DeformableMesh`.
+    -   [x] In `hand_tracker.py`: Add gesture detection for rotation (thumb + middle/ring finger).
+    -   [x] In `hand_tracker.py`: Add `"rotate_z"` and `"rotate_y"` commands to the JSON output.
+    -   [x] In `conjure_blender.py`: When rotation commands are received, orbit the `GestureCamera` around the `DeformableMesh`.
 
-2.  **Implement Scaling:**
-    -   In `hand_tracker.py`: Add gesture detection for scaling (e.g., thumb-to-ring-finger pinch).
-    -   In `hand_tracker.py`: Add a `"scale"` command to the JSON output.
-    -   In `conjure_blender.py`: When the `"scale"` command is received, uniformly scale the `DeformableMesh`.
+2.  **Implement Brush System:**
+    -   [x] In `hand_tracker.py`: Add gesture for cycling brushes (left hand thumb + middle finger).
+    -   [x] In `hand_tracker.py`: Add a `"cycle_brush"` command to the JSON output.
+    -   [x] In `conjure_blender.py`: Implement `PINCH`, `GRAB`, and `SMOOTH` brush types.
+    -   [x] In `conjure_blender.py`: Add UI text to display the current brush.
+    -   [x] In `conjure_blender.py`: Implement logic for `GRAB` (moving mesh with hand) and `SMOOTH` (averaging vertices).
 
-3.  **Implement Anchors (Left Hand):**
-    -   In `hand_tracker.py`: Add gesture detection for the left hand to create and clear anchor points.
-    -   In `hand_tracker.py`: Populate the `"anchors"` list in the JSON output.
-    -   In `conjure_blender.py`: Add logic to the `deform_mesh` function to use these anchor points as areas of stronger influence, effectively pinning the mesh.
+3.  **Implement History/Undo:**
+    -   [x] In `hand_tracker.py`: Add gesture for "rewind" (thumb + pinky finger).
+    -   [x] In `conjure_blender.py`: Implement a history buffer (`deque`) to store mesh states.
+    -   [x] In `conjure_blender.py`: When `"rewind"` command is received, pop the last state from the buffer and apply it to the mesh.
 
 ---
 

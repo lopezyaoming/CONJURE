@@ -90,7 +90,8 @@ SMOOTHING_FACTOR = 0.3
 
 # --- DEFORMATION PARAMETERS ---
 # These control how the mesh reacts to the user's hand.
-FINGER_INFLUENCE_RADIUS = 3.0  # How far the influence of a finger reaches.
+FINGER_INFLUENCE_RADIUS = 3.0  # How far the influence of a finger reaches for PINCH and SMOOTH.
+GRAB_INFLUENCE_RADIUS = 1.5    # A smaller radius for the GRAB brush for more focused control.
 MAX_DISPLACEMENT_PER_FRAME = 0.25 # Safety limit to prevent vertices from moving too far in one frame.
 MASS_COHESION_FACTOR = 0.62 # How much vertices stick together to create a smoother deformation.
 DEFORM_TIMESTEP = 0.05 # Multiplier for displacement per frame to create a continuous effect.
@@ -101,6 +102,8 @@ VOLUME_UPPER_LIMIT = 1.2 # The mesh cannot expand to more than 120% of its origi
 # These parameters add a sense of weight and momentum to the mesh.
 VELOCITY_DAMPING_FACTOR = 0.80 # How much velocity is retained each frame (lower is 'thicker' viscosity).
 FINGER_FORCE_STRENGTH = 0.08    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
+GRAB_FORCE_STRENGTH = 5.0       # How strongly the grab brush moves the mesh with the hand.
+SMOOTH_FORCE_STRENGTH = 0.9     # How strongly the smooth brush relaxes vertices.
 USE_VELOCITY_FORCES = True # Master toggle for the entire viscosity system.
 MAX_HISTORY_STEPS = 50 # The number of undo steps to store in memory.
 BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH'] # The available deformation brushes
@@ -320,6 +323,9 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
         kd.insert(v.co, i)
     kd.balance()
 
+    # Ensure the lookup table is fresh before any indexed access.
+    bm.verts.ensure_lookup_table()
+
     # Determine the center of influence (average of finger positions)
     influence_center = mathutils.Vector()
     if finger_positions_3d:
@@ -327,10 +333,11 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
             influence_center += world_matrix_inv @ pos # Convert to local space
         influence_center /= len(finger_positions_3d)
 
-    # Find all vertices within the influence radius of the hand center
-    verts_in_influence = [v for (co, v_idx, dist) in kd.find_range(influence_center, FINGER_INFLUENCE_RADIUS)]
+    # Determine the effective radius based on the brush type
+    effective_radius = GRAB_INFLUENCE_RADIUS if brush_type == 'GRAB' else FINGER_INFLUENCE_RADIUS
 
-    for v_idx in verts_in_influence:
+    # Iterate through vertices within the brush influence
+    for (co, v_idx, dist_from_center) in kd.find_range(influence_center, effective_radius):
         v = bm.verts[v_idx]
         current_velocity = vertex_velocities.get(v.index, mathutils.Vector((0,0,0)))
         force = mathutils.Vector((0, 0, 0))
@@ -349,7 +356,7 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
             # Moves vertices along with the hand's movement vector.
             if hand_move_vector:
                  # The "force" is the direction the hand is moving.
-                force = hand_move_vector * 0.5 # Multiply to control sensitivity
+                force = hand_move_vector * GRAB_FORCE_STRENGTH
 
         elif brush_type == 'SMOOTH':
             # Moves vertices towards the average position of their neighbors.
@@ -360,7 +367,7 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
                     neighbor_avg_pos += nv.co
                 neighbor_avg_pos /= len(linked_verts)
                 # The force pushes the vertex towards that average position
-                force = (neighbor_avg_pos - v.co) * 0.1 # Use a small factor for gentle smoothing
+                force = (neighbor_avg_pos - v.co) * SMOOTH_FORCE_STRENGTH
         
         # Update velocity: add force and apply damping
         new_velocity = (current_velocity + force) * VELOCITY_DAMPING_FACTOR
@@ -549,6 +556,20 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
                 if camera and self._initial_camera_matrix:
                     camera.matrix_world = self._initial_camera_matrix
+                
+                # Also reset the mesh's position to the world origin using the specified method
+                if mesh_obj:
+                    try:
+                        bpy.context.view_layer.objects.active = mesh_obj
+                        # 1. Move 3D cursor to the world origin
+                        bpy.context.scene.cursor.location = (0, 0, 0)
+                        # 2. Set the object's origin to the 3D cursor's location
+                        bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='MEDIAN')
+                        # 3. Move the geometry to the object's new origin
+                        bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN')
+                        print(f"'{DEFORM_OBJ_NAME}' has been re-centered using the 3D cursor method.")
+                    except RuntimeError as e:
+                        print(f"Could not re-center mesh. Operator context may be incorrect: {e}")
 
             elif command == "cycle_brush":
                 if self._last_command != "cycle_brush": # Trigger only once per gesture

@@ -24,8 +24,11 @@ DATA_DIR = PROJECT_ROOT / "data"
 INPUT_DIR = DATA_DIR / "input"
 FINGERTIPS_JSON_PATH = INPUT_DIR / "fingertips.json"
 
-# Touch distance threshold
-TOUCH_THRESHOLD = 0.07 # Increased slightly for more reliable detection
+# Touch distance threshold - smaller is more precise
+TOUCH_THRESHOLD = 0.035
+
+# Gesture hold time in seconds
+GESTURE_HOLD_DURATION = 0.25 # A short delay to prevent accidental activation
 
 # Ensure the directory exists
 os.makedirs(INPUT_DIR, exist_ok=True)
@@ -53,6 +56,7 @@ def run_hand_tracker():
     
     # Initialize Mediapipe
     mp_hands = mp.solutions.hands
+    HAND_LANDMARKS = mp.solutions.hands.HandLandmark
     mp_drawing = mp.solutions.drawing_utils
     hands = mp_hands.Hands(
         static_image_mode=False,
@@ -60,6 +64,18 @@ def run_hand_tracker():
         min_detection_confidence=0.7,
         min_tracking_confidence=0.5
     )
+
+    # Define all gestures, their target finger, hand, and behavior
+    GESTURE_MAPPING = {
+        # Right Hand
+        "deform":   {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "rotate_z": {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "rotate_y": {"finger": HAND_LANDMARKS.RING_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "rewind":   {"finger": HAND_LANDMARKS.PINKY_TIP, "hand": "Right", "type": "oneshot"},
+        # Left Hand
+        "reset_rotation": {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+        "cycle_brush":    {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+    }
 
     # Initialize Webcam
     cap = cv2.VideoCapture(0)
@@ -69,9 +85,10 @@ def run_hand_tracker():
 
     print("Hand tracker running. Press 'q' to quit.")
 
-    reset_gesture_start_time = None
-    reset_gesture_fired = False
-    cycle_brush_fired = False
+    # State variables for the gesture detection logic
+    active_gesture = "none"
+    gesture_start_time = None
+    fired_oneshot_gestures = set()
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -88,71 +105,82 @@ def run_hand_tracker():
         # Process the frame and find hands
         results = hands.process(rgb_frame)
 
-        # Prepare data for JSON
+        # --- Gesture State Machine ---
         left_hand_fingertips = None
         right_hand_fingertips = None
-        right_hand_command = "none"
-        left_hand_command = "none"
+        
+        # 1. Check for currently touched gestures
+        potential_gesture = "none"
+        if results.multi_hand_landmarks and results.multi_handedness:
+            # Combine landmarks and handedness info into a single list
+            hand_data = []
+            for i, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                handedness_info = results.multi_handedness[i]
+                hand_data.append((hand_landmarks, handedness_info))
 
-        # Draw the hand annotations on the image
-        if results.multi_hand_landmarks:
-            for hand_idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
-                # Draw landmarks and connections for debugging
-                mp_drawing.draw_landmarks(
-                    frame,
-                    hand_landmarks,
-                    mp_hands.HAND_CONNECTIONS
-                )
-
-                # Extract fingertip data
+            # Sort by handedness ("Left" comes before "Right" alphabetically)
+            # This ensures we always check for left hand gestures first.
+            hand_data.sort(key=lambda item: item[1].classification[0].label)
+            
+            # This loop now correctly prioritizes the left hand
+            for hand_landmarks, handedness_info in hand_data:
+                handedness = handedness_info.classification[0].label
+                
+                # Extract fingertips for the current hand
                 fingertips = []
-                for tip_id in [4, 8, 12, 16, 20]: # THUMB_TIP, INDEX_FINGER_TIP, etc.
+                for tip_id in [4, 8, 12, 16, 20]:
                     lm = hand_landmarks.landmark[tip_id]
                     fingertips.append({"x": lm.x, "y": lm.y, "z": lm.z})
 
-                # Check handedness
-                handedness = results.multi_handedness[hand_idx].classification[0].label
                 if handedness == "Left":
                     left_hand_fingertips = fingertips
-                    # Check for reset gesture on the left hand, with a 1-second hold
-                    if is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP):
-                        if reset_gesture_start_time is None:
-                            reset_gesture_start_time = time.time() # Start the timer
-
-                        # Check if held for 1 second and hasn't already fired
-                        if time.time() - reset_gesture_start_time >= 1.0 and not reset_gesture_fired:
-                            left_hand_command = "reset_rotation"
-                            reset_gesture_fired = True # Ensure it only fires once per hold
-                    else:
-                        # If the gesture is released, reset the timer and the fired state
-                        reset_gesture_start_time = None
-                        reset_gesture_fired = False
-
-                    # Check for cycle brush gesture (one-shot)
-                    if is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP):
-                        if not cycle_brush_fired:
-                            left_hand_command = "cycle_brush"
-                            cycle_brush_fired = True
-                    else:
-                        cycle_brush_fired = False
                 else: # Right
                     right_hand_fingertips = fingertips
-                    # Check for gestures on the right hand to determine the command
-                    if is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP):
-                        right_hand_command = "deform"
-                    elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP):
-                        right_hand_command = "rotate_z"
-                    elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.RING_FINGER_TIP):
-                        right_hand_command = "rotate_y"
-                    elif is_thumb_and_finger_touching(hand_landmarks, mp.solutions.hands.HandLandmark.PINKY_TIP):
-                        right_hand_command = "rewind"
 
-        # Prioritize left hand command (reset) over right hand commands
-        command = left_hand_command if left_hand_command != "none" else right_hand_command
+                # Find the first matching gesture for this hand
+                for gesture_name, gesture_info in GESTURE_MAPPING.items():
+                    if gesture_info["hand"] == handedness:
+                        if is_thumb_and_finger_touching(hand_landmarks, gesture_info["finger"]):
+                            potential_gesture = gesture_name
+                            break # A hand can only perform one gesture at a time
+                
+                # If we found a gesture, we can stop looking because of the sort priority.
+                if potential_gesture != "none":
+                    break
+
+        # 2. Update state based on the potential gesture
+        final_command = "none"
+        if potential_gesture == active_gesture and active_gesture != "none":
+            # The user is still holding the same gesture. Check if the hold duration has passed.
+            if gesture_start_time is not None and (time.time() - gesture_start_time >= GESTURE_HOLD_DURATION):
+                gesture_type = GESTURE_MAPPING[active_gesture]["type"]
+                if gesture_type == "continuous":
+                    final_command = active_gesture
+                elif gesture_type == "oneshot":
+                    if active_gesture not in fired_oneshot_gestures:
+                        final_command = active_gesture
+                        fired_oneshot_gestures.add(active_gesture)
+
+        elif potential_gesture != "none":
+            # A new gesture has been detected. Start the timer for it.
+            active_gesture = potential_gesture
+            gesture_start_time = time.time()
+            fired_oneshot_gestures.clear() # Reset one-shot tracker
+        
+        else: # potential_gesture is "none"
+            # No gestures are detected. Reset the state.
+            active_gesture = "none"
+            gesture_start_time = None
+            fired_oneshot_gestures.clear()
+
+        # Draw landmarks for debugging now that fingertips are processed
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
         # --- Structure and Write JSON ---
         output_data = {
-            "command": command,
+            "command": final_command,
             "left_hand": {"fingertips": left_hand_fingertips} if left_hand_fingertips else None,
             "right_hand": {"fingertips": right_hand_fingertips} if right_hand_fingertips else None,
             "anchors": [],
@@ -169,10 +197,10 @@ def run_hand_tracker():
             print(f"Error writing to JSON file: {e}")
 
         # --- Display Debugging View ---
-        # Add a status text to the frame
-        status_text = f"Command: {command}"
-        color = (0, 255, 0) if command != "none" else (0, 0, 255)
-        cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+        # Display the active command being sent, and the potential command being held
+        status_text = f"Command: {final_command} (Holding: {active_gesture})"
+        color = (0, 255, 0) if final_command != "none" else (0, 0, 255)
+        cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
         
         cv2.imshow('CONJURE Hand Tracker', frame)
 
