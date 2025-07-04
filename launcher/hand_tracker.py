@@ -69,8 +69,7 @@ def run_hand_tracker():
     GESTURE_MAPPING = {
         # Right Hand
         "deform":   {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Right", "type": "continuous"},
-        "rotate_z": {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Right", "type": "continuous"},
-        "rotate_y": {"finger": HAND_LANDMARKS.RING_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "orbit":    {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Right", "type": "continuous"},
         "rewind":   {"finger": HAND_LANDMARKS.PINKY_TIP, "hand": "Right", "type": "oneshot"},
         # Left Hand
         "reset_rotation": {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Left", "type": "oneshot"},
@@ -89,6 +88,7 @@ def run_hand_tracker():
     active_gesture = "none"
     gesture_start_time = None
     fired_oneshot_gestures = set()
+    last_orbit_hand_center = None
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -108,6 +108,7 @@ def run_hand_tracker():
         # --- Gesture State Machine ---
         left_hand_fingertips = None
         right_hand_fingertips = None
+        right_hand_landmarks_for_orbit = None
         
         # 1. Check for currently touched gestures
         potential_gesture = "none"
@@ -136,6 +137,7 @@ def run_hand_tracker():
                     left_hand_fingertips = fingertips
                 else: # Right
                     right_hand_fingertips = fingertips
+                    right_hand_landmarks_for_orbit = hand_landmarks
 
                 # Find the first matching gesture for this hand
                 for gesture_name, gesture_info in GESTURE_MAPPING.items():
@@ -173,6 +175,21 @@ def run_hand_tracker():
             gesture_start_time = None
             fired_oneshot_gestures.clear()
 
+        # --- Orbit Delta Calculation ---
+        orbit_delta = {"x": 0.0, "y": 0.0}
+        if final_command == "orbit" and right_hand_landmarks_for_orbit:
+            thumb_tip = right_hand_landmarks_for_orbit.landmark[HAND_LANDMARKS.THUMB_TIP]
+            middle_tip = right_hand_landmarks_for_orbit.landmark[HAND_LANDMARKS.MIDDLE_FINGER_TIP]
+            current_orbit_hand_center = {"x": (thumb_tip.x + middle_tip.x) / 2, "y": (thumb_tip.y + middle_tip.y) / 2}
+
+            if last_orbit_hand_center:
+                orbit_delta["x"] = current_orbit_hand_center["x"] - last_orbit_hand_center["x"]
+                orbit_delta["y"] = current_orbit_hand_center["y"] - last_orbit_hand_center["y"]
+            
+            last_orbit_hand_center = current_orbit_hand_center
+        else:
+            last_orbit_hand_center = None
+
         # Draw landmarks for debugging now that fingertips are processed
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
@@ -183,9 +200,8 @@ def run_hand_tracker():
             "command": final_command,
             "left_hand": {"fingertips": left_hand_fingertips} if left_hand_fingertips else None,
             "right_hand": {"fingertips": right_hand_fingertips} if right_hand_fingertips else None,
+            "orbit_delta": orbit_delta,
             "anchors": [],
-            "rotation": 0.0,
-            "rotation_speed": 0.0,
             "scale_axis": "XYZ",
             "remesh_type": "BLOCKS"
         }

@@ -81,7 +81,8 @@ MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to p
 REFRESH_RATE_SECONDS = 1 / 30  # Target 30 updates per second.
 
 # --- ROTATION ---
-ROTATION_SPEED_DEGREES_PER_SEC = 45.0 # How fast the object rotates
+ORBIT_SENSITIVITY = 200.0 # How sensitive the orbit control is. Higher is faster.
+ORBIT_SMOOTHING_FACTOR = 0.25 # How much to smooth the orbit motion. Lower is smoother.
 
 # --- SMOOTHING ---
 # How much to smooth the movement of the visual fingertip markers.
@@ -423,6 +424,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _current_brush_index = 0
     _last_hand_center = None # For calculating hand movement for the GRAB brush
     _draw_handler = None # For drawing the UI text
+    _last_orbit_delta = {"x": 0.0, "y": 0.0}
     last_marker_positions = []
 
     def draw_ui_text(self, context):
@@ -519,34 +521,40 @@ class ConjureFingertipOperator(bpy.types.Operator):
                         # Non-velocity deformation would also need history tracking added if used
                         deform_mesh(mesh_obj, deform_points, self._initial_volume)
 
-            elif command == "rotate_z":
-                # When rotating, gradually bring vertex velocities to a halt
-                for index in self._vertex_velocities:
-                    self._vertex_velocities[index] *= 0.9 # Dampen significantly
-                
+            elif command == "orbit":
                 camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
-                if camera:
-                    # Orbit the camera around the world Z-axis
-                    angle_rad = math.radians(ROTATION_SPEED_DEGREES_PER_SEC * REFRESH_RATE_SECONDS)
-                    # Create a rotation matrix around the Z axis
-                    rot_mat = mathutils.Matrix.Rotation(angle_rad, 4, 'Z')
-                    # Apply the rotation to the camera's matrix_world.
-                    # This rotates the camera's location and orientation around the world origin.
-                    camera.matrix_world = rot_mat @ camera.matrix_world
-            
-            elif command == "rotate_y":
-                # When rotating, gradually bring vertex velocities to a halt
-                for index in self._vertex_velocities:
-                    self._vertex_velocities[index] *= 0.9 # Dampen significantly
+                orbit_delta = live_data.get("orbit_delta", {"x": 0.0, "y": 0.0})
 
-                camera = bpy.data.objects.get(GESTURE_CAMERA_NAME)
-                if camera:
-                    # Orbit the camera around the world Y-axis
-                    angle_rad = math.radians(ROTATION_SPEED_DEGREES_PER_SEC * REFRESH_RATE_SECONDS)
-                    # Create a rotation matrix around the Y axis
-                    rot_mat = mathutils.Matrix.Rotation(angle_rad, 4, 'Y')
-                    # Apply the rotation
-                    camera.matrix_world = rot_mat @ camera.matrix_world
+                if camera and orbit_delta:
+                    # Apply smoothing to the raw delta values
+                    raw_delta_x = orbit_delta.get("x", 0.0)
+                    raw_delta_y = orbit_delta.get("y", 0.0)
+                    
+                    self._last_orbit_delta['x'] = self._last_orbit_delta['x'] * (1 - ORBIT_SMOOTHING_FACTOR) + raw_delta_x * ORBIT_SMOOTHING_FACTOR
+                    self._last_orbit_delta['y'] = self._last_orbit_delta['y'] * (1 - ORBIT_SMOOTHING_FACTOR) + raw_delta_y * ORBIT_SMOOTHING_FACTOR
+
+                    smoothed_delta_x = self._last_orbit_delta['x']
+                    smoothed_delta_y = self._last_orbit_delta['y']
+
+                    if abs(smoothed_delta_x) > 0.0001 or abs(smoothed_delta_y) > 0.0001:
+                        # Horizontal movement orbits around the world Z-axis
+                        angle_z = -smoothed_delta_x * math.radians(ORBIT_SENSITIVITY)
+                        rot_z = mathutils.Matrix.Rotation(angle_z, 4, 'Z')
+
+                        # Vertical movement orbits around the camera's local X-axis
+                        angle_x = -smoothed_delta_y * math.radians(ORBIT_SENSITIVITY)
+                        local_x_axis = camera.matrix_world.to_3x3().col[0]
+                        rot_x = mathutils.Matrix.Rotation(angle_x, 4, local_x_axis)
+
+                        # Apply rotation to the camera's location vector
+                        new_location = rot_z @ rot_x @ camera.location
+
+                        # Re-point the camera to the origin (0,0,0) after moving
+                        direction = -new_location
+                        rot_quat = direction.to_track_quat('-Z', 'Y')
+
+                        camera.location = new_location
+                        camera.rotation_euler = rot_quat.to_euler()
 
             elif command == "reset_rotation":
                 # Also reset velocities when resetting camera for a clean stop
@@ -644,6 +652,9 @@ class ConjureFingertipOperator(bpy.types.Operator):
             marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
             if marker_obj:
                 self.last_marker_positions[i] = marker_obj.location.copy()
+
+        # Reset the orbit delta tracker
+        self._last_orbit_delta = {"x": 0.0, "y": 0.0}
 
         self._timer = context.window_manager.event_timer_add(REFRESH_RATE_SECONDS, window=context.window)
         context.window_manager.modal_handler_add(self)
