@@ -77,6 +77,8 @@ For the most precise and intuitive control, a one-time calibration process will 
 
 ## User Manual: Gesture Controls
 
+![Gesture Control Diagram](HAND%20INSTRUCTIONS.png)
+
 CONJURE is designed to be controlled with intuitive hand gestures. All actions are performed relative to the camera's view, giving you a stable and predictable workspace.
 
 ### Right-Hand Gestures: Primary Actions
@@ -85,19 +87,19 @@ Your right hand is your primary tool for creating and shaping.
 
 | Gesture                 | Action                                                                                                                             |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Thumb + Index Finger**  | **Deform Mesh:** Activates sculpting mode. Only the thumb and index finger will pull and push the mesh, allowing for fine control. |
-| **Thumb + Middle Finger** | **Orbit Camera (Z-axis):** Rotates your view horizontally around the object.                                                      |
-| **Thumb + Ring Finger**   | **Orbit Camera (Y-axis):** Rotates your view vertically around the object.                                                         |
-| **Thumb + Pinky Finger**  | **Rewind:** Undoes the last deformation, allowing you to step back through your changes.                                            |
+| **Thumb + Index Finger**  | **Deform Mesh:** Activates the currently selected sculpting brush (`PINCH`, `GRAB`, `SMOOTH`, etc.) to pull and push the mesh.      |
+| **Thumb + Middle Finger** | **Orbit Camera:** Activates a direct manipulation orbit. Move your hand left/right and up/down to intuitively rotate your view.    |
+| **Thumb + Ring Finger**   | **Cycle Brush:** Switches between the available sculpting brushes: `PINCH`, `GRAB`, `SMOOTH`, `INFLATE`, and `FLATTEN`.            |
+| **Thumb + Pinky Finger**  | **Rewind (Continuous):** Rapidly rewinds your changes as long as the gesture is held.                                            |
 
 ### Left-Hand Gestures: Utility Actions
 
 Your left hand is used for support and utility functions.
 
-| Gesture                            | Action                                                                      |
-| ---------------------------------- | --------------------------------------------------------------------------- |
-| **Thumb + Index Finger (Hold 1s)** | **Reset Camera:** Snaps the camera back to its original starting position.    |
-| **Thumb + Middle Finger**          | **Cycle Brush:** Switches between `PINCH`, `GRAB`, and `SMOOTH` brushes.      |
+| Gesture                            | Action                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| **Thumb + Index Finger (Hold)**    | **Reset View:** Snaps the camera to its home position and re-centers the mesh at 0,0,0. |
+| **Thumb + Middle Finger**          | **Cycle Radius:** Switches the brush size between `SMALL`, `MEDIUM`, and `LARGE`.     |
 
 ---
 

@@ -51,3 +51,31 @@ Advances:
 
 4.  **Bug Fixes & Stability**:
     *   Resolved multiple `bmesh` tracebacks (`AttributeError: invalid key` and `IndexError: outdated internal index table`) by ensuring correct vertex indexing and lookup table management. 
+
+---
+Date: 2024-07-26
+
+This session focused on a complete overhaul of the user experience and control scheme based on hands-on feedback, transforming the tool's feel and usability.
+
+Advances:
+1.  **Intuitive Orbit System**:
+    *   Replaced the separate X/Y axis rotation gestures with a single, unified "Orbit" mode.
+    *   The new system directly maps hand movement to camera rotation, mimicking conventional 3D software for a much more intuitive feel.
+    *   Implemented smoothing and locked the camera's focus to the world origin to prevent disorientation and drift.
+
+2.  **Expanded Sculpting Palette**:
+    *   Added two new, powerful brushes: `INFLATE` (to add/remove volume) and `FLATTEN` (to create hard surfaces).
+    *   The total brush count is now five: `PINCH`, `GRAB`, `SMOOTH`, `INFLATE`, `FLATTEN`.
+
+3.  **Advanced Brush Controls**:
+    *   **Radius Cycling**: Implemented a brush radius system with `SMALL`, `MEDIUM`, and `LARGE` settings.
+    *   **Smooth Falloff**: Applied a smooth, distance-based falloff to all brushes, eliminating harsh edges and creating a natural, clay-like sculpting feel.
+
+4.  **Ergonomic & Control Refinements**:
+    *   **Gesture Re-mapping**: Moved "Cycle Brush" to the right hand and "Cycle Radius" to the left hand for a more logical separation of concerns.
+    *   **Continuous Rewind**: Changed the rewind function from a single-shot to a continuous action, allowing for rapid, press-and-hold undoing.
+    *   **Comprehensive Calibration**: Performed multiple iterative tuning passes on brush strengths, radii, and orbit sensitivity to perfect the tool's feel.
+
+5.  **Bug Fixes & Stability**:
+    *   Corrected a critical `IndexError` in the hand tracker related to single-hand detection.
+    *   Fixed a `NameError` in the Blender script's deformation function. 

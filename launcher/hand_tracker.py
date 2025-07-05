@@ -68,12 +68,13 @@ def run_hand_tracker():
     # Define all gestures, their target finger, hand, and behavior
     GESTURE_MAPPING = {
         # Right Hand
-        "deform":   {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Right", "type": "continuous"},
-        "orbit":    {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Right", "type": "continuous"},
-        "rewind":   {"finger": HAND_LANDMARKS.PINKY_TIP, "hand": "Right", "type": "oneshot"},
+        "deform":       {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "orbit":        {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "cycle_brush":  {"finger": HAND_LANDMARKS.RING_FINGER_TIP,   "hand": "Right", "type": "oneshot"},
+        "rewind":       {"finger": HAND_LANDMARKS.PINKY_TIP,        "hand": "Right", "type": "continuous"},
         # Left Hand
         "reset_rotation": {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Left", "type": "oneshot"},
-        "cycle_brush":    {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+        "cycle_radius":   {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left", "type": "oneshot"},
     }
 
     # Initialize Webcam

@@ -39,6 +39,20 @@ The goal of this phase is to move beyond simple deformation and implement the ot
 
 ---
 
+### **Phase 2.5: Ergonomics & Feel Tuning (✅ Completed)**
+
+This phase involved a deep, iterative refinement of the core user experience based on hands-on testing. The focus was on making the tool feel intuitive, responsive, and natural.
+
+-   [x] **Overhaul Orbit Controls:** Replaced the clunky, modal rotation system with a fluid, direct-manipulation orbit control that is locked to the world origin.
+-   [x] **Expand Brush Palette:** Added the `INFLATE` and `FLATTEN` brushes to the sculpting toolkit for more advanced shape control.
+-   [x] **Implement Brush Radius Cycling:** Created a three-tier radius system (`SMALL`, `MEDIUM`, `LARGE`) and mapped it to a dedicated gesture.
+-   [x] **Implement Brush Falloff:** Added smooth, distance-based falloff to all sculpting brushes to create natural, organic results and eliminate harsh edges.
+-   [x] **Refine Gesture Ergonomics:** Re-mapped gestures for a more logical separation of concerns between the left and right hands.
+-   [x] **Improve Core Mechanics:** Upgraded the rewind feature to be a continuous, press-and-hold action for much faster undoing.
+-   [x] **Comprehensive Calibration:** Performed numerous micro-calibrations of brush strengths, radii, falloffs, and sensitivities to perfect the tool's "feel".
+
+---
+
 ### **Phase 3: The `Launcher` as an Orchestrator**
 
 The goal of this phase is to build out the main application that manages all the subprocesses, as described in `README.md`.

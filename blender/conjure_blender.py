@@ -67,9 +67,9 @@ GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based ma
 # --- MAPPING SCALE ---
 # These values control how sensitive the hand tracking is.
 # Larger values mean the virtual hand moves more for a given physical hand movement.
-HAND_SCALE_X = 5.0 # Controls side-to-side movement.
-HAND_SCALE_Y = 5.0 # Controls forward-backward movement (from hand depth).
-HAND_SCALE_Z = 5.0 # Controls up-down movement.
+HAND_SCALE_X = 8.0 # Controls side-to-side movement.
+HAND_SCALE_Y = 8.0 # Controls forward-backward movement (from hand depth).
+HAND_SCALE_Z = 8.0 # Controls up-down movement.
 
 # --- VISUALIZATION ---
 MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to prevent flickering.
@@ -81,7 +81,7 @@ MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to p
 REFRESH_RATE_SECONDS = 1 / 30  # Target 30 updates per second.
 
 # --- ROTATION ---
-ORBIT_SENSITIVITY = 300.0 # How sensitive the orbit control is. Higher is faster.
+ORBIT_SENSITIVITY = 400.0 # How sensitive the orbit control is. Higher is faster.
 ORBIT_SMOOTHING_FACTOR = 0.25 # How much to smooth the orbit motion. Lower is smoother.
 
 # --- SMOOTHING ---
@@ -91,8 +91,15 @@ SMOOTHING_FACTOR = 0.3
 
 # --- DEFORMATION PARAMETERS ---
 # These control how the mesh reacts to the user's hand.
-FINGER_INFLUENCE_RADIUS = 3.0  # How far the influence of a finger reaches for PINCH and SMOOTH.
-GRAB_INFLUENCE_RADIUS = 1.5    # A smaller radius for the GRAB brush for more focused control.
+# The following are now defined by the RADIUS_LEVELS below.
+# FINGER_INFLUENCE_RADIUS = 3.0
+# GRAB_INFLUENCE_RADIUS = 1.5
+# INFLATE_FLATTEN_RADIUS = 0.375
+RADIUS_LEVELS = [
+    {'name': 'small',  'finger': 3.0, 'grab': 1.5,   'inflate_flatten': 0.375},
+    {'name': 'medium', 'finger': 3.0, 'grab': 1.5,   'inflate_flatten': 0.75},
+    {'name': 'large',  'finger': 3.0, 'grab': 3.0,   'inflate_flatten': 3.0}
+]
 MAX_DISPLACEMENT_PER_FRAME = 0.25 # Safety limit to prevent vertices from moving too far in one frame.
 MASS_COHESION_FACTOR = 0.62 # How much vertices stick together to create a smoother deformation.
 DEFORM_TIMESTEP = 0.05 # Multiplier for displacement per frame to create a continuous effect.
@@ -102,12 +109,14 @@ VOLUME_UPPER_LIMIT = 1.2 # The mesh cannot expand to more than 120% of its origi
 # --- VELOCITY & VISCOSITY ---
 # These parameters add a sense of weight and momentum to the mesh.
 VELOCITY_DAMPING_FACTOR = 0.80 # How much velocity is retained each frame (lower is 'thicker' viscosity).
-FINGER_FORCE_STRENGTH = 0.08    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
+FINGER_FORCE_STRENGTH = 0.06    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
 GRAB_FORCE_STRENGTH = 5.0       # How strongly the grab brush moves the mesh with the hand.
 SMOOTH_FORCE_STRENGTH = 0.9     # How strongly the smooth brush relaxes vertices.
+INFLATE_FORCE_STRENGTH = 0.2    # How strongly the inflate brush adds/removes volume.
+FLATTEN_FORCE_STRENGTH = 0.75   # How strongly the flatten brush creates planar surfaces.
 USE_VELOCITY_FORCES = True # Master toggle for the entire viscosity system.
 MAX_HISTORY_STEPS = 50 # The number of undo steps to store in memory.
-BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH'] # The available deformation brushes
+BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
 
 
 # === 1. INITIAL SCENE SETUP ===
@@ -294,7 +303,7 @@ def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
 
 
 # === 5. MESH DEFORMATION (with Viscosity) ===
-def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, vertex_velocities, history_buffer, brush_type='PINCH', hand_move_vector=None):
+def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, vertex_velocities, history_buffer, operator_instance, brush_type='PINCH', hand_move_vector=None):
     """
     Deforms the mesh by applying forces and simulating viscosity.
     This version updates vertex velocities for a more dynamic and weighty feel.
@@ -334,8 +343,32 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
             influence_center += world_matrix_inv @ pos # Convert to local space
         influence_center /= len(finger_positions_3d)
 
-    # Determine the effective radius based on the brush type
-    effective_radius = GRAB_INFLUENCE_RADIUS if brush_type == 'GRAB' else FINGER_INFLUENCE_RADIUS
+    # Determine the effective radius based on the brush type and current radius level
+    radius_level = RADIUS_LEVELS[operator_instance._current_radius_index]
+    if brush_type == 'GRAB':
+        effective_radius = radius_level['grab']
+    elif brush_type in ['INFLATE', 'FLATTEN']:
+        effective_radius = radius_level['inflate_flatten']
+    else: # PINCH, SMOOTH use the default
+        effective_radius = radius_level['finger']
+
+    # --- Special pre-calculation for FLATTEN brush ---
+    flatten_plane_center = None
+    flatten_plane_normal = None
+    if brush_type == 'FLATTEN' and finger_positions_3d:
+        verts_in_range_indices = [v_idx for co, v_idx, dist in kd.find_range(influence_center, effective_radius)]
+        if verts_in_range_indices:
+            flatten_plane_center = mathutils.Vector()
+            for v_idx in verts_in_range_indices:
+                flatten_plane_center += bm.verts[v_idx].co
+            flatten_plane_center /= len(verts_in_range_indices)
+
+            flatten_plane_normal = mathutils.Vector()
+            for v_idx in verts_in_range_indices:
+                flatten_plane_normal += bm.verts[v_idx].normal
+            
+            if flatten_plane_normal.length > 0:
+                flatten_plane_normal.normalize()
 
     # Iterate through vertices within the brush influence
     for (co, v_idx, dist_from_center) in kd.find_range(influence_center, effective_radius):
@@ -343,33 +376,46 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
         current_velocity = vertex_velocities.get(v.index, mathutils.Vector((0,0,0)))
         force = mathutils.Vector((0, 0, 0))
 
+        # Calculate a smooth falloff based on distance from the brush center.
+        # This is the key to making the brushes feel natural and not jagged.
+        falloff = (1.0 - (dist_from_center / effective_radius))**2
+
         if brush_type == 'PINCH':
-            # Attracts vertices towards the center of the fingers.
+            # PINCH has its own special falloff based on distance to each finger,
+            # so we don't use the centered falloff.
             v_world = world_matrix @ v.co
             for finger_pos in finger_positions_3d:
                 to_finger = finger_pos - v_world
                 dist = to_finger.length
-                if dist < FINGER_INFLUENCE_RADIUS:
-                    falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
-                    force += to_finger.normalized() * FINGER_FORCE_STRENGTH * falloff
+                if dist < effective_radius:
+                    pinch_falloff = (1.0 - (dist / effective_radius))**2
+                    force += to_finger.normalized() * FINGER_FORCE_STRENGTH * pinch_falloff
 
         elif brush_type == 'GRAB':
-            # Moves vertices along with the hand's movement vector.
+            # Moves vertices along with the hand's movement vector, scaled by falloff.
             if hand_move_vector:
-                 # The "force" is the direction the hand is moving.
-                force = hand_move_vector * GRAB_FORCE_STRENGTH
+                force = hand_move_vector * GRAB_FORCE_STRENGTH * falloff
 
         elif brush_type == 'SMOOTH':
-            # Moves vertices towards the average position of their neighbors.
+            # Moves vertices towards their neighbors' average position, scaled by falloff.
             neighbor_avg_pos = mathutils.Vector()
             linked_verts = [e.other_vert(v) for e in v.link_edges]
             if linked_verts:
                 for nv in linked_verts:
                     neighbor_avg_pos += nv.co
                 neighbor_avg_pos /= len(linked_verts)
-                # The force pushes the vertex towards that average position
-                force = (neighbor_avg_pos - v.co) * SMOOTH_FORCE_STRENGTH
+                force = (neighbor_avg_pos - v.co) * SMOOTH_FORCE_STRENGTH * falloff
         
+        elif brush_type == 'INFLATE':
+            # Pushes vertices outwards along their normal, scaled by falloff.
+            force = v.normal * INFLATE_FORCE_STRENGTH * falloff
+
+        elif brush_type == 'FLATTEN':
+            # Pushes vertices towards a plane, scaled by falloff.
+            if flatten_plane_center and flatten_plane_normal:
+                dist_to_plane = (v.co - flatten_plane_center).dot(flatten_plane_normal)
+                force = -flatten_plane_normal * dist_to_plane * FLATTEN_FORCE_STRENGTH * falloff
+
         # Update velocity: add force and apply damping
         new_velocity = (current_velocity + force) * VELOCITY_DAMPING_FACTOR
         vertex_velocities[v.index] = new_velocity
@@ -422,6 +468,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _vertex_velocities = {} # Stores the velocity of each vertex for viscosity simulation
     _history_buffer = None # Holds previous mesh states for the rewind feature
     _current_brush_index = 0
+    _current_radius_index = 0
     _last_hand_center = None # For calculating hand movement for the GRAB brush
     _draw_handler = None # For drawing the UI text
     _last_orbit_delta = {"x": 0.0, "y": 0.0}
@@ -430,11 +477,20 @@ class ConjureFingertipOperator(bpy.types.Operator):
     def draw_ui_text(self, context):
         """Draws the current brush name on the viewport."""
         font_id = 0  # Default font
-        blf.position(font_id, 15, 30, 0)
+        
+        # Draw Brush Name
+        blf.position(font_id, 15, 60, 0)
         blf.size(font_id, 20)
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
         active_brush = BRUSH_TYPES[self._current_brush_index]
         blf.draw(font_id, f"Brush: {active_brush}")
+
+        # Draw Radius Size
+        blf.position(font_id, 15, 30, 0)
+        blf.size(font_id, 20)
+        blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
+        active_radius = RADIUS_LEVELS[self._current_radius_index]['name'].upper()
+        blf.draw(font_id, f"Radius: {active_radius}")
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
@@ -516,7 +572,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     
                     if USE_VELOCITY_FORCES:
                         active_brush = BRUSH_TYPES[self._current_brush_index]
-                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, active_brush, hand_move_vector)
+                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, self, active_brush, hand_move_vector)
                     else:
                         # Non-velocity deformation would also need history tracking added if used
                         deform_mesh(mesh_obj, deform_points, self._initial_volume)
@@ -584,17 +640,22 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     self._current_brush_index = (self._current_brush_index + 1) % len(BRUSH_TYPES)
                     print(f"Switched brush to: {BRUSH_TYPES[self._current_brush_index]}")
 
+            elif command == "cycle_radius":
+                if self._last_command != "cycle_radius":
+                    self._current_radius_index = (self._current_radius_index + 1) % len(RADIUS_LEVELS)
+                    print(f"Set brush radius to: {RADIUS_LEVELS[self._current_radius_index]['name']}")
+
             elif command == "rewind":
-                if self._last_command != "rewind" and self._history_buffer is not None: # Trigger only once and check buffer exists
-                    if len(self._history_buffer) > 0:
-                        previous_verts = self._history_buffer.pop()
-                        # Apply the retrieved vertex coordinates to the mesh
-                        for i, v_co in enumerate(previous_verts):
-                            mesh_obj.data.vertices[i].co = v_co
-                        mesh_obj.data.update()
-                        print(f"Rewind successful. History has {len(self._history_buffer)} steps remaining.")
-                    else:
-                        print("History buffer is empty. Nothing to rewind.")
+                # With rewind as a continuous command, we pop one state per frame it's active.
+                if self._history_buffer and len(self._history_buffer) > 0:
+                    previous_verts = self._history_buffer.pop()
+                    for i, v_co in enumerate(previous_verts):
+                        mesh_obj.data.vertices[i].co = v_co
+                    mesh_obj.data.update()
+                    print(f"Rewind step. History has {len(self._history_buffer)} steps remaining.")
+                else:
+                    # To prevent console spam, we can just pass or have a silent print
+                    pass
 
             else:
                 # If no command is active, gradually bring all vertex velocities to a stop.
@@ -608,7 +669,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     
                     # If any vertex is still moving, we need to update the mesh
                     if is_settling:
-                        deform_mesh_with_viscosity(mesh_obj, [], self._initial_volume, self._vertex_velocities, self._history_buffer)
+                        deform_mesh_with_viscosity(mesh_obj, [], self._initial_volume, self._vertex_velocities, self._history_buffer, self)
 
             self._last_command = command
 
