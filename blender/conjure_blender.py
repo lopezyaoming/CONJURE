@@ -16,7 +16,13 @@ from pathlib import Path
 import math
 from collections import deque
 import blf # For drawing text on the screen
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_origin_3d
 
+
+# --- FLICKER FIX ---
+# A short grace period (in frames) before hiding a marker that has disappeared.
+# This prevents flickering from minor, single-frame dropouts in hand tracking.
+HIDE_GRACE_PERIOD_FRAMES = 5
 
 # === 1. UI PANEL ===
 class CONJURE_PT_control_panel(bpy.types.Panel):
@@ -73,6 +79,7 @@ HAND_SCALE_Z = 8.0 # Controls up-down movement.
 
 # --- VISUALIZATION ---
 MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to prevent flickering.
+MARKER_SURFACE_OFFSET = 0.05 # How far to offset the marker from the mesh surface to prevent z-fighting.
 
 # --- REFRESH RATE ---
 # The target interval in seconds for the operator to update.
@@ -96,9 +103,9 @@ SMOOTHING_FACTOR = 0.3
 # GRAB_INFLUENCE_RADIUS = 1.5
 # INFLATE_FLATTEN_RADIUS = 0.375
 RADIUS_LEVELS = [
-    {'name': 'small',  'finger': 3.0, 'grab': 1.5,   'inflate_flatten': 0.375},
-    {'name': 'medium', 'finger': 3.0, 'grab': 1.5,   'inflate_flatten': 0.75},
-    {'name': 'large',  'finger': 3.0, 'grab': 3.0,   'inflate_flatten': 3.0}
+    {'name': 'small',  'finger': 3.0, 'grab': 1.5, 'flatten': 0.375, 'inflate': 0.75},
+    {'name': 'medium', 'finger': 3.0, 'grab': 1.5, 'flatten': 0.75,  'inflate': 1.5},
+    {'name': 'large',  'finger': 3.0, 'grab': 3.0, 'flatten': 3.0,   'inflate': 6.0}
 ]
 MAX_DISPLACEMENT_PER_FRAME = 0.25 # Safety limit to prevent vertices from moving too far in one frame.
 MASS_COHESION_FACTOR = 0.62 # How much vertices stick together to create a smoother deformation.
@@ -109,11 +116,11 @@ VOLUME_UPPER_LIMIT = 1.2 # The mesh cannot expand to more than 120% of its origi
 # --- VELOCITY & VISCOSITY ---
 # These parameters add a sense of weight and momentum to the mesh.
 VELOCITY_DAMPING_FACTOR = 0.80 # How much velocity is retained each frame (lower is 'thicker' viscosity).
-FINGER_FORCE_STRENGTH = 0.06    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
-GRAB_FORCE_STRENGTH = 5.0       # How strongly the grab brush moves the mesh with the hand.
-SMOOTH_FORCE_STRENGTH = 0.9     # How strongly the smooth brush relaxes vertices.
+FINGER_FORCE_STRENGTH = 0.09    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
+GRAB_FORCE_STRENGTH = 7.5       # How strongly the grab brush moves the mesh with the hand.
+SMOOTH_FORCE_STRENGTH = 1.35     # How strongly the smooth brush relaxes vertices.
 INFLATE_FORCE_STRENGTH = 0.2    # How strongly the inflate brush adds/removes volume.
-FLATTEN_FORCE_STRENGTH = 0.75   # How strongly the flatten brush creates planar surfaces.
+FLATTEN_FORCE_STRENGTH = 1.125   # How strongly the flatten brush creates planar surfaces.
 USE_VELOCITY_FORCES = True # Master toggle for the entire viscosity system.
 MAX_HISTORY_STEPS = 50 # The number of undo steps to store in memory.
 BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
@@ -204,6 +211,10 @@ def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
     if not mesh_obj or not finger_positions_3d:
         return
 
+    # Use the 'medium' radius setting as a default for this legacy function.
+    radius_settings = RADIUS_LEVELS[1] # 0=small, 1=medium, 2=large
+    finger_influence_radius = radius_settings['finger']
+
     bm = bmesh.new()
     bm.from_mesh(mesh_obj.data)
     
@@ -220,9 +231,9 @@ def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
             to_finger = finger_pos - v_world
             dist = to_finger.length
             
-            if dist < FINGER_INFLUENCE_RADIUS:
+            if dist < finger_influence_radius:
                 # Use a squared falloff for a smoother gradient
-                falloff = (1.0 - (dist / FINGER_INFLUENCE_RADIUS))**2
+                falloff = (1.0 - (dist / finger_influence_radius))**2
                 direction = to_finger.normalized()
                 force = direction * FINGER_FORCE_STRENGTH * falloff
                 net_displacement += force
@@ -347,8 +358,10 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
     radius_level = RADIUS_LEVELS[operator_instance._current_radius_index]
     if brush_type == 'GRAB':
         effective_radius = radius_level['grab']
-    elif brush_type in ['INFLATE', 'FLATTEN']:
-        effective_radius = radius_level['inflate_flatten']
+    elif brush_type == 'INFLATE':
+        effective_radius = radius_level['inflate']
+    elif brush_type == 'FLATTEN':
+        effective_radius = radius_level['flatten']
     else: # PINCH, SMOOTH use the default
         effective_radius = radius_level['finger']
 
@@ -472,7 +485,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _last_hand_center = None # For calculating hand movement for the GRAB brush
     _draw_handler = None # For drawing the UI text
     _last_orbit_delta = {"x": 0.0, "y": 0.0}
-    last_marker_positions = []
+    marker_states = []
 
     def draw_ui_text(self, context):
         """Draws the current brush name on the viewport."""
@@ -501,6 +514,22 @@ class ConjureFingertipOperator(bpy.types.Operator):
             return self.cancel(context)
 
         if event.type == 'TIMER':
+            # --- Robustly find the 3D view context, regardless of mouse position ---
+            area = next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
+            if not area:
+                return {'PASS_THROUGH'} # No 3D view available, do nothing
+
+            region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+            if not region:
+                return {'PASS_THROUGH'} # No window region in the 3D view
+
+            space_data = area.spaces.active
+            rv3d = space_data.region_3d if space_data else None
+            if not rv3d:
+                return {'PASS_THROUGH'} # No 3D region data
+
+            depsgraph = context.evaluated_depsgraph_get()
+
             live_data = {}
             if os.path.exists(FINGERTIPS_JSON_PATH):
                 with open(FINGERTIPS_JSON_PATH, "r") as f:
@@ -513,35 +542,64 @@ class ConjureFingertipOperator(bpy.types.Operator):
             mesh_obj = bpy.data.objects.get(DEFORM_OBJ_NAME)
 
             # --- Process Fingertips for Visualization ---
-            all_fingertips = []
             right_hand_data = live_data.get("right_hand")
             left_hand_data = live_data.get("left_hand")
-
-            # Process both left and right hands for visual markers
-            for hand_data in [left_hand_data, right_hand_data]:
-                if hand_data and "fingertips" in hand_data:
-                    all_fingertips.extend(hand_data["fingertips"])
-
-            finger_positions_3d = []
-            # This loop updates the visual markers for all fingers
-            for i, tip in enumerate(all_fingertips):
-                if tip:
-                    target_pos_3d = map_hand_to_3d_space(tip['x'], tip['y'], tip['z'])
-                    finger_positions_3d.append(target_pos_3d)
-                    marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
-                    if marker_obj:
-                        last_pos = self.last_marker_positions[i]
-                        smoothed_pos = last_pos.lerp(target_pos_3d, SMOOTHING_FACTOR)
-                        marker_obj.location = smoothed_pos
-                        # Ensure the marker is always visible when in use.
-                        marker_obj.hide_viewport = False
-                        self.last_marker_positions[i] = smoothed_pos
             
-            # Move unused markers out of view instead of hiding them
-            for i in range(len(all_fingertips), 10):
+            # Create a combined list of all 10 possible finger datas (None if not present)
+            all_finger_datas = (left_hand_data["fingertips"] if left_hand_data else [None]*5) + \
+                               (right_hand_data["fingertips"] if right_hand_data else [None]*5)
+
+            finger_positions_3d = [] # This will store the final, snapped positions for deformation
+
+            for i, tip in enumerate(all_finger_datas):
                 marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
-                if marker_obj:
-                    marker_obj.location = MARKER_OUT_OF_VIEW_LOCATION
+                if not marker_obj:
+                    continue
+
+                if tip:
+                    # --- FINGER IS PRESENT ---
+                    self.marker_states[i]['missing_frames'] = 0
+                    marker_obj.hide_viewport = False
+
+                    raw_pos_3d = map_hand_to_3d_space(tip['x'], tip['y'], tip['z'])
+                    
+                    # Default positions, in case no snapping occurs
+                    deformation_pos = raw_pos_3d
+                    visual_marker_pos = raw_pos_3d
+
+                    # --- SURFACE SNAPPING LOGIC ---
+                    if region and rv3d and mesh_obj:
+                        pos_2d = location_3d_to_region_2d(region, rv3d, raw_pos_3d)
+                        if pos_2d:
+                            ray_origin = region_2d_to_origin_3d(region, rv3d, pos_2d)
+                            ray_direction = region_2d_to_vector_3d(region, rv3d, pos_2d)
+                            hit, loc, normal, _, hit_obj, _ = context.scene.ray_cast(depsgraph, ray_origin, ray_direction)
+                            
+                            if hit and hit_obj == mesh_obj:
+                                # DEFORMATION happens at the exact hit location.
+                                deformation_pos = loc
+
+                                # VISUAL MARKER is offset directly back towards the camera to prevent all z-fighting.
+                                visual_marker_pos = loc - (ray_direction * MARKER_SURFACE_OFFSET)
+                            else:
+                                # If we aren't hitting the mesh, reset the last known normal.
+                                pass # No special handling needed if not hitting
+                    
+                    # The deformation list gets the precise, non-offset position.
+                    finger_positions_3d.append(deformation_pos)
+
+                    # Smooth the visual marker's movement to its target position.
+                    last_pos = self.marker_states[i]['last_pos']
+                    smoothed_pos = last_pos.lerp(visual_marker_pos, SMOOTHING_FACTOR)
+                    marker_obj.location = smoothed_pos
+                    self.marker_states[i]['last_pos'] = smoothed_pos
+                
+                else:
+                    # --- FINGER IS MISSING ---
+                    finger_positions_3d.append(None) # Add a placeholder for indexing
+                    self.marker_states[i]['missing_frames'] += 1
+                    if self.marker_states[i]['missing_frames'] > HIDE_GRACE_PERIOD_FRAMES:
+                        marker_obj.hide_viewport = True
 
             # --- Execute Commands ---
             if not mesh_obj:
@@ -554,6 +612,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
             if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 2:
                 thumb_tip = right_hand_data["fingertips"][0]
                 index_tip = right_hand_data["fingertips"][1]
+                # We use the raw positions for calculating the grab vector to avoid snapping influencing it
                 thumb_pos = map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z'])
                 index_pos = map_hand_to_3d_space(index_tip['x'], index_tip['y'], index_tip['z'])
                 current_hand_center = (thumb_pos + index_pos) / 2.0
@@ -564,17 +623,14 @@ class ConjureFingertipOperator(bpy.types.Operator):
             self._last_hand_center = current_hand_center
 
             if command == "deform":
-                if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 2:
-                    deform_points = [
-                        map_hand_to_3d_space(right_hand_data["fingertips"][0]['x'], right_hand_data["fingertips"][0]['y'], right_hand_data["fingertips"][0]['z']),
-                        map_hand_to_3d_space(right_hand_data["fingertips"][1]['x'], right_hand_data["fingertips"][1]['y'], right_hand_data["fingertips"][1]['z'])
-                    ]
+                # The deform points are the thumb and index of the right hand (indices 5 and 6)
+                if len(finger_positions_3d) > 6 and finger_positions_3d[5] and finger_positions_3d[6]:
+                    deform_points = [finger_positions_3d[5], finger_positions_3d[6]]
                     
                     if USE_VELOCITY_FORCES:
                         active_brush = BRUSH_TYPES[self._current_brush_index]
                         deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, self, active_brush, hand_move_vector)
                     else:
-                        # Non-velocity deformation would also need history tracking added if used
                         deform_mesh(mesh_obj, deform_points, self._initial_volume)
 
             elif command == "orbit":
@@ -707,12 +763,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
             self._vertex_velocities = {}
             print("Warning: Could not find 'Mesh' object to calculate initial volume.")
 
-        # Initialize the list that will store the last known position of each marker.
-        self.last_marker_positions = [mathutils.Vector((0,0,0))] * 10
+        # Initialize the state for each of the 10 markers
+        self.marker_states = []
         for i in range(10):
             marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
-            if marker_obj:
-                self.last_marker_positions[i] = marker_obj.location.copy()
+            initial_pos = marker_obj.location.copy() if marker_obj else mathutils.Vector((0,0,0))
+            self.marker_states.append({
+                'last_pos': initial_pos,
+                'missing_frames': 0
+            })
 
         # Reset the orbit delta tracker
         self._last_orbit_delta = {"x": 0.0, "y": 0.0}

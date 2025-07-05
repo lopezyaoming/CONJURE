@@ -78,4 +78,36 @@ Advances:
 
 5.  **Bug Fixes & Stability**:
     *   Corrected a critical `IndexError` in the hand tracker related to single-hand detection.
-    *   Fixed a `NameError` in the Blender script's deformation function. 
+    *   Fixed a `NameError` in the Blender script's deformation function.
+
+---
+Date: 2024-07-26 (Afternoon Session)
+
+Focus on improving the core sculpting interaction to be more intuitive and tactile.
+
+Advances:
+1.  **Surface-Constrained Cursor Projection (Surface Snapping)**:
+    *   Implemented a new system that projects the fingertip cursor onto the visible surface of the mesh.
+    *   This is achieved by raycasting from the user's point of view through the fingertip's 2D screen position.
+    *   The cursor now intelligently "snaps" to the mesh surface when the user's hand is behind or inside it, preventing the markers from getting lost and providing a much more intuitive, tactile sculpting feel.
+
+2.  **Bug Fixes & Stability**:
+    *   Pinpointed and fixed a visual bug causing the fingertip markers to flicker. The issue was a redundant `hide_viewport` call; the system now relies exclusively on moving markers to a distant location to control visibility, which is more stable. 
+
+---
+Date: 2024-07-27
+
+Finalized the core sculpting and modeling experience with a series of stability fixes and parameter tuning.
+
+Advances:
+1.  **Visual Stability (Z-Fighting Fix)**:
+    *   Eliminated the visual flickering/bouncing of fingertip markers when snapped to the mesh surface.
+    *   The definitive solution offsets the visual marker from the point of contact directly back towards the camera, providing a rock-solid and visually stable cursor that glides smoothly over the surface.
+
+2.  **Interaction Stability (Flicker Fix)**:
+    *   Resolved an `AttributeError` that caused the operator to crash when the mouse left the 3D viewport.
+    *   Implemented a "grace period" for marker visibility to handle micro-dropouts in hand tracking data, preventing markers from flickering in and out of existence.
+
+3.  **Brush Calibration Pass**:
+    *   Increased the force of the `PINCH`, `GRAB`, `SMOOTH`, and `FLATTEN` brushes by 50% for more impactful sculpting.
+    *   Gave the `INFLATE` brush its own dedicated radius, making it twice as large as other brushes to allow for broader volume adjustments. 

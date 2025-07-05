@@ -47,9 +47,11 @@ This phase involved a deep, iterative refinement of the core user experience bas
 -   [x] **Expand Brush Palette:** Added the `INFLATE` and `FLATTEN` brushes to the sculpting toolkit for more advanced shape control.
 -   [x] **Implement Brush Radius Cycling:** Created a three-tier radius system (`SMALL`, `MEDIUM`, `LARGE`) and mapped it to a dedicated gesture.
 -   [x] **Implement Brush Falloff:** Added smooth, distance-based falloff to all sculpting brushes to create natural, organic results and eliminate harsh edges.
+-   [x] **Implement Surface Snapping:** Added camera-based raycasting to project the fingertip cursor onto the mesh surface, preventing it from getting lost inside the model and providing a tactile, "snap-to-surface" feel.
 -   [x] **Refine Gesture Ergonomics:** Re-mapped gestures for a more logical separation of concerns between the left and right hands.
 -   [x] **Improve Core Mechanics:** Upgraded the rewind feature to be a continuous, press-and-hold action for much faster undoing.
 -   [x] **Comprehensive Calibration:** Performed numerous micro-calibrations of brush strengths, radii, falloffs, and sensitivities to perfect the tool's "feel".
+-   [x] **Final Stability Pass:** Implemented multiple fixes for visual and interaction stability, including robust context handling, a visibility grace period for markers, and a camera-based offset to eliminate z-fighting.
 
 ---
 
