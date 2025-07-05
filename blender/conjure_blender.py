@@ -73,9 +73,9 @@ GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based ma
 # --- MAPPING SCALE ---
 # These values control how sensitive the hand tracking is.
 # Larger values mean the virtual hand moves more for a given physical hand movement.
-HAND_SCALE_X = 8.0 # Controls side-to-side movement.
-HAND_SCALE_Y = 8.0 # Controls forward-backward movement (from hand depth).
-HAND_SCALE_Z = 8.0 # Controls up-down movement.
+HAND_SCALE_X = 10.0 # Controls side-to-side movement.
+HAND_SCALE_Y = 10.0 # Controls forward-backward movement (from hand depth).
+HAND_SCALE_Z = 10.0 # Controls up-down movement.
 
 # --- VISUALIZATION ---
 MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000) # Move unused markers here to prevent flickering.
@@ -117,12 +117,12 @@ VOLUME_UPPER_LIMIT = 1.2 # The mesh cannot expand to more than 120% of its origi
 # These parameters add a sense of weight and momentum to the mesh.
 VELOCITY_DAMPING_FACTOR = 0.80 # How much velocity is retained each frame (lower is 'thicker' viscosity).
 FINGER_FORCE_STRENGTH = 0.09    # How strongly the finger pushes/pulls the mesh. A much smaller value is needed for a stable velocity-based system.
-GRAB_FORCE_STRENGTH = 7.5       # How strongly the grab brush moves the mesh with the hand.
-SMOOTH_FORCE_STRENGTH = 1.35     # How strongly the smooth brush relaxes vertices.
-INFLATE_FORCE_STRENGTH = 0.2    # How strongly the inflate brush adds/removes volume.
-FLATTEN_FORCE_STRENGTH = 1.125   # How strongly the flatten brush creates planar surfaces.
+GRAB_FORCE_STRENGTH = 10       # How strongly the grab brush moves the mesh with the hand.
+SMOOTH_FORCE_STRENGTH = 1.75     # How strongly the smooth brush relaxes vertices.
+INFLATE_FORCE_STRENGTH = 0.15    # How strongly the inflate brush adds/removes volume.
+FLATTEN_FORCE_STRENGTH = 1.5   # How strongly the flatten brush creates planar surfaces.
 USE_VELOCITY_FORCES = True # Master toggle for the entire viscosity system.
-MAX_HISTORY_STEPS = 50 # The number of undo steps to store in memory.
+MAX_HISTORY_STEPS = 150 # The number of undo steps to store in memory.
 BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
 
 
