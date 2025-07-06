@@ -28,22 +28,26 @@ class SubprocessManager:
         print("Hand tracker process started.")
 
     def start_blender(self):
-        """Starts Blender with the correct scene and script."""
+        """Starts Blender and enables the CONJURE addon."""
         print("Starting Blender...")
-        blender_dir = self.project_root / "blender"
-        scene_path = blender_dir / "scene.blend"
-        script_path = blender_dir / "conjure_blender.py"
+        blender_scene_dir = self.project_root / "blender"
+        scene_path = blender_scene_dir / "scene.blend"
+
+        # This command expression tells Blender to enable our addon,
+        # which is assumed to be in a registered scripts path.
+        # The addon's name is 'conjure', matching the folder name.
+        enable_addon_expr = "import bpy; bpy.ops.preferences.addon_enable(module='conjure'); bpy.ops.wm.save_userpref()"
 
         command = [
             BLENDER_EXECUTABLE_PATH,
             str(scene_path),
-            "--python",
-            str(script_path)
+            "--python-expr",
+            enable_addon_expr
         ]
         # We run Blender with its UI visible for interaction, not in the background.
         process = subprocess.Popen(command)
         self.processes['blender'] = process
-        print("Blender process started.")
+        print("Blender process started with CONJURE addon enabled.")
 
     def stop_all(self):
         """Terminates all managed subprocesses gracefully."""

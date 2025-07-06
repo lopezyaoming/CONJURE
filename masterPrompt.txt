@@ -150,9 +150,9 @@ Integration: Blender reads this file on a timer using bpy.app.timers, ensuring n
 
 CGAL Segmenter: A standalone C++ executable that integrates the CGAL Surface Mesh Segmentation algorithm. It operates as a fast, reliable way to segment 3D meshes based on curvature and surface features.
 How it works:
-Input:  A .ply mesh file exported from Blender (typically the currently selected or generated mesh).
-Processing:  The executable performs segmentation and encodes the results as vertex color groups, with each segment assigned a unique RGB value.
-Output:  A .ply file with the same geometry but color-tagged vertices denoting distinct segments.
+Input: A .ply mesh file exported from Blender (typically the currently selected or generated mesh).
+Processing: The executable performs segmentation and encodes the results as vertex color groups, with each segment assigned a unique RGB value.
+Output: A .ply file with the same geometry but color-tagged vertices denoting distinct segments.
 Integration Flow:
 
 Blender exports the mesh to disk.
@@ -277,8 +277,15 @@ CONJURE/
 │   └── utils.py                  # Shared helper functions
 
 ├── blender/
-│   ├── scene.blend               # Base scene file with cameras, primitives, fingertip object
-│   └── conjure_blender.py        # Single entry script run via --python
+│   └── scene.blend               # Base scene file with cameras, primitives, fingertip object
+
+├── scripts/
+│   └── addons/
+│       └── conjure/              # The Blender Addon
+│           ├── __init__.py
+│           ├── operator_main.py
+│           ├── panel_ui.py
+│           └── ... (other .py modules)
 
 ├── comfyui/
 │   ├── workflows/

@@ -27,11 +27,14 @@ The main orchestrator, written in Python. It's the entry point of the applicatio
 - **`subprocess_manager.py`**: Launches and monitors the Blender and ComfyUI processes.
 - **`config.py`** & **`utils.py`**: For shared configuration and helper functions.
 
-### 2. Blender Environment (`blender/`)
-The central 3D modeling environment where all geometry is created, deformed, and rendered. All operations are handled via Blender's Python API (`bpy`).
+### 2. Blender Environment (`scripts/addons/conjure/`)
+The central 3D modeling environment where all geometry is created, deformed, and rendered. All operations are handled via Blender's Python API (`bpy`). The scripts are structured as a standard Blender addon.
 
-- **`scene.blend`**: The base `.blend` file containing the default lighting, `GestureCamera`, and bounding box.
-- **`conjure_blender.py`**: The core script that runs inside Blender. It reads `fingertips.json` to map hand movements to mesh deformations and control the camera.
+- **`scene.blend`**: The base `.blend` file (located in the separate `blender/` directory) containing the default lighting, cameras, and bounding box.
+- **`__init__.py`**: The entry point that registers the addon with Blender.
+- **`operator_main.py`**: The core script that runs inside Blender. It reads `fingertips.json` to map hand movements to mesh deformations and orchestrates all other operations.
+- **`panel_ui.py`**: Defines the "CONJURE Control" panel in the 3D Viewport.
+- **`ops_...py`**: (Planned) Additional modules for specific operations like camera control, I/O, etc.
 
 ### 3. ComfyUI (`comfyui/`)
 The generative backbone of the platform, responsible for a sophisticated, multi-stage pipeline that transforms a sculpted shape and a text prompt into a high-quality 3D model. It runs as a background server process, orchestrated by the Launcher.
@@ -75,24 +78,40 @@ The final stage builds the 3D model.
 3.  **Output**: The workflow outputs a `.glb` file containing the new 3D mesh.
 4.  **Import to Blender**: The Launcher detects the new file and automatically imports it back into your Blender scene, replacing the old mesh. You can now continue sculpting or start the process over again.
 
+---
+
+## How to Run
+
+### Step 1: Initial Setup (Do this only once)
+
+1.  **Start Blender:** Open the Blender application manually.
+2.  **Add Scripts Path:**
+    -   Go to `Edit > Preferences... > File Paths`.
+    -   In the `Scripts` text box, click the `+ Add` button.
+    -   Navigate to this project's root folder (the main `CONJURE` directory) and add the `scripts` folder within it. The path should look something like `C:\path\to\CONJURE\scripts`.
+    -   Click the `Save Preferences` button in the bottom-left of the window.
+3.  **Close Blender.**
+
 ### Step 2: Launch the System
 
-1.  **Run the Hand Tracker:**
-    ```bash
-    python launcher/hand_tracker.py
-    ```
-    This will activate your webcam and start writing your hand movements to `data/input/fingertips.json`. A window will appear showing you the live tracking feed.
+Now, you can launch the entire application with a single command.
 
-2.  **Run the Blender Script:**
-    - Open Blender.
-    - Go to the **Scripting** workspace.
-    - Open the `blender/conjure_blender.py` file.
-    - Click the "Run Script" button (play icon).
+1.  **Open your terminal** (like PowerShell or Command Prompt).
+2.  **Navigate to the project root folder:**
+    ```bash
+    cd path\to\CONJURE
+    ```
+3.  **Run the main launcher script:**
+    ```bash
+    python launcher/main.py
+    ```
 
 ### Step 3: Interact
 
-- With both scripts running, you can now interact with the default mesh in Blender.
+- The command will automatically start the hand tracker and launch a configured Blender instance with the addon enabled.
 - Find the **CONJURE** panel in the 3D Viewport's UI shelf (press `N` if not visible) and click **"Initiate CONJURE"**.
+- Your webcam feed will appear in a separate window. You can now control Blender with your gestures.
+- To shut everything down, simply close the Blender window or press `Ctrl+C` in the terminal.
 
 ---
 
@@ -138,8 +157,14 @@ CONJURE/
 │   └── utils.py
 │
 ├── blender/
-│   ├── scene.blend
-│   └── conjure_blender.py
+│   └── scene.blend
+│
+├── scripts/
+│   └── addons/
+│       └── conjure/
+│           ├── __init__.py
+│           ├── operator_main.py
+│           └── ... (other .py files)
 │
 ├── comfyui/
 │   ├── workflows/

@@ -1,6 +1,6 @@
 Log
 
-Date: 2024-07-25
+Date: 2025-06-03
 
 Today's session focused on implementing a comprehensive gesture-based control system and improving the overall user experience.
 
@@ -22,11 +22,11 @@ Advances:
     *   **Coordinate Mapping Scale**: Introduced configurable scaling factors (X, Y, Z) for hand mapping, allowing for fine-tuning of gesture sensitivity.
 
 5.  **Code & Stability**:
-    *   Refactored Blender script to correctly register and handle custom properties, resolving `AttributeError` tracebacks.
+    *   Refactored the main Blender script to correctly register and handle custom properties, resolving `AttributeError` tracebacks.
     *   Resolved `ModuleNotFoundError` for the `mediapipe` library by adjusting import statements for better environment compatibility. 
 
 ---
-Date: 2024-07-25 (Afternoon Session)
+Date: 2025-06-04 (Afternoon Session)
 
 Focus shifted to refining the sculpting experience, adding more advanced and intuitive user controls.
 
@@ -49,11 +49,16 @@ Advances:
         *   `SMOOTH`: Averages vertices to soften and blend the mesh.
     *   **UI Feedback**: Added an on-screen text display in the Blender viewport to show the currently active brush.
 
-4.  **Bug Fixes & Stability**:
-    *   Resolved multiple `bmesh` tracebacks (`AttributeError: invalid key` and `IndexError: outdated internal index table`) by ensuring correct vertex indexing and lookup table management. 
+4.  **Advanced Brush Controls**:
+    *   **Radius Cycling**: Implemented a brush radius system with `SMALL`, `MEDIUM`, and `LARGE` settings.
+    *   **Smooth Falloff**: Applied a smooth, distance-based falloff to all brushes, eliminating harsh edges and creating a natural, clay-like sculpting feel.
+
+5.  **Bug Fixes & Stability**:
+    *   Corrected a critical `IndexError` in the hand tracker related to single-hand detection.
+    *   Fixed a `NameError` in the CONJURE addon's deformation function.
 
 ---
-Date: 2024-07-26
+Date: 2025-06-05
 
 This session focused on a complete overhaul of the user experience and control scheme based on hands-on feedback, transforming the tool's feel and usability.
 
@@ -78,10 +83,10 @@ Advances:
 
 5.  **Bug Fixes & Stability**:
     *   Corrected a critical `IndexError` in the hand tracker related to single-hand detection.
-    *   Fixed a `NameError` in the Blender script's deformation function.
+    *   Fixed a `NameError` in the CONJURE addon's deformation function.
 
 ---
-Date: 2024-07-26 (Afternoon Session)
+Date: 2025-06-06 (Afternoon Session)
 
 Focus on improving the core sculpting interaction to be more intuitive and tactile.
 
@@ -95,7 +100,7 @@ Advances:
     *   Pinpointed and fixed a visual bug causing the fingertip markers to flicker. The issue was a redundant `hide_viewport` call; the system now relies exclusively on moving markers to a distant location to control visibility, which is more stable. 
 
 ---
-Date: 2024-07-27
+Date: 2025-06-07
 
 Finalized the core sculpting and modeling experience with a series of stability fixes and parameter tuning.
 
