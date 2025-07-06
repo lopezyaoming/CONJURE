@@ -1,7 +1,7 @@
 {
   "13": {
     "inputs": {
-      "filename_prefix": "3D/Hy3D",
+      "filename_prefix": "..\\data\\generated_models\\genMesh",
       "file_format": "glb",
       "save_file": true,
       "trimesh": [

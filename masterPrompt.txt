@@ -17,7 +17,7 @@ It performs the following:
 Voice Understanding: Listens continuously to user speech and determines high-level intent. At critical points (e.g., after a mesh is completed or inspected), the Agent may autonomously trigger actions.
 Prompt Generation: Converts spoken input and scene context into clear textual prompts, which are sent to ComfyUI to generate images, variations, or 3D models.
 Scene Interpretation (Planned): The Agent may eventually evaluate screenshots or live camera feed to augment its decision-making (e.g., identify a mesh part, reaction, or user gesture).
-Narrative and Material Framing (Phase IV): In the final phase, the Agent becomes narratively active. It uses MCP to access predefined PBR materials and reconfigures the object into a cohesive design story. For example, it may label a segment as “sensor array,” assign it a metallic finish, and explain its use based on prior user cues.
+Narrative and Material Framing (Phase IV): In the final phase, the Agent becomes narratively active. It uses MCP to access predefined PBR materials and reconfigures the object into a cohesive design story. For example, it may label a segment as "sensor array," assign it a metallic finish, and explain its use based on prior user cues.
 
 Blender: Blender is the central modeling environment in CONJURE. All 3D operations—including deformation, segmentation, remeshing, and rendering—are handled using bpy without the need for custom add-ons.
 Blender is launched automatically when the CONJURE .exe is executed.
@@ -42,7 +42,7 @@ Used for UI display and static representations (e.g., segment previews)
 GestureCamera
 Rotates dynamically based on user input or gesture orientation
 Used for generating reference images to be sent to promptMaker
-Captures render when the user signals “done” via closed fist
+Captures render when the user signals "done" via closed fist
 MVCamera
 Static multiview render camera
 Used to generate 6 render angles: ["front", "right", "right-front", "back", "left", "left-front"]
@@ -62,32 +62,76 @@ Refresh Rate: Synced with file updates (e.g., via bpy.app.timers) — configurab
 
 ComfyUI: ComfyUI serves as the generative backbone of the CONJURE platform, responsible for both image generation and 3D reconstruction via multi-view inference. It runs persistently in the background and communicates through its internal API server and it will be used to generate the 3D models, 2D images, display text and other outputs that will be re-imported back to blender via Overlay. ComfyUI would be running on the background with different workflows in JSON format ready to be loaded.
 
-promptMaker Workflow
-Inputs:
-Single render image from GestureCamera (PNG)
-AI-written prompt string (.txt) from the conversational Agent
-Process:
-The Agent writes 3 distinct prompts based on context and user input.
-These are injected into the promptMaker workflow, which returns 3 corresponding images.
-Output:
-3 preview images displayed in the GUI for the user to choose from.
-The selected image determines which prompt is forwarded to the next stage.
-mvto3D Workflow
-Inputs:
-6 render images from MVCamera capturing multiview angles in the strict order: ["front", "right", "right-front", "back", "left", "left-front"]
-The user-selected prompt string
-Process:
-These are fed into a multi-view 2D-to-3D diffusion agent.
-Output:
-A newly synthesized 3D mesh matching the prompt and user edits.
-The mesh is imported back into Blender via the Overlay controller.
+The generative pipeline is a three-stage process:
 
-Triggered through ComfyUI’s internal API from the Overlay executable.
+**Stage 1: `promptMaker.json` - Generating Concept Options**
+
+This stage takes a user's idea and a snapshot of the current model to generate three distinct visual concepts.
+
+*   **Trigger:**
+    1.  The conversational Agent generates a descriptive prompt based on user input and saves it to `data/generated_text/userPrompt.txt`.
+    2.  Simultaneously, Blender renders the current view from the `GestureCamera`, saving it to `data/generated_images/gestureCamera/render.png`.
+
+*   **Inputs:**
+    *   **Image:** `data/generated_images/gestureCamera/render.png`
+    *   **Text:** `data/generated_text/userPrompt.txt`
+
+*   **Process:**
+    *   The `comfyui/workflows/promptMaker.json` workflow is executed. It uses the input image and text to generate three stylistic variations.
+
+*   **Outputs:**
+    *   **3 Image Options:** Saved to `data/generated_images/imageOPTIONS/` as `OP1.png`, `OP2.png`, and `OP3.png`.
+
+**Stage 2: `mv2mv[1-3].json` - Refining the Concept into a Multi-view Set**
+
+Based on the user's choice, this stage refines the selected concept into a coherent set of six views, ready for 3D conversion.
+
+*   **Trigger:**
+    1.  The user selects one of the three options (`OP1`, `OP2`, or `OP3`) via the UI or voice command.
+    2.  The selected image is prepared (e.g., copied to a temporary location like `selectedOption.png` for the workflow to use).
+    3.  Blender renders the current mesh from 6 standard angles using the `MVCamera`, saving them to `data/generated_images/multiviewRender/` (e.g., `FRONT.png`, `BACK.png`, etc.).
+
+*   **Inputs:**
+    *   **Selected Concept Image:** The chosen image from Stage 1.
+    *   **6 Multi-view Renders:** From `data/generated_images/multiviewRender/`.
+    *   **Text:** `data/generated_text/userPrompt.txt` (may be updated by the agent).
+
+*   **Process:**
+    *   The corresponding workflow is executed:
+        *   If OP1 was selected -> `comfyui/workflows/mv2mv1.json`
+        *   If OP2 was selected -> `comfyui/workflows/mv2mv2.json`
+        *   If OP3 was selected -> `comfyui/workflows/mv2mv3.json`
+    *   Each of these workflows has slightly different parameters (e.g., `controlnet_conditioning_scale`) to match the style of the selected option.
+
+*   **Outputs:**
+    *   **6 Refined Multi-view Images:** Saved to `data/generated_images/mvResults/` as `mv_1.png` through `mv_6.png`.
+
+**Stage 3: `mv23D.json` - Generating the 3D Model**
+
+The final stage converts the refined multi-view image set into a 3D model.
+
+*   **Trigger:**
+    *   Successful completion of Stage 2.
+
+*   **Inputs:**
+    *   **4 of the 6 Refined Images** from `data/generated_images/mvResults/`. Specifically, the workflow uses:
+        *   `mv_1.png` (Front)
+        *   `mv_3.png` (Left)
+        *   `mv_4.png` (Back)
+        *   `mv_5.png` (Right)
+
+*   **Process:**
+    *   The `comfyui/workflows/mv23D.json` workflow is executed.
+
+*   **Output:**
+    *   **A `.glb` 3D model file.** This file is saved to `data/generated_models/genMesh.glb` and then detected and imported back into the Blender scene by the launcher.
+
+Triggered through ComfyUI's internal API from the Overlay executable.
 All workflows are stored as JSON configuration files and dynamically loaded depending on the current modeling phase.
 Renders and prompts are passed via the file system (disk), ensuring compatibility with both Blender and the Agent.
 
 .json
-state.json: master file that operates overlay’s main loop. 
+state.json: master file that operates overlay's main loop. 
 fingertips.json: json that translates hand gestures and fingertip coordinates in real time
 
 Hand-Tracking: Mediapipe handles real-time hand tracking using the system's camera input. It outputs a fingertips.json file at frame-rate speed, which contains both raw positional data and control flags.
@@ -122,12 +166,12 @@ Blender scene setup
 
 cameras: 
 AXOCamera: used for segmenting representation and selection of segment. Fixed top-down or axonometric view. Used for UI display and static representations (e.g., segment previews)
-GestureCamera: used for UI view of mesh when gesture modelling. Rotates dynamically based on user input or gesture orientation. Used for generating reference images to be sent to promptMaker. Captures render when the user signals “done” via closed fist
+GestureCamera: used for UI view of mesh when gesture modelling. Rotates dynamically based on user input or gesture orientation. Used for generating reference images to be sent to promptMaker. Captures render when the user signals "done" via closed fist
 MVCamera: used for rendering and exporting for MV usage (6 views). tatic multiview render camera
 Used to generate 6 render angles: ["front", "right", "right-front", "back", "left", "left-front"] Resolution: 1024 × 1024 px (native to SDXL) Renders are saved as .png files in /input directory.
 
 
-boundingBox: The bounding box is a 2x2x2 cube at 0,0,0. (default cube) is the universal spatial reference frame for the entire CONJURE pipeline. It ensures geometric consistency, camera alignment, gesture mapping, and voxel resolution stability across all phases of the modeling process. Every mesh that is being worked on must be constantly checked so it’s size matches and centroid with the bounding box. 
+boundingBox: The bounding box is a 2x2x2 cube at 0,0,0. (default cube) is the universal spatial reference frame for the entire CONJURE pipeline. It ensures geometric consistency, camera alignment, gesture mapping, and voxel resolution stability across all phases of the modeling process. Every mesh that is being worked on must be constantly checked so it's size matches and centroid with the bounding box. 
 Core Functions:
 Size Normalization:
 All meshes (prebuilt, generated, segmented, or imported) must be scaled and fitted into the bounding box before processing.
@@ -147,9 +191,9 @@ Import/Export:
 All meshes exported (e.g., to CGAL or ComfyUI) must be:
 Normalized to fit within the bounding box
 Centered at origin (or consistently offset) for downstream processes
-Imported meshes (e.g., from mvto3D) are assumed to conform to this bounding box and are scaled accordingly upon reentry.
+Imported meshes (e.g., from mv23D) are assumed to conform to this bounding box and are scaled accordingly upon reentry. The final generated mesh is imported from `data/generated_models/genMesh.glb`.
 In summary: The bounding box ensures that all spatial reasoning—from fingertip input to AI output—remains consistent, calibrated, and accurate throughout CONJURE.
-fingertip: UI element that displays the position of fingertips in scene space
+fingtip: UI element that displays the position of fingertips in scene space
 Mesh: Main mesh being modified. segments are parented to Mesh and look like [Mesh1, Mesh2, Mesh3...]
 
 
@@ -164,7 +208,7 @@ IV: Material is selected and concept is defined.
 
 PHASE I: Start the Model
 1. Prompt and Primitive
-The Agent asks the user: “What would you like to start with?”
+The Agent asks the user: "What would you like to start with?"
 Based on voice response, the system spawns a selected primitive in Blender (e.g., Sphere, Cube, Head).
 The user then modifies this primitive using hand gestures, tracked in real time via fingertips.json.
 2. Deformation
@@ -177,7 +221,7 @@ Custom meshes are sent to the CGAL segmenter.
 Segments are imported back into Blender (via vertex colors) and presented as selectable units.
 PHASE II: Refinement by Prompt
 This phase repeats three times, increasing geometric resolution in each stage.
-The mesh get’s imported from mvto3D and gets bounding box scaled and positioned.
+The mesh get's imported from mvto3D and gets bounding box scaled and positioned.
 1. Remeshing
 The mesh is voxel-remeshed using the following resolution cascade:
 Stage 1: 0.1 → 0.05
@@ -188,7 +232,7 @@ The user sculpts at each stage using real-time hand gestures.
 A closed fist again signals completion.
 3. Image Prompting
 The GestureCamera renders the current mesh from a design-friendly angle.
-This image is saved in /input and, alongside the conversational prompt from the Agent, passed to ComfyUI’s promptMaker.
+This image is saved in /input and, alongside the conversational prompt from the Agent, passed to ComfyUI's promptMaker.
 4. Selection
 promptMaker returns:
 3 images (for GUI display)
@@ -197,7 +241,7 @@ The user selects one image → this indirectly selects its associated prompt.
 5. Multiview Generation
 The MVCamera renders the mesh from 6 defined angles:
 ["front", "right", "right-front", "back", "left", "left-front"]
-These 6 images + the selected prompt are passed to ComfyUI’s mvto3D.
+These 6 images + the selected prompt are passed to ComfyUI's mvto3D.
 6. 3D Generation
 A new, refined mesh is created by the multiview agent.
 The resulting .glb file is reimported into Blender.
@@ -216,7 +260,7 @@ The full mesh is presented with segment outlines and exploded views.
 The Agent activates and enters narrative mode, using context and prior interaction history.
 2. Narrative Remapping
 Using MCP, the Agent applies a selection of preloaded PBR materials to each segment.
-Materials are chosen based on narrative framing (e.g., “sensor node,” “bio-casing,” “armored core”) derived from the conversation.
+Materials are chosen based on narrative framing (e.g., "sensor node," "bio-casing," "armored core") derived from the conversation.
 3. Export + Save
 Final renders, metadata, and the .glb model are exported for documentation or downstream fabrication.
 
@@ -254,9 +298,11 @@ CONJURE/
 │   │   ├── multiview/
 │   │   │   └── front.png ...     # 6-view images
 │   ├── output/
-│   │   ├── generated.glb
+│   │   ├── generated.glb         # DEPRECATED -> see generated_models
 │   │   ├── segmented.ply
 │   │   └── renders/
+│   ├── generated_models/
+│   │   └── genMesh.glb           # Final 3D model from mv23D
 │   └── assets/
 │       ├── primitives/
 │       └── materials/

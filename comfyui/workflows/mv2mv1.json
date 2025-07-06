@@ -373,7 +373,7 @@
   },
   "120": {
     "inputs": {
-      "file_path": "C:\\Coding\\CONJURE\\data\\generated_text\\userPrompt.txt",
+      "file_path": "..\\data\\generated_text\\userPrompt.txt",
       "dictionary_name": "[filename]"
     },
     "class_type": "Load Text File",
@@ -395,7 +395,7 @@
   },
   "124": {
     "inputs": {
-      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\mvResults",
+      "output_path": "..\\data\\generated_images\\mvResults",
       "filename_prefix": "mv",
       "filename_delimiter": "_",
       "filename_number_padding": 1,

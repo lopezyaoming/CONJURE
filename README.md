@@ -34,25 +34,46 @@ The central 3D modeling environment where all geometry is created, deformed, and
 - **`conjure_blender.py`**: The core script that runs inside Blender. It reads `fingertips.json` to map hand movements to mesh deformations and control the camera.
 
 ### 3. ComfyUI (`comfyui/`)
-The generative backbone of the platform, responsible for image generation and 3D reconstruction. It runs as a background server process.
+The generative backbone of the platform, responsible for a sophisticated, multi-stage pipeline that transforms a sculpted shape and a text prompt into a high-quality 3D model. It runs as a background server process, orchestrated by the Launcher.
 
-- **`workflows/`**: Contains the JSON definitions for generative tasks.
-  - `promptMaker.json`: Generates image options from a single render.
-  - `mvto3D.json`: Generates a 3D model from a set of 6 multi-view renders.
-- **`api_wrapper.py`**: A Python wrapper to communicate with the ComfyUI API.
+- **`workflows/`**: Contains the JSON definitions for the generative pipeline. This is a multi-step process designed for iterative refinement.
+  - **`promptMaker.json`**: The first stage. It takes a single render from Blender and a text prompt, producing three distinct stylistic image concepts (`OP1.png`, `OP2.png`, `OP3.png`).
+  - **`mv2mv[1-3].json`**: The second stage. Based on the user's choice of concept, one of these three workflows is run. Each takes the 6 multi-view renders of the current Blender mesh and the chosen concept image to generate a new, refined set of 6 multi-view images that match the target style.
+  - **`mv23D.json`**: The final stage. It takes four of the refined multi-view images and uses a 2D-to-3D diffusion model to generate the final 3D mesh, which is then sent back to Blender.
+- **`api_wrapper.py`**: A Python wrapper to communicate with the ComfyUI API, allowing the Launcher to trigger these workflows programmatically.
 
 ---
 
-## Workflow & Usage
+## Generative Workflow: From Idea to 3D Model
 
-### Step 1: Calibration (Planned)
+The core generative process is a carefully choreographed sequence of events managed by the Launcher, involving Blender for rendering and ComfyUI for AI generation.
 
-For the most precise and intuitive control, a one-time calibration process will map your unique hand movements to the screen space.
+### Stage 1: Concept Generation (`promptMaker.json`)
 
-1.  **Run the Calibration Script:** A dedicated script (`launcher/calibrate.py`) will be provided.
-2.  **Follow On-Screen Prompts:** The user will be asked to perform simple gestures, such as placing their hand in the center of the view or touching the corners of the interaction area.
-3.  **Save Calibration Data:** The script will save the calculated center offset and interaction scale to a `calibration.json` file.
-4.  **Automatic Loading:** The `conjure_blender.py` script will automatically detect and use this file to adjust the mapping, ensuring that your hand movements are perfectly translated to the 3D space.
+This stage creates three visual directions for your design.
+
+1.  **Trigger**: Once you're satisfied with your initial sculpted form, you signal the AI agent. The agent generates a descriptive prompt based on your conversation and saves it to `data/generated_text/userPrompt.txt`.
+2.  **Blender Render**: Simultaneously, Blender renders the current view from the `GestureCamera` and saves it as `data/generated_images/gestureCamera/render.png`.
+3.  **AI Processing**: The Launcher sends both the `render.png` and `userPrompt.txt` to the `promptMaker.json` workflow in ComfyUI.
+4.  **Output**: The workflow produces three distinct image concepts, saved as `OP1.png`, `OP2.png`, and `OP3.png` in `data/generated_images/imageOPTIONS/`. These are then displayed to you in the GUI.
+
+### Stage 2: Multi-View Refinement (`mv2mv[1-3].json`)
+
+This stage refines your chosen concept into a full set of images ready for 3D generation.
+
+1.  **Trigger**: You select one of the three images (e.g., `OP2.png`) via the GUI or voice command.
+2.  **Blender Renders**: The `MVCamera` in Blender renders your current mesh from 6 standard angles (`FRONT`, `BACK`, `LEFT`, etc.) and saves them to `data/generated_images/multiviewRender/`.
+3.  **AI Processing**: The Launcher triggers the corresponding workflow (e.g., `mv2mv2.json`), feeding it the 6 multi-view renders, your selected concept image, and the latest `userPrompt.txt`.
+4.  **Output**: The workflow generates a new, refined set of 6 multi-view images that are stylistically consistent with your selection. These are saved as `mv_1.png` through `mv_6.png` in `data/generated_images/mvResults/`.
+
+### Stage 3: 3D Model Generation (`mv23D.json`)
+
+The final stage builds the 3D model.
+
+1.  **Trigger**: This stage runs automatically after Stage 2 completes successfully.
+2.  **AI Processing**: The Launcher takes four of the refined images (`mv_1.png`, `mv_3.png`, `mv_4.png`, `mv_5.png`) from `data/generated_images/mvResults/` and sends them to the `mv23D.json` workflow.
+3.  **Output**: The workflow outputs a `.glb` file containing the new 3D mesh.
+4.  **Import to Blender**: The Launcher detects the new file and automatically imports it back into your Blender scene, replacing the old mesh. You can now continue sculpting or start the process over again.
 
 ### Step 2: Launch the System
 

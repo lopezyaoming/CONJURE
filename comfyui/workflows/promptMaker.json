@@ -392,7 +392,7 @@
   },
   "134": {
     "inputs": {
-      "file_path": "C:\\Coding\\CONJURE\\data\\generated_text\\userPrompt.txt",
+      "file_path": "..\\data\\generated_text\\userPrompt.txt",
       "dictionary_name": "[filename]"
     },
     "class_type": "Load Text File",
@@ -429,7 +429,7 @@
   },
   "139": {
     "inputs": {
-      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "output_path": "..\\data\\generated_images\\imageOPTIONS",
       "filename_prefix": "OP1",
       "filename_delimiter": "",
       "filename_number_padding": 4,
@@ -468,7 +468,7 @@
   },
   "142": {
     "inputs": {
-      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "output_path": "..\\data\\generated_images\\imageOPTIONS",
       "filename_prefix": "OP2",
       "filename_delimiter": "",
       "filename_number_padding": 4,
@@ -495,7 +495,7 @@
   },
   "143": {
     "inputs": {
-      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "output_path": "..\\data\\generated_images\\imageOPTIONS",
       "filename_prefix": "OP3",
       "filename_delimiter": "",
       "filename_number_padding": 4,

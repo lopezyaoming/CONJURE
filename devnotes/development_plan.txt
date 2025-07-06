@@ -55,28 +55,31 @@ This phase involved a deep, iterative refinement of the core user experience bas
 
 ---
 
-### **Phase 3: The `Launcher` as an Orchestrator**
+### **Phase 3: The `Launcher` as an Orchestrator (✅ Completed)**
 
 The goal of this phase is to build out the main application that manages all the subprocesses, as described in `README.md`.
 
 1.  **Create the Main Executable:**
-    -   In `launcher/main.py`: Write the script that will serve as the application's entry point.
-    -   In `launcher/subprocess_manager.py`: Implement functions to start and stop the `hand_tracker.py` script as a background process.
-    -   In `launcher/subprocess_manager.py`: Add logic to launch Blender with the `conjure_blender.py` script automatically (`blender --background scene.blend --python conjure_blender.py`).
+    -   [x] In `launcher/main.py`: Write the script that will serve as the application's entry point.
+    -   [x] In `launcher/subprocess_manager.py`: Implement functions to start and stop the `hand_tracker.py` script as a background process.
+    -   [x] In `launcher/subprocess_manager.py`: Add logic to launch Blender with the `conjure_blender.py` script automatically.
+    -   [x] In `launcher/config.py`: Add user-specific path for the Blender executable.
 
 2.  **Implement State Management:**
-    -   In `launcher/state_manager.py`: Create a class to read and write to `state.json`.
-    -   The main loop in `launcher/main.py` will now be driven by this state, which will eventually coordinate Blender, ComfyUI, and the Agent.
+    -   [x] In `launcher/state_manager.py`: Create a class to read and write to `state.json`.
+    -   [x] The main loop in `launcher/main.py` will now be driven by this state, which will eventually coordinate Blender, ComfyUI, and the Agent.
 
 ---
 
-### **Phase 4: ComfyUI Integration (2D `promptMaker` Workflow)**
+### **Phase 4: ComfyUI Integration & UI Controls**
 
 The goal is to get the first end-to-end generative loop working: from a Blender render to AI image options.
 
-1.  **Implement Render Command:**
-    -   In `hand_tracker.py`: Add a "render" gesture (e.g., a closed fist).
-    -   In `conjure_blender.py`: When the "render" command is received, render an image from the `GestureCamera`'s perspective and save it to a known location (e.g., `data/output/gesture_render.png`).
+1.  **Implement Generative UI Controls in Blender:**
+    -   In `conjure_blender.py`: Add a **"Render"** button to the CONJURE UI panel.
+    -   This button will render an image from the `GestureCamera` perspective and save it to `data/generated_images/gestureCamera/render.png`.
+    -   In `conjure_blender.py`: Add a **"Generate Model"** button to the panel.
+    -   This button will eventually trigger the entire ComfyUI pipeline via the `state_manager`.
 
 2.  **Implement ComfyUI Wrapper:**
     -   In `comfyui/api_wrapper.py`: Write functions to connect to the ComfyUI server's API and trigger a workflow execution.
@@ -94,14 +97,14 @@ The goal is to get the first end-to-end generative loop working: from a Blender 
 The goal is to implement the full multi-view 2D-to-3D generation pipeline.
 
 1.  **Implement Multi-View Rendering:**
-    -   In `conjure_blender.py`: Create a function that, when triggered, renders the `DeformableMesh` from 6 specific angles using the `MVCamera` and saves them to `data/input/multiview/`.
+    -   In `conjure_blender.py`: Create a function that, when triggered, renders the `DeformableMesh` from 6 specific angles using the `MVCamera` and saves them to `data/generated_images/multiviewRender/`.
     -   This should be triggered by a specific user action (e.g., selecting one of the 3 images from the GUI in Phase 4).
 
 2.  **Trigger `mvto3D` Workflow:**
     -   In `launcher/main.py`: Once all 6 renders are present, use the `api_wrapper` to trigger the `mvto3D` workflow in ComfyUI, passing the images and a selected prompt.
 
 3.  **Import Generated Mesh:**
-    -   In `conjure_blender.py`: Add a "file watcher" that periodically checks for a new `.glb` file in `data/output/`.
+    -   In `conjure_blender.py`: Add a "file watcher" that periodically checks for the `genMesh.glb` file in `data/generated_models/`.
     -   When a new mesh is detected, automatically import it, replace the current `DeformableMesh`, and normalize it to fit the bounding box.
 
 ---
