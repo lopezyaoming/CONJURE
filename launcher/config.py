@@ -25,4 +25,8 @@ SCENE_BLEND = BLENDER_DIR / "scene.blend"
 # --- PATHS ---
 # The absolute path to the Blender executable.
 # This must be set correctly for your system.
-BLENDER_EXECUTABLE_PATH = r"C:\Program Files\Blender Foundation\Blender 4.4\blender.exe" 
+BLENDER_EXECUTABLE_PATH = r"C:\Program Files\Blender Foundation\Blender 4.4\blender.exe"
+
+# NOTE: This path is an educated guess based on error logs.
+# If your ComfyUI installation is elsewhere, please update this path.
+COMFYUI_ROOT_PATH = Path("C:/ComfyUI/ComfyUI_windows_portable_nvidia/ComfyUI_windows_portable/ComfyUI") 

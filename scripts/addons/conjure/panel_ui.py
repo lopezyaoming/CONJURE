@@ -32,12 +32,9 @@ class CONJURE_PT_control_panel(bpy.types.Panel):
 
         # Stage 2
         row = box.row(align=True)
-        op1 = row.operator("conjure.select_option", text="Select Opt 1", icon='IMAGE_DATA')
-        op1.option_index = 1
-        op2 = row.operator("conjure.select_option", text="Select Opt 2", icon='IMAGE_DATA')
-        op2.option_index = 2
-        op3 = row.operator("conjure.select_option", text="Select Opt 3", icon='IMAGE_DATA')
-        op3.option_index = 3
+        row.operator("conjure.select_option_1", text="Select Opt 1", icon='IMAGE_DATA')
+        row.operator("conjure.select_option_2", text="Select Opt 2", icon='IMAGE_DATA')
+        row.operator("conjure.select_option_3", text="Select Opt 3", icon='IMAGE_DATA')
         
         # Stage 3
         box.operator("conjure.import_model", icon='FILE_NEW')

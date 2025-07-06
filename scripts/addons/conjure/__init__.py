@@ -16,13 +16,15 @@ bl_info = {
 from . import operator_main
 from . import panel_ui
 from . import ops_io
+from . import config
 
 # A list of all modules that contain register/unregister functions.
-# The order can be important, especially for unregistering.
+# The order is critical. Operators must be registered before UI panels that use them.
 modules = [
+    config,
+    ops_io,
     operator_main,
     panel_ui,
-    ops_io,
 ]
 
 def register():

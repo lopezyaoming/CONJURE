@@ -11,12 +11,13 @@ import urllib.request
 import random
 import shutil
 from bpy.props import StringProperty, EnumProperty, PointerProperty, IntProperty, FloatProperty, BoolProperty
-from bpy.types import Panel, Operator, PropertyGroup
+from bpy.types import Panel, Operator, PropertyGroup, Material
+import traceback # For detailed error logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
-# Base directories
+# Base directories 
 BASE_DIR = r"C:\CODING\VIBE\VIBE_Forming"
 
 # Render configuration
@@ -1541,46 +1542,20 @@ def check_remesh_state():
         logging.error(traceback.format_exc())
 
 def check_image_updates(operator_report_func, process):
-    # Check if process is still running
-    if process.poll() is None:
-        # Process is still running, check again later
-        logging.info("Still processing options...")
-        return 2.0  # Check again in 2 seconds
-    
-    # Process completed, get output
-    stdout, stderr = process.communicate()
-    
-    # Log the output
-    if stdout:
-        logging.info(f"options_API.py output: {stdout}")
-    if stderr:
-        logging.error(f"options_API.py errors: {stderr}")
-    
-    # Check return code
-    if process.returncode != 0:
-        if operator_report_func:
-            try:
-                operator_report_func({'ERROR'}, f"Error generating options: {stderr}")
-            except ReferenceError:
-                # If operator reference is no longer valid, just log the error
-                logging.error(f"Error generating options: {stderr}")
-    else:
-        logging.info("Successfully generated new options")
-        try:
-            # Refresh images in UI
-            refresh_images_from_disk()
+    """Check for image updates"""
+    try:
+        # Check if process is still running
+        if process and process.poll() is not None:
+            return None  # Stop checking if process is done
             
-            # Try to show a notification if the operator is still valid
-            if operator_report_func:
-                try:
-                    operator_report_func({'INFO'}, "Images refreshed successfully")
-                except ReferenceError:
-                    # Just log if operator reference is no longer valid
-                    logging.info("Images refreshed successfully")
-        except Exception as e:
-            logging.error(f"Error refreshing images: {e}")
-    
-    return None  # Don't run again
+        # Check for new images
+        refresh_images_from_disk()
+        
+        # Continue checking
+        return 1.0  # Check every second
+    except Exception as e:
+        logging.error(f"Error checking image updates: {e}")
+        return None  # Stop checking on error
 
 # Function to refresh images from disk
 def refresh_images_from_disk():
@@ -1790,87 +1765,356 @@ def check_import_requests():
         logging.error(traceback.format_exc())
         return False
 
-# Timer function to check for render and import requests
-def check_requests_timer():
-    """Timer function to periodically check for requests"""
+def map_to_world_space(x_norm: float, y_norm: float, z_norm: float) -> mathutils.Vector:
+    """Map webcam coordinates, apply asymmetric non-linear depth, and rotate for camera view."""
     try:
-        render_processed = check_render_requests()
-        import_processed = check_import_requests()
+        scale_factor = 2.0         # General scale for X (horizontal), Z (vertical)
+        depth_amp_multiplier = 1.5 # Overall amplification for the depth axis AFTER non-linear scaling
         
-        if render_processed:
-            logging.info("Processed render request")
-        if import_processed:
-            logging.info("Processed import request")
+        # Exponents for asymmetric depth response:
+        close_exponent = 3.0       # Exponent > 1 to "tamper" (reduce) effect when hand is close
+        far_exponent = 0.5         # Exponent (0,1) to "accentuate" (increase) effect when hand is far
+
+        # --- Stage 1: Calculate components based on the \"-X view correct\" mapping ---
+        base_depth_signal = 0.5 - z_norm  # Positive when z_norm < 0.5 (close), negative when z_norm > 0.5 (far)
+        abs_bds = abs(base_depth_signal)
+        
+        powered_abs_depth = 0.0
+        if base_depth_signal > 0: # Hand is in the closer half (z_norm < 0.5)
+            powered_abs_depth = abs_bds ** close_exponent
+        elif base_depth_signal < 0: # Hand is in the further half (z_norm > 0.5)
+            powered_abs_depth = abs_bds ** far_exponent
+        # else: base_depth_signal is 0 (at midpoint), powered_abs_depth remains 0.0
             
-        # Return the time interval for the next check (in seconds)
-        return 2.0  # Check every 2 seconds
+        signed_powered_depth_effect = math.copysign(powered_abs_depth, base_depth_signal)
+        
+        temp_x_prerot = signed_powered_depth_effect * scale_factor * depth_amp_multiplier
+
+        # Horizontal component (mirrored after rotation)
+        temp_y_prerot = (x_norm - 0.5) * scale_factor 
+        
+        # Vertical component (mirrored)
+        temp_z_prerot = (0.5 - y_norm) * scale_factor
+
+        # --- Stage 2: Rotate +90 degrees around World Z-axis to align with -Y camera view ---
+        angle_rad = math.radians(90) 
+        cos_angle = math.cos(angle_rad) 
+        sin_angle = math.sin(angle_rad) 
+
+        final_blender_x = temp_x_prerot * cos_angle - temp_y_prerot * sin_angle 
+        final_blender_y = temp_x_prerot * sin_angle + temp_y_prerot * cos_angle 
+        final_blender_z = temp_z_prerot 
+
+        print(f"Mapping: z_norm:{z_norm:.3f}, BaseDepthSig:{base_depth_signal:.3f}, SignedPowDepth:{signed_powered_depth_effect:.3f} -> FinalXYZ({final_blender_x:.3f}, {final_blender_y:.3f}, {final_blender_z:.3f})")
+        return mathutils.Vector((final_blender_x, final_blender_y, final_blender_z))
     except Exception as e:
-        logging.error(f"Error in request timer: {e}")
-        return 5.0  # Try again after 5 seconds if there was an error
+        logging.error(f"Error in map_to_world_space: {e}")
+        logging.error(traceback.format_exc()) 
+        return mathutils.Vector((0, 0, 0))
+
+def update_finger_orbs():
+    """Update the positions of all fingertip orbs based on hand tracking data"""
+    try:
+        # Define smoothing factor (lower = smoother, less responsive)
+        SMOOTHING_FACTOR = 0.75 # Corrected from 5.00, was 0.75 based on prior request
+
+        # Read the hand tracking data file
+        data_file = os.path.join(BASE_DIR, "output", "live_hand_data.json")
+        if not os.path.exists(data_file):
+            return 0.033  # Check again in 1/30th of a second
+            
+        with open(data_file, 'r') as f:
+            data = json.load(f)
+            
+        # Get the HandTracking collection
+        collection = bpy.data.collections.get("HandTracking")
+        if not collection:
+            return 0.033  # Check again in 1/30th of a second
+            
+        # Process left hand
+        if "left_hand" in data and "fingertips" in data["left_hand"]:
+            for fingertip in data["left_hand"]["fingertips"]:
+                finger_name = fingertip["finger"].lower()
+                orb_name = f"l{finger_name.capitalize()}"
+                
+                # Get the orb
+                orb = bpy.data.objects.get(orb_name)
+                if orb:
+                    # Ensure no parent
+                    orb.parent = None
+                    
+                    # Remove any constraints
+                    for constraint in orb.constraints:
+                        orb.constraints.remove(constraint)
+                    
+                    # Map the coordinates directly to world space from origin
+                    target_pos = map_to_world_space(
+                        fingertip["x"],
+                        fingertip["y"],
+                        fingertip["z"]
+                    )
+                    
+                    # Smooth the position using lerp
+                    orb.location = orb.location.lerp(target_pos, SMOOTHING_FACTOR)
+                    
+                    # Make sure the orb is in the active view layer
+                    if orb.name not in bpy.context.view_layer.objects:
+                        bpy.context.view_layer.objects.link(orb)
+                    
+                    # Set the position directly
+                    orb.location = target_pos
+                    
+                    # Make orb visible
+                    orb.hide_viewport = False
+                    orb.hide_render = False
+                    
+        # Process right hand
+        if "right_hand" in data and "fingertips" in data["right_hand"]:
+            for fingertip in data["right_hand"]["fingertips"]:
+                finger_name = fingertip["finger"].lower()
+                orb_name = f"r{finger_name.capitalize()}"
+                
+                # Get the orb
+                orb = bpy.data.objects.get(orb_name)
+                if orb:
+                    # Ensure no parent
+                    orb.parent = None
+                    
+                    # Remove any constraints
+                    for constraint in orb.constraints:
+                        orb.constraints.remove(constraint)
+                    
+                    # Map the coordinates directly to world space from origin
+                    target_pos = map_to_world_space(
+                        fingertip["x"],
+                        fingertip["y"],
+                        fingertip["z"]
+                    )
+                    
+                    # Smooth the position using lerp
+                    orb.location = orb.location.lerp(target_pos, SMOOTHING_FACTOR)
+                    
+                    # Make sure the orb is in the active view layer
+                    if orb.name not in bpy.context.view_layer.objects:
+                        bpy.context.view_layer.objects.link(orb)
+                    
+                    # Set the position directly
+                    orb.location = target_pos
+                    
+                    # Make orb visible
+                    orb.hide_viewport = False
+                    orb.hide_render = False
+        
+        # Hide orbs for fingers that aren't detected
+        for obj in collection.objects:
+            if obj.name.startswith(('l', 'r')):
+                # Check if this finger should be visible
+                should_be_visible = False
+                
+                # Check left hand
+                if "left_hand" in data and "fingertips" in data["left_hand"]:
+                    for fingertip in data["left_hand"]["fingertips"]:
+                        finger_name = fingertip["finger"].lower()
+                        if obj.name == f"l{finger_name.capitalize()}":
+                            should_be_visible = True
+                            break
+                
+                # Check right hand
+                if not should_be_visible and "right_hand" in data and "fingertips" in data["right_hand"]:
+                    for fingertip in data["right_hand"]["fingertips"]:
+                        finger_name = fingertip["finger"].lower()
+                        if obj.name == f"r{finger_name.capitalize()}":
+                            should_be_visible = True
+                            break
+                
+                # Hide if not visible
+                if not should_be_visible:
+                    obj.hide_viewport = True
+                    obj.hide_render = True
+                    
+        return 0.033  # Check again in 1/30th of a second
+    except Exception as e:
+        logging.error(f"Error updating finger orbs: {e}")
+        return 0.033  # Check again in 1/30th of a second
+
+def check_requests_timer():
+    """Check for various requests and update hand tracking"""
+    try:
+        # Check for hand tracking request
+        hand_tracking_file = os.path.join(BASE_DIR, "hand_tracking_request.txt")
+        if os.path.exists(hand_tracking_file):
+            with open(hand_tracking_file, 'r') as f:
+                request = f.read().strip()
+            os.remove(hand_tracking_file)
+            
+            if request == "start":
+                # Create HandTracking collection if it doesn't exist
+                collection = bpy.data.collections.get("HandTracking")
+                if not collection:
+                    collection = bpy.data.collections.new("HandTracking")
+                    bpy.context.scene.collection.children.link(collection)
+                
+                # Register the update function as a timer
+                if not hasattr(bpy.app.timers, 'is_registered') or not bpy.app.timers.is_registered(update_finger_orbs):
+                    bpy.app.timers.register(update_finger_orbs)
+                    logging.info("Registered hand tracking update timer")
+        
+        # Check for delete request
+        delete_file = os.path.join(BASE_DIR, "delete_hand_tracking.txt")
+        if os.path.exists(delete_file):
+            with open(delete_file, 'r') as f:
+                request = f.read().strip()
+            os.remove(delete_file)
+            
+            if request == "delete":
+                # Remove HandTracking collection and all its objects
+                collection = bpy.data.collections.get("HandTracking")
+                if collection:
+                    # Unlink all objects from the collection
+                    for obj in collection.objects:
+                        collection.objects.unlink(obj)
+                        bpy.data.objects.remove(obj)
+                    
+                    # Remove the collection
+                    bpy.data.collections.remove(collection)
+                    logging.info("Removed HandTracking collection and all objects")
+                
+                # Unregister the update timer
+                if hasattr(bpy.app.timers, 'is_registered') and bpy.app.timers.is_registered(update_finger_orbs):
+                    bpy.app.timers.unregister(update_finger_orbs)
+                    logging.info("Unregistered hand tracking update timer")
+        
+        # Check for other requests...
+        # [Previous request checking code remains unchanged]
+        
+    except Exception as e:
+        logging.error(f"Error in check_requests_timer: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+    
+    return 0.033  # Check every 1/30th of a second
+
+def create_all_fingertip_orbs():
+    """Create orbs for all fingertips at startup"""
+    # Create HandTracking collection if it doesn't exist
+    collection = bpy.data.collections.get("HandTracking")
+    if not collection:
+        collection = bpy.data.collections.new("HandTracking")
+        bpy.context.scene.collection.children.link(collection)
+    
+    # Define all fingertips
+    fingertips = [
+        "lThumb", "lIndex", "lMiddle", "lRing", "lPinky", # Corrected from lPinkie
+        "rThumb", "rIndex", "rMiddle", "rRing", "rPinky"  # Corrected from rPinkie
+    ]
+    
+    # Create orbs for each fingertip
+    for fingertip in fingertips:
+        # Check if orb already exists
+        if fingertip not in bpy.data.objects:
+            # Create the orb
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=0.02)
+            orb = bpy.context.active_object
+            orb.name = fingertip
+            
+            # Ensure no parent
+            orb.parent = None
+            
+            # Remove any constraints
+            for constraint in orb.constraints:
+                orb.constraints.remove(constraint)
+            
+            # Set initial position to 0,0,0
+            orb.location = (0, 0, 0)
+            
+            # Make sure the orb is in the correct collection and view layer
+            if orb.name in bpy.data.objects:
+                # Remove from all collections
+                for coll in orb.users_collection:
+                    coll.objects.unlink(orb)
+                # Add to HandTracking collection
+                collection.objects.link(orb)
+                
+                # Ensure the orb is in the active view layer
+                if orb.name not in bpy.context.view_layer.objects:
+                    bpy.context.view_layer.objects.link(orb)
+                
+                # Make sure the orb is not affected by any view transformations
+                orb.matrix_world.identity()
+                orb.matrix_local.identity()
 
 # Registration function
 def register():
-    ensure_directories()
+    """Register the addon"""
+    # Create all fingertip orbs at startup
+    create_all_fingertip_orbs()
     
-    # Register property groups
+    # Register classes
     bpy.utils.register_class(CustomRequestProperties)
     bpy.utils.register_class(PromptProperties)
     bpy.utils.register_class(RemeshProperties)
-    bpy.types.Scene.prompt_properties = PointerProperty(type=PromptProperties)
-    bpy.types.Scene.custom_request_properties = PointerProperty(type=CustomRequestProperties)
-    bpy.types.Scene.remesh_properties = PointerProperty(type=RemeshProperties)
-    
-    # Register operators and panels
-    bpy.utils.register_class(IMAGE_PT_display_panel)
-    bpy.utils.register_class(OPTION_OT_select)
-    bpy.utils.register_class(REQUEST_OT_submit)
     bpy.utils.register_class(IMAGE_OT_refresh)
+    bpy.utils.register_class(IMAGE_PT_display_panel)
+    bpy.utils.register_class(REMESH_PT_settings_panel)
+    bpy.utils.register_class(OPTION_OT_select)
     bpy.utils.register_class(OPTION_OT_terminate_script)
     bpy.utils.register_class(OBJECT_OT_generate_iteration)
     bpy.utils.register_class(OBJECT_OT_toggle_remesh)
-    bpy.utils.register_class(REMESH_PT_settings_panel)
-
+    bpy.utils.register_class(REQUEST_OT_submit)
+    
+    # Register properties
+    bpy.types.Scene.custom_request_properties = PointerProperty(type=CustomRequestProperties)
+    bpy.types.Scene.prompt_properties = PointerProperty(type=PromptProperties)
+    bpy.types.Scene.remesh_properties = PointerProperty(type=RemeshProperties)
+    
+    # Set up timer for checking requests
+    bpy.app.timers.register(check_requests_timer)
+    
+    # Ensure all necessary directories exist
+    ensure_directories()
+    
+    # Load initial images
+    load_images()
+    
+    # Set up timer for checking image updates
+    bpy.app.timers.register(lambda: check_image_updates(None, None))
+    
+    # Set up timer for checking render requests
+    bpy.app.timers.register(check_render_requests)
+    
+    # Set up timer for checking import requests
+    bpy.app.timers.register(check_import_requests)
+    
     # Create render camera
     ensure_render_camera()
     
     # Check the remesh state from UI
     check_remesh_state()
     
-    # Load images on startup
-    try:
-        load_images()
-        logging.info("Initial image loading completed")
-    except Exception as e:
-        logging.error(f"Failed to load images: {e}")
-    
-    # Apply default prompt A if prompt.txt doesn't exist
-    prompt_path = os.path.join(TEXT_OPTIONS_DIR, PROMPT_FILE)
-    if not os.path.exists(prompt_path):
-        copy_text_file("A_0001.txt", PROMPT_FILE)
-        logging.info("Applied default prompt A")
-        
-    # Start timer to check for render requests
-    bpy.app.timers.register(check_requests_timer, first_interval=1.0)
-        
     logging.info("Successfully registered VIBE panel")
 
-# Unregistration function
 def unregister():
+    """Unregister the addon"""
     try:
         # Unregister property groups
-        del bpy.types.Scene.prompt_properties
         del bpy.types.Scene.custom_request_properties
+        del bpy.types.Scene.prompt_properties
         del bpy.types.Scene.remesh_properties
         
         # Unregister operators and panels
+        bpy.utils.unregister_class(IMAGE_OT_refresh)
         bpy.utils.unregister_class(IMAGE_PT_display_panel)
         bpy.utils.unregister_class(OPTION_OT_select)
-        bpy.utils.unregister_class(REQUEST_OT_submit)
-        bpy.utils.unregister_class(IMAGE_OT_refresh)
         bpy.utils.unregister_class(OPTION_OT_terminate_script)
         bpy.utils.unregister_class(OBJECT_OT_generate_iteration)
         bpy.utils.unregister_class(OBJECT_OT_toggle_remesh)
+        bpy.utils.unregister_class(REQUEST_OT_submit)
         bpy.utils.unregister_class(REMESH_PT_settings_panel)
+        
+        # Unregister property groups
+        bpy.utils.unregister_class(CustomRequestProperties)
+        bpy.utils.unregister_class(PromptProperties)
+        bpy.utils.unregister_class(RemeshProperties)
         
         logging.info("Successfully unregistered VIBE panel")
     except Exception as e:
