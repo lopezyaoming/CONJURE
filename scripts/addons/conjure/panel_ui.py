@@ -13,12 +13,34 @@ class CONJURE_PT_control_panel(bpy.types.Panel):
         layout = self.layout
         wm = context.window_manager
 
+        # --- Main Interaction Controls ---
+        box = layout.box()
+        box.label(text="Interaction")
         # Check a custom property to see if the modal operator is running
         if hasattr(wm, 'conjure_is_running') and wm.conjure_is_running:
-            layout.operator("conjure.stop_operator", text="Finalize CONJURE", icon='PAUSE')
+            box.operator("conjure.stop_operator", text="Finalize CONJURE", icon='PAUSE')
         else:
             # The 'conjure.fingertip_operator' is the main operator defined in operator_main.py
-            layout.operator("conjure.fingertip_operator", text="Initiate CONJURE", icon='PLAY')
+            box.operator("conjure.fingertip_operator", text="Initiate CONJURE", icon='PLAY')
+
+        # --- Generative Pipeline Controls ---
+        box = layout.box()
+        box.label(text="Generative Pipeline (Debug)")
+
+        # Stage 1
+        box.operator("conjure.generate_concepts", icon='WORLD_DATA')
+
+        # Stage 2
+        row = box.row(align=True)
+        op1 = row.operator("conjure.select_option", text="Select Opt 1", icon='IMAGE_DATA')
+        op1.option_index = 1
+        op2 = row.operator("conjure.select_option", text="Select Opt 2", icon='IMAGE_DATA')
+        op2.option_index = 2
+        op3 = row.operator("conjure.select_option", text="Select Opt 3", icon='IMAGE_DATA')
+        op3.option_index = 3
+        
+        # Stage 3
+        box.operator("conjure.import_model", icon='FILE_NEW')
 
 
 class CONJURE_OT_stop_operator(bpy.types.Operator):

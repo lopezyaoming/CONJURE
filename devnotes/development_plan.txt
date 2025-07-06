@@ -76,14 +76,14 @@ The goal of this phase is to build out the main application that manages all the
 The goal is to get the first end-to-end generative loop working: from a Blender render to AI image options.
 
 1.  **Implement Generative UI Controls in Blender:**
-    -   In `conjure_blender.py`: Add a **"Render"** button to the CONJURE UI panel.
-    -   This button will render an image from the `GestureCamera` perspective and save it to `data/generated_images/gestureCamera/render.png`.
-    -   In `conjure_blender.py`: Add a **"Generate Model"** button to the panel.
-    -   This button will eventually trigger the entire ComfyUI pipeline via the `state_manager`.
+    -   [x] In `scripts/addons/conjure/panel_ui.py`: Add a **"Generate Concepts"** button to the CONJURE UI panel.
+    -   [x] In `scripts/addons/conjure/ops_io.py`: Create a placeholder operator that is called by the button.
+    -   [ ] In `scripts/addons/conjure/ops_io.py`: Implement the operator logic to render an image from the `GestureCamera` to the correct data path.
+    -   [ ] In `scripts/addons/conjure/ops_io.py`: Implement logic to update `state.json` to notify the launcher of a new generation request.
 
 2.  **Implement ComfyUI Wrapper:**
-    -   In `comfyui/api_wrapper.py`: Write functions to connect to the ComfyUI server's API and trigger a workflow execution.
-    -   Ensure the `promptMaker.json` workflow is correctly configured to accept an input image.
+    -   [ ] In `comfyui/api_wrapper.py`: Write functions to connect to the ComfyUI server's API and trigger a workflow execution.
+    -   [ ] Ensure the `promptMaker.json` workflow is correctly configured to accept an input image.
 
 3.  **Create Basic GUI:**
     -   In `launcher/gui.py`: Using PyQt6, create a very simple, non-interactive window that can display three images side-by-side.

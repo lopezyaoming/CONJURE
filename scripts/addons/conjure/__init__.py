@@ -15,12 +15,14 @@ bl_info = {
 # Import all modules that contain Blender registration functions.
 from . import operator_main
 from . import panel_ui
+from . import ops_io
 
 # A list of all modules that contain register/unregister functions.
 # The order can be important, especially for unregistering.
 modules = [
     operator_main,
     panel_ui,
+    ops_io,
 ]
 
 def register():
@@ -28,18 +30,30 @@ def register():
     This function is called by Blender when the addon is enabled.
     It iterates through our modules list and calls the register() function in each.
     """
+    print("--- Registering CONJURE Modules ---")
     for module in modules:
-        module.register()
-    print("CONJURE Addon Registered.")
+        try:
+            module.register()
+            print(f"Registered module: {module.__name__}")
+        except Exception as e:
+            print(f"FAILED to register module: {module.__name__}")
+            print(f"Error: {e}")
+    print("--- CONJURE Addon Registration Complete ---")
 
 def unregister():
     """
     This function is called by Blender when the addon is disabled.
     It unregisters all classes in the reverse order of registration.
     """
+    print("--- Unregistering CONJURE Modules ---")
     for module in reversed(modules):
-        module.unregister()
-    print("CONJURE Addon Unregistered.")
+        try:
+            module.unregister()
+            print(f"Unregistered module: {module.__name__}")
+        except Exception as e:
+            print(f"FAILED to unregister module: {module.__name__}")
+            print(f"Error: {e}")
+    print("--- CONJURE Addon Unregistration Complete ---")
 
 if __name__ == "__main__":
     register() 

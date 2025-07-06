@@ -33,16 +33,25 @@ class SubprocessManager:
         blender_scene_dir = self.project_root / "blender"
         scene_path = blender_scene_dir / "scene.blend"
 
-        # This command expression tells Blender to enable our addon,
-        # which is assumed to be in a registered scripts path.
-        # The addon's name is 'conjure', matching the folder name.
-        enable_addon_expr = "import bpy; bpy.ops.preferences.addon_enable(module='conjure'); bpy.ops.wm.save_userpref()"
+        # This command expression tells Blender to:
+        # 1. Enable our 'conjure' addon.
+        # 2. Define a function 'C' that runs the main operator.
+        # 3. Register 'C' to run after a 0.5s delay, giving Blender time to load.
+        # 4. Save the preferences so the addon stays enabled.
+        # We use a semi-colon separated string for the one-liner.
+        auto_start_expr = (
+            "import bpy; "
+            "bpy.ops.preferences.addon_enable(module='conjure'); "
+            "def C(): bpy.ops.conjure.fingertip_operator(); "
+            "bpy.app.timers.register(C, first_interval=0.5); "
+            "bpy.ops.wm.save_userpref()"
+        )
 
         command = [
             BLENDER_EXECUTABLE_PATH,
             str(scene_path),
             "--python-expr",
-            enable_addon_expr
+            auto_start_expr
         ]
         # We run Blender with its UI visible for interaction, not in the background.
         process = subprocess.Popen(command)

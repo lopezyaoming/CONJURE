@@ -285,6 +285,7 @@ CONJURE/
 │           ├── __init__.py
 │           ├── operator_main.py
 │           ├── panel_ui.py
+│           ├── ops_io.py
 │           └── ... (other .py modules)
 
 ├── comfyui/

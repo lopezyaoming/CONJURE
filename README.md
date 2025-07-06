@@ -33,7 +33,8 @@ The central 3D modeling environment where all geometry is created, deformed, and
 - **`scene.blend`**: The base `.blend` file (located in the separate `blender/` directory) containing the default lighting, cameras, and bounding box.
 - **`__init__.py`**: The entry point that registers the addon with Blender.
 - **`operator_main.py`**: The core script that runs inside Blender. It reads `fingertips.json` to map hand movements to mesh deformations and orchestrates all other operations.
-- **`panel_ui.py`**: Defines the "CONJURE Control" panel in the 3D Viewport.
+- **`panel_ui.py`**: Defines the "CONJURE Control" panel in the 3D Viewport for starting and stopping the interaction.
+- **`ops_io.py`**: Contains operators for the generative pipeline, such as rendering images and importing models. These are triggered by the UI panel.
 - **`ops_...py`**: (Planned) Additional modules for specific operations like camera control, I/O, etc.
 
 ### 3. ComfyUI (`comfyui/`)
@@ -44,6 +45,9 @@ The generative backbone of the platform, responsible for a sophisticated, multi-
   - **`mv2mv[1-3].json`**: The second stage. Based on the user's choice of concept, one of these three workflows is run. Each takes the 6 multi-view renders of the current Blender mesh and the chosen concept image to generate a new, refined set of 6 multi-view images that match the target style.
   - **`mv23D.json`**: The final stage. It takes four of the refined multi-view images and uses a 2D-to-3D diffusion model to generate the final 3D mesh, which is then sent back to Blender.
 - **`api_wrapper.py`**: A Python wrapper to communicate with the ComfyUI API, allowing the Launcher to trigger these workflows programmatically.
+- **`panel_ui.py`**: Defines the "CONJURE Control" panel in the 3D Viewport for starting and stopping the interaction.
+- **`ops_io.py`**: Contains operators for the generative pipeline, such as rendering images and importing models. These are triggered by the UI panel.
+- **`...`**: Additional modules for specific operations.
 
 ---
 
@@ -112,6 +116,8 @@ Now, you can launch the entire application with a single command.
 - Find the **CONJURE** panel in the 3D Viewport's UI shelf (press `N` if not visible) and click **"Initiate CONJURE"**.
 - Your webcam feed will appear in a separate window. You can now control Blender with your gestures.
 - To shut everything down, simply close the Blender window or press `Ctrl+C` in the terminal.
+
+The UI Panel will also contain a "Generative Pipeline" section with buttons to manually trigger each stage of the ComfyUI workflow for debugging and direct control.
 
 ---
 

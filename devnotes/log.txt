@@ -116,3 +116,26 @@ Advances:
 3.  **Brush Calibration Pass**:
     *   Increased the force of the `PINCH`, `GRAB`, `SMOOTH`, and `FLATTEN` brushes by 50% for more impactful sculpting.
     *   Gave the `INFLATE` brush its own dedicated radius, making it twice as large as other brushes to allow for broader volume adjustments. 
+
+---
+Date: 2025-06-08
+
+This session focused on a major architectural refactor to transition the Blender integration from a single script into a standard, multi-file addon. This improves stability and maintainability for future development.
+
+Advances:
+1.  **Addon Structure Implementation**:
+    *   The entire Blender Python integration was moved from a single file into a dedicated addon located at `scripts/addons/conjure/`.
+    *   The code was modularized into separate files for the main operator (`operator_main.py`), UI panel (`panel_ui.py`), I/O operators (`ops_io.py`), and configuration (`config.py`).
+    *   Updated the `launcher` to correctly enable the addon at startup instead of running a single script.
+
+2.  **Centralized Configuration**:
+    *   All hardcoded constants and file paths were moved from `operator_main.py` into the new `scripts/addons/conjure/config.py`, fixing critical file path issues that were preventing hand tracking data from being read.
+
+3.  **Generative Pipeline UI**:
+    *   The CONJURE UI panel in Blender was updated to serve as a primary control and debug interface.
+    *   Added a "Generative Pipeline" section with placeholder buttons for each stage of the ComfyUI workflow: `Generate Concepts`, `Select Option [1-3]`, and `Import Model`.
+
+4.  **Bug Fixes & Stability**:
+    *   Resolved an issue where UI buttons were not appearing due to an invalid icon name in the panel code.
+    *   Added robust logging to the addon's `__init__.py` to make future registration errors easier to debug.
+    *   Modified the launcher to auto-start the CONJURE operator, removing the need for an extra click on initialization. 

@@ -18,6 +18,8 @@ except NameError:
 
 DATA_DIR = PROJECT_ROOT / "data"
 FINGERTIPS_JSON_PATH = DATA_DIR / "input" / "fingertips.json"
+STATE_JSON_PATH = DATA_DIR / "input" / "state.json"
+GESTURE_RENDER_PATH = DATA_DIR / "generated_images" / "gestureCamera" / "render.png"
 DEFORM_OBJ_NAME = "Mesh"  # The name of the mesh we will manipulate
 GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based mapping
 
@@ -30,32 +32,32 @@ BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available 
 
 
 # --- MAPPING & VISUALS ---
-HAND_SCALE_X = 10.0
-HAND_SCALE_Y = 10.0
-HAND_SCALE_Z = 10.0
+HAND_SCALE_X = 5.0
+HAND_SCALE_Y = 5.0
+HAND_SCALE_Z = 5.0
 MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000)
-MARKER_SURFACE_OFFSET = 0.05
-SMOOTHING_FACTOR = 0.3
+MARKER_SURFACE_OFFSET = 0.15
+SMOOTHING_FACTOR = 0.35
 
 
 # --- CAMERA ORBIT ---
-ORBIT_SENSITIVITY = 400.0
+ORBIT_SENSITIVITY = 450.0
 ORBIT_SMOOTHING_FACTOR = 0.25
 
 
 # --- BRUSH SETTINGS ---
 RADIUS_LEVELS = [
-    {'name': 'small',  'finger': 3.0, 'grab': 1.5, 'flatten': 0.375, 'inflate': 0.75},
-    {'name': 'medium', 'finger': 3.0, 'grab': 1.5, 'flatten': 0.75,  'inflate': 1.5},
-    {'name': 'large',  'finger': 3.0, 'grab': 3.0, 'flatten': 3.0,   'inflate': 6.0}
+    {'name': 'small',  'finger': 6.0, 'grab': 2.5, 'flatten': 0.75, 'inflate': 0.75},
+    {'name': 'medium', 'finger': 6.0, 'grab': 2.5, 'flatten': 0.75,  'inflate': 1.5},
+    {'name': 'large',  'finger': 6.0, 'grab': 3.0, 'flatten': 3.0,   'inflate': 6.0}
 ]
 MAX_DISPLACEMENT_PER_FRAME = 0.25
 DEFORM_TIMESTEP = 0.05
-FINGER_FORCE_STRENGTH = 0.09
-GRAB_FORCE_STRENGTH = 10
-SMOOTH_FORCE_STRENGTH = 1.75
+FINGER_FORCE_STRENGTH = 0.13
+GRAB_FORCE_STRENGTH = 20
+SMOOTH_FORCE_STRENGTH = 2.5
 INFLATE_FORCE_STRENGTH = 0.15
-FLATTEN_FORCE_STRENGTH = 1.5
+FLATTEN_FORCE_STRENGTH = 2.5
 
 
 # --- PHYSICS & VOLUME ---
