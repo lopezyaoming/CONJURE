@@ -1,0 +1,423 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors",
+      "pipeline_name": "MVAdapterT2MVSDXLPipeline"
+    },
+    "class_type": "LdmPipelineLoader",
+    "_meta": {
+      "title": "LDM Pipeline Loader"
+    }
+  },
+  "4": {
+    "inputs": {
+      "vae_name": "sdxl_vae.safetensors",
+      "upcast_fp32": true
+    },
+    "class_type": "LdmVaeLoader",
+    "_meta": {
+      "title": "LDM Vae Loader"
+    }
+  },
+  "7": {
+    "inputs": {
+      "num_views": 6,
+      "prompt": [
+        "121",
+        0
+      ],
+      "negative_prompt": "ugly, watermark, text, distorted, out of focus, bad, scary, NSFW",
+      "width": 768,
+      "height": 768,
+      "steps": 50,
+      "cfg": 7,
+      "seed": 100000,
+      "controlnet_conditioning_scale": 0.30000000000000004,
+      "pipeline": [
+        "19",
+        0
+      ],
+      "reference_image": [
+        "61",
+        0
+      ],
+      "controlnet_image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "DiffusersMVSampler",
+    "_meta": {
+      "title": "Diffusers MV Sampler"
+    }
+  },
+  "8": {
+    "inputs": {
+      "images": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "9": {
+    "inputs": {
+      "scheduler_name": "DDIM",
+      "shift_snr": true,
+      "shift_mode": "interpolated",
+      "shift_scale": 8,
+      "pipeline": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "DiffusersMVSchedulerLoader",
+    "_meta": {
+      "title": "Diffusers MV Scheduler Loader"
+    }
+  },
+  "10": {
+    "inputs": {
+      "load_mvadapter": true,
+      "adapter_path": "huanngzh/mv-adapter",
+      "adapter_name": "mvadapter_t2mv_sdxl.safetensors",
+      "num_views": 6,
+      "enable_vae_slicing": true,
+      "enable_vae_tiling": false,
+      "pipeline": [
+        "1",
+        0
+      ],
+      "scheduler": [
+        "9",
+        0
+      ],
+      "autoencoder": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "DiffusersMVModelMakeup",
+    "_meta": {
+      "title": "Diffusers MV Model Makeup"
+    }
+  },
+  "11": {
+    "inputs": {
+      "image": "FRONT (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "FRONT"
+    }
+  },
+  "14": {
+    "inputs": {
+      "image": "FRONT_RIGHT.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "FRONT_RIGHT"
+    }
+  },
+  "15": {
+    "inputs": {
+      "image": "RIGHT (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "RIGHT"
+    }
+  },
+  "16": {
+    "inputs": {
+      "image": "BACK (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "BACK"
+    }
+  },
+  "17": {
+    "inputs": {
+      "image": "LEFT (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "LEFT"
+    }
+  },
+  "18": {
+    "inputs": {
+      "image": "FRONT_LEFT.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "FRONT_LEFT"
+    }
+  },
+  "19": {
+    "inputs": {
+      "controlnet_name": "xinsir/controlnet-scribble-sdxl-1.0",
+      "pipeline": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "ControlNetModelLoader",
+    "_meta": {
+      "title": "ControlNet Model Loader"
+    }
+  },
+  "20": {
+    "inputs": {
+      "width": 768,
+      "height": 768,
+      "front_view": [
+        "26",
+        0
+      ],
+      "front_right_view": [
+        "28",
+        0
+      ],
+      "right_view": [
+        "29",
+        0
+      ],
+      "back_view": [
+        "30",
+        0
+      ],
+      "left_view": [
+        "31",
+        0
+      ],
+      "front_left_view": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "ControlImagePreprocessor",
+    "_meta": {
+      "title": "Control Image Preprocessor"
+    }
+  },
+  "26": {
+    "inputs": {
+      "threshold": 16,
+      "resolution": 512,
+      "image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "Scribble_XDoG_Preprocessor",
+    "_meta": {
+      "title": "Scribble XDoG Lines"
+    }
+  },
+  "28": {
+    "inputs": {
+      "threshold": 16,
+      "resolution": 512,
+      "image": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "Scribble_XDoG_Preprocessor",
+    "_meta": {
+      "title": "Scribble XDoG Lines"
+    }
+  },
+  "29": {
+    "inputs": {
+      "threshold": 16,
+      "resolution": 512,
+      "image": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "Scribble_XDoG_Preprocessor",
+    "_meta": {
+      "title": "Scribble XDoG Lines"
+    }
+  },
+  "30": {
+    "inputs": {
+      "threshold": 16,
+      "resolution": 512,
+      "image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "Scribble_XDoG_Preprocessor",
+    "_meta": {
+      "title": "Scribble XDoG Lines"
+    }
+  },
+  "31": {
+    "inputs": {
+      "threshold": 16,
+      "resolution": 512,
+      "image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "Scribble_XDoG_Preprocessor",
+    "_meta": {
+      "title": "Scribble XDoG Lines"
+    }
+  },
+  "32": {
+    "inputs": {
+      "threshold": 16,
+      "resolution": 512,
+      "image": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "Scribble_XDoG_Preprocessor",
+    "_meta": {
+      "title": "Scribble XDoG Lines"
+    }
+  },
+  "33": {
+    "inputs": {
+      "images": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "34": {
+    "inputs": {
+      "images": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "35": {
+    "inputs": {
+      "images": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "36": {
+    "inputs": {
+      "images": [
+        "29",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "37": {
+    "inputs": {
+      "images": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "38": {
+    "inputs": {
+      "images": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "61": {
+    "inputs": {
+      "image": "selectedOption.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "120": {
+    "inputs": {
+      "file_path": "C:\\Coding\\CONJURE\\data\\generated_text\\userPrompt.txt",
+      "dictionary_name": "[filename]"
+    },
+    "class_type": "Load Text File",
+    "_meta": {
+      "title": "Load Text File"
+    }
+  },
+  "121": {
+    "inputs": {
+      "STRING": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "124": {
+    "inputs": {
+      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\mvResults",
+      "filename_prefix": "mv",
+      "filename_delimiter": "_",
+      "filename_number_padding": 1,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "false",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  }
+}

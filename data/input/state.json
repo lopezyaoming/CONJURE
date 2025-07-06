@@ -1,5 +1,8 @@
 {
     "current_phase": "idle",
     "current_mesh": null,
-    "last_update": null
-} 
+    "last_update": null,
+    "app_status": "stopped",
+    "hand_tracker_status": "stopped",
+    "blender_status": "stopped"
+}

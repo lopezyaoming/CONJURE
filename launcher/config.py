@@ -20,4 +20,9 @@ ASSETS_DIR = DATA_DIR / "assets"
 # File paths
 STATE_JSON = INPUT_DIR / "state.json"
 FINGERTIPS_JSON = INPUT_DIR / "fingertips.json"
-SCENE_BLEND = BLENDER_DIR / "scene.blend" 
+SCENE_BLEND = BLENDER_DIR / "scene.blend"
+
+# --- PATHS ---
+# The absolute path to the Blender executable.
+# This must be set correctly for your system.
+BLENDER_EXECUTABLE_PATH = r"C:\Program Files\Blender Foundation\Blender 4.4\blender.exe" 

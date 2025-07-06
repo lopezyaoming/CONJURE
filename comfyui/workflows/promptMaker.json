@@ -1,0 +1,678 @@
+{
+  "108": {
+    "inputs": {
+      "control_net_name": "control-lora-canny-rank256.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "110": {
+    "inputs": {
+      "pixels": [
+        "122",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "111": {
+    "inputs": {
+      "samples": [
+        "113",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "112": {
+    "inputs": {
+      "text": " watermark, perspective, (low quality:1.5), distorted, out of focus, ugly, footpath, waterfall, saturated, lively, blurry, distorted, low quality, oversaturated, noisy, washed out, pixelated, cluttered, unnatural lighting, deformed, symmetrical, simplistic\n\n",
+      "clip": [
+        "119",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "113": {
+    "inputs": {
+      "seed": [
+        "138",
+        3
+      ],
+      "steps": 8,
+      "cfg": 2.2,
+      "sampler_name": "lcm",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "115",
+        0
+      ],
+      "positive": [
+        "161",
+        0
+      ],
+      "negative": [
+        "161",
+        1
+      ],
+      "latent_image": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "114": {
+    "inputs": {
+      "strength": 0.9000000000000001,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "116",
+        0
+      ],
+      "negative": [
+        "112",
+        0
+      ],
+      "control_net": [
+        "132",
+        0
+      ],
+      "image": [
+        "133",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "115": {
+    "inputs": {
+      "lora_name": "lcm_lora_sdxl.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "119",
+        0
+      ],
+      "clip": [
+        "119",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "116": {
+    "inputs": {
+      "STRING": [
+        "118",
+        0
+      ],
+      "clip": [
+        "115",
+        1
+      ]
+    },
+    "class_type": "Griptape Convert: Text to CLIP Encode",
+    "_meta": {
+      "title": "Griptape Convert: Text to CLIP Encode"
+    }
+  },
+  "118": {
+    "inputs": {
+      "STRING": "Sleek biomechanical scarf with matte metallic finish, composed of interlocking plates and elongated perforations forming labyrinth-like patterns. Eye sockets are large and circular, resembling camera lenses. The helmet fully encloses the head and neck, evoking cybernetic stealth. Minimalist background, studio lighting, high-detail, futuristic surveillance or infiltration gear aesthetic.",
+      "INPUT": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "119": {
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "122": {
+    "inputs": {
+      "image": "render.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "123": {
+    "inputs": {
+      "seed": [
+        "137",
+        3
+      ],
+      "steps": 8,
+      "cfg": 2.2,
+      "sampler_name": "lcm",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "115",
+        0
+      ],
+      "positive": [
+        "160",
+        0
+      ],
+      "negative": [
+        "160",
+        1
+      ],
+      "latent_image": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "124": {
+    "inputs": {
+      "seed": [
+        "136",
+        3
+      ],
+      "steps": 8,
+      "cfg": 2.2,
+      "sampler_name": "lcm",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "115",
+        0
+      ],
+      "positive": [
+        "159",
+        0
+      ],
+      "negative": [
+        "159",
+        1
+      ],
+      "latent_image": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "125": {
+    "inputs": {
+      "strength": 0.5000000000000001,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "116",
+        0
+      ],
+      "negative": [
+        "112",
+        0
+      ],
+      "control_net": [
+        "132",
+        0
+      ],
+      "image": [
+        "133",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "126": {
+    "inputs": {
+      "strength": 0.25000000000000006,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "116",
+        0
+      ],
+      "negative": [
+        "112",
+        0
+      ],
+      "control_net": [
+        "132",
+        0
+      ],
+      "image": [
+        "133",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "127": {
+    "inputs": {
+      "images": [
+        "169",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "128": {
+    "inputs": {
+      "images": [
+        "170",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "129": {
+    "inputs": {
+      "samples": [
+        "123",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "130": {
+    "inputs": {
+      "samples": [
+        "124",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "132": {
+    "inputs": {
+      "control_net_name": "control-lora-canny-rank256.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "133": {
+    "inputs": {
+      "coarse": "disable",
+      "resolution": 512,
+      "image": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "LineArtPreprocessor",
+    "_meta": {
+      "title": "Realistic Lineart"
+    }
+  },
+  "134": {
+    "inputs": {
+      "file_path": "C:\\Coding\\CONJURE\\data\\generated_text\\userPrompt.txt",
+      "dictionary_name": "[filename]"
+    },
+    "class_type": "Load Text File",
+    "_meta": {
+      "title": "Load Text File"
+    }
+  },
+  "136": {
+    "inputs": {
+      "seed": 100000
+    },
+    "class_type": "Seed",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "137": {
+    "inputs": {
+      "seed": 200000
+    },
+    "class_type": "Seed",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "138": {
+    "inputs": {
+      "seed": 300000
+    },
+    "class_type": "Seed",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "139": {
+    "inputs": {
+      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "filename_prefix": "OP1",
+      "filename_delimiter": "",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "168",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "141": {
+    "inputs": {
+      "images": [
+        "168",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "142": {
+    "inputs": {
+      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "filename_prefix": "OP2",
+      "filename_delimiter": "",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "169",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "143": {
+    "inputs": {
+      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "filename_prefix": "OP3",
+      "filename_delimiter": "",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "170",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "157": {
+    "inputs": {
+      "ckpt_name": "depth_anything_v2_vitl.pth",
+      "resolution": 512,
+      "image": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "DepthAnythingV2Preprocessor",
+    "_meta": {
+      "title": "Depth Anything V2 - Relative"
+    }
+  },
+  "158": {
+    "inputs": {
+      "control_net_name": "control-lora-depth-rank256.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "159": {
+    "inputs": {
+      "strength": 0.25000000000000006,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "126",
+        0
+      ],
+      "negative": [
+        "126",
+        1
+      ],
+      "control_net": [
+        "158",
+        0
+      ],
+      "image": [
+        "157",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "160": {
+    "inputs": {
+      "strength": 0.5000000000000001,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "125",
+        0
+      ],
+      "negative": [
+        "125",
+        1
+      ],
+      "control_net": [
+        "158",
+        0
+      ],
+      "image": [
+        "157",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "161": {
+    "inputs": {
+      "strength": 0.9000000000000001,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "114",
+        0
+      ],
+      "negative": [
+        "114",
+        1
+      ],
+      "control_net": [
+        "158",
+        0
+      ],
+      "image": [
+        "157",
+        0
+      ],
+      "vae": [
+        "119",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "168": {
+    "inputs": {
+      "model_name": "u2net",
+      "image": [
+        "111",
+        0
+      ]
+    },
+    "class_type": "Image Remove Background (rembg)",
+    "_meta": {
+      "title": "Image Remove Background (rembg)"
+    }
+  },
+  "169": {
+    "inputs": {
+      "model_name": "u2net",
+      "image": [
+        "129",
+        0
+      ]
+    },
+    "class_type": "Image Remove Background (rembg)",
+    "_meta": {
+      "title": "Image Remove Background (rembg)"
+    }
+  },
+  "170": {
+    "inputs": {
+      "model_name": "u2net",
+      "image": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "Image Remove Background (rembg)",
+    "_meta": {
+      "title": "Image Remove Background (rembg)"
+    }
+  }
+}

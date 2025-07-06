@@ -1,0 +1,479 @@
+{
+  "13": {
+    "inputs": {
+      "filename_prefix": "3D/Hy3D",
+      "file_format": "glb",
+      "save_file": true,
+      "trimesh": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "Hy3DExportMesh",
+    "_meta": {
+      "title": "Hy3DExportMesh"
+    }
+  },
+  "15": {
+    "inputs": {
+      "box_v": 1.01,
+      "octree_resolution": 256,
+      "num_chunks": 32000,
+      "mc_level": 0,
+      "mc_algo": "mc",
+      "enable_flash_vdm": true,
+      "force_offload": true,
+      "vae": [
+        "45",
+        1
+      ],
+      "latents": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "Hy3DVAEDecode",
+    "_meta": {
+      "title": "Hy3D VAE Decode"
+    }
+  },
+  "17": {
+    "inputs": {
+      "mask": [
+        "35",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "18": {
+    "inputs": {
+      "mask": [
+        "33",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "19": {
+    "inputs": {
+      "mask": [
+        "31",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "20": {
+    "inputs": {
+      "images": [
+        "44",
+        1
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "21": {
+    "inputs": {
+      "mask": [
+        "44",
+        2
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "24": {
+    "inputs": {
+      "model_file": [
+        "13",
+        0
+      ],
+      "image": ""
+    },
+    "class_type": "Preview3D",
+    "_meta": {
+      "title": "Preview 3D"
+    }
+  },
+  "26": {
+    "inputs": {
+      "width": 518,
+      "height": 518,
+      "interpolation": "lanczos",
+      "method": "pad",
+      "condition": "always",
+      "multiple_of": 2,
+      "image": [
+        "46",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "27": {
+    "inputs": {
+      "image": [
+        "26",
+        0
+      ],
+      "alpha": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "JoinImageWithAlpha",
+    "_meta": {
+      "title": "Join Image with Alpha"
+    }
+  },
+  "28": {
+    "inputs": {
+      "width": 518,
+      "height": 518,
+      "interpolation": "lanczos",
+      "method": "pad",
+      "condition": "always",
+      "multiple_of": 2,
+      "image": [
+        "48",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "29": {
+    "inputs": {
+      "width": 518,
+      "height": 518,
+      "interpolation": "lanczos",
+      "method": "pad",
+      "condition": "always",
+      "multiple_of": 2,
+      "image": [
+        "49",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "30": {
+    "inputs": {
+      "image": [
+        "28",
+        0
+      ],
+      "alpha": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "JoinImageWithAlpha",
+    "_meta": {
+      "title": "Join Image with Alpha"
+    }
+  },
+  "31": {
+    "inputs": {
+      "rembg_session": [
+        "50",
+        0
+      ],
+      "image": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "ImageRemoveBackground+",
+    "_meta": {
+      "title": "🔧 Image Remove Background"
+    }
+  },
+  "32": {
+    "inputs": {
+      "mask": [
+        "31",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "33": {
+    "inputs": {
+      "rembg_session": [
+        "50",
+        0
+      ],
+      "image": [
+        "29",
+        0
+      ]
+    },
+    "class_type": "ImageRemoveBackground+",
+    "_meta": {
+      "title": "🔧 Image Remove Background"
+    }
+  },
+  "34": {
+    "inputs": {
+      "mask": [
+        "33",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "35": {
+    "inputs": {
+      "rembg_session": [
+        "50",
+        0
+      ],
+      "image": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "ImageRemoveBackground+",
+    "_meta": {
+      "title": "🔧 Image Remove Background"
+    }
+  },
+  "36": {
+    "inputs": {
+      "mask": [
+        "35",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "37": {
+    "inputs": {
+      "remove_floaters": true,
+      "remove_degenerate_faces": true,
+      "reduce_faces": true,
+      "max_facenum": 50000,
+      "smooth_normals": false,
+      "trimesh": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "Hy3DPostprocessMesh",
+    "_meta": {
+      "title": "Hy3D Postprocess Mesh"
+    }
+  },
+  "38": {
+    "inputs": {
+      "image": [
+        "29",
+        0
+      ],
+      "alpha": [
+        "34",
+        0
+      ]
+    },
+    "class_type": "JoinImageWithAlpha",
+    "_meta": {
+      "title": "Join Image with Alpha"
+    }
+  },
+  "39": {
+    "inputs": {
+      "width": 518,
+      "height": 518,
+      "interpolation": "lanczos",
+      "method": "pad",
+      "condition": "always",
+      "multiple_of": 2,
+      "image": [
+        "47",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "40": {
+    "inputs": {
+      "mask": [
+        "41",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "41": {
+    "inputs": {
+      "rembg_session": [
+        "50",
+        0
+      ],
+      "image": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "ImageRemoveBackground+",
+    "_meta": {
+      "title": "🔧 Image Remove Background"
+    }
+  },
+  "42": {
+    "inputs": {
+      "mask": [
+        "41",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "43": {
+    "inputs": {
+      "image": [
+        "39",
+        0
+      ],
+      "alpha": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "JoinImageWithAlpha",
+    "_meta": {
+      "title": "Join Image with Alpha"
+    }
+  },
+  "44": {
+    "inputs": {
+      "guidance_scale": 5.5,
+      "steps": 15,
+      "seed": 416935455784445,
+      "scheduler": "FlowMatchEulerDiscreteScheduler",
+      "pipeline": [
+        "45",
+        0
+      ],
+      "front": [
+        "27",
+        0
+      ],
+      "left": [
+        "30",
+        0
+      ],
+      "right": [
+        "43",
+        0
+      ],
+      "back": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "Hy3DGenerateMeshMultiView",
+    "_meta": {
+      "title": "Hy3DGenerateMeshMultiView"
+    }
+  },
+  "45": {
+    "inputs": {
+      "model": "Hunyuan3D-2_safetensors\\hunyuan3d-dit-v2-mv-fast.safetensors",
+      "attention_mode": "sdpa",
+      "cublas_ops": false
+    },
+    "class_type": "Hy3DModelLoader",
+    "_meta": {
+      "title": "Hy3DModelLoader"
+    }
+  },
+  "46": {
+    "inputs": {
+      "image": "mv_1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "FRONT"
+    }
+  },
+  "47": {
+    "inputs": {
+      "image": "mv_5.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "RIGHT"
+    }
+  },
+  "48": {
+    "inputs": {
+      "image": "mv_3.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "LEFT"
+    }
+  },
+  "49": {
+    "inputs": {
+      "image": "mv_4.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "BACK"
+    }
+  },
+  "50": {
+    "inputs": {
+      "model": "u2net: general purpose",
+      "providers": "CUDA"
+    },
+    "class_type": "RemBGSession+",
+    "_meta": {
+      "title": "🔧 RemBG Session"
+    }
+  }
+}
