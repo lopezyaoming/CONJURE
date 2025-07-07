@@ -136,72 +136,27 @@ class CONJURE_OT_generate_concepts(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class CONJURE_OT_select_option_1(bpy.types.Operator):
-    """Selects option 1 and signals the launcher."""
-    bl_idname = "conjure.select_option_1"
-    bl_label = "Select Concept Option 1"
+class CONJURE_OT_select_concept(bpy.types.Operator):
+    """Selects a concept option, renders multi-view, and signals the launcher."""
+    bl_idname = "conjure.select_concept"
+    bl_label = "Select Concept Option"
+
+    option_id: bpy.props.IntProperty()
 
     def execute(self, context):
-        option_index = 1
         if not render_multiview():
-            self.report({'ERROR'}, f"Failed to render multi-view for option {option_index}.")
+            self.report({'ERROR'}, f"Failed to render multi-view for option {self.option_id}.")
             return {'CANCELLED'}
         
         state_update = {
-            "selection_request": option_index,
+            "selection_request": self.option_id,
             "generation_mode": context.scene.conjure_settings.generation_mode
         }
         if not update_state_file(state_update):
             self.report({'ERROR'}, "Failed to write to state file.")
             return {'CANCELLED'}
 
-        self.report({'INFO'}, f"Option {option_index} selected. Multi-view rendered and state updated.")
-        return {'FINISHED'}
-
-
-class CONJURE_OT_select_option_2(bpy.types.Operator):
-    """Selects option 2 and signals the launcher."""
-    bl_idname = "conjure.select_option_2"
-    bl_label = "Select Concept Option 2"
-
-    def execute(self, context):
-        option_index = 2
-        if not render_multiview():
-            self.report({'ERROR'}, f"Failed to render multi-view for option {option_index}.")
-            return {'CANCELLED'}
-
-        state_update = {
-            "selection_request": option_index,
-            "generation_mode": context.scene.conjure_settings.generation_mode
-        }
-        if not update_state_file(state_update):
-            self.report({'ERROR'}, "Failed to write to state file.")
-            return {'CANCELLED'}
-
-        self.report({'INFO'}, f"Option {option_index} selected. Multi-view rendered and state updated.")
-        return {'FINISHED'}
-
-
-class CONJURE_OT_select_option_3(bpy.types.Operator):
-    """Selects option 3 and signals the launcher."""
-    bl_idname = "conjure.select_option_3"
-    bl_label = "Select Concept Option 3"
-
-    def execute(self, context):
-        option_index = 3
-        if not render_multiview():
-            self.report({'ERROR'}, f"Failed to render multi-view for option {option_index}.")
-            return {'CANCELLED'}
-
-        state_update = {
-            "selection_request": option_index,
-            "generation_mode": context.scene.conjure_settings.generation_mode
-        }
-        if not update_state_file(state_update):
-            self.report({'ERROR'}, "Failed to write to state file.")
-            return {'CANCELLED'}
-
-        self.report({'INFO'}, f"Option {option_index} selected. Multi-view rendered and state updated.")
+        self.report({'INFO'}, f"Option {self.option_id} selected. Multi-view rendered and state updated.")
         return {'FINISHED'}
 
 
@@ -214,95 +169,54 @@ class CONJURE_OT_import_model(bpy.types.Operator):
     bl_label = "Import Last Generated Model"
 
     def execute(self, context):
-        model_path = config.GENERATED_MODEL_DIR / "genMesh.glb"
+        self.report({'INFO'}, "Attempting to import last generated model...")
+        
+        # --- 1. Define Paths ---
+        # The new location for the final mesh from the ComfyUI workflow
+        model_path = config.GENERATED_MODELS_DIR / "genMesh.glb"
         
         if not model_path.exists():
-            self.report({'ERROR'}, f"Generated model not found at: {model_path}")
+            self.report({'ERROR'}, f"Model file not found at: {model_path}")
             return {'CANCELLED'}
-
-        # --- 1. Manage the existing mesh and history ---
-        scene = context.scene
-        current_mesh = scene.objects.get(config.DEFORM_OBJ_NAME)
-        
-        if current_mesh:
-            # --- Ensure HISTORY collection exists ---
-            history_collection_name = "HISTORY"
-            history_collection = bpy.data.collections.get(history_collection_name)
-            if not history_collection:
-                history_collection = bpy.data.collections.new(history_collection_name)
-                scene.collection.children.link(history_collection)
-
-            # --- Move current mesh to HISTORY collection ---
-            current_collection = current_mesh.users_collection[0]
-            current_collection.objects.unlink(current_mesh)
-            history_collection.objects.link(current_mesh)
             
-            # --- Rename and hide the old mesh ---
-            # Find a unique name like Mesh.001, Mesh.002, etc.
+        # --- 2. Create History Collection ---
+        history_collection_name = "HISTORY"
+        if history_collection_name not in bpy.data.collections:
+            history_collection = bpy.data.collections.new(history_collection_name)
+            bpy.context.scene.collection.children.link(history_collection)
+        else:
+            history_collection = bpy.data.collections[history_collection_name]
+
+        # --- 3. Move Current Mesh to History ---
+        current_mesh = context.scene.objects.get(config.DEFORM_OBJ_NAME)
+        if current_mesh:
+            # Find a new, unique name for the history object
             i = 1
             while f"{config.DEFORM_OBJ_NAME}.{i:03d}" in bpy.data.objects:
                 i += 1
             new_name = f"{config.DEFORM_OBJ_NAME}.{i:03d}"
+            
+            # Unlink from scene collections and link to history
+            for coll in current_mesh.users_collection:
+                coll.objects.unlink(current_mesh)
+            history_collection.objects.link(current_mesh)
+            
             current_mesh.name = new_name
-            current_mesh.hide_set(True)
-            current_mesh.hide_render = True
-            print(f"Archived previous mesh as '{new_name}' in HISTORY collection.")
+            current_mesh.hide_set(True) # Hide it from the viewport
+            print(f"Moved '{config.DEFORM_OBJ_NAME}' to HISTORY as '{new_name}'.")
 
-        # --- 2. Import the new GLB model ---
+        # --- 4. Import the New Model ---
         try:
             bpy.ops.import_scene.gltf(filepath=str(model_path))
-            print(f"Imported new model from {model_path}")
+            imported_object = context.selected_objects[0] # The newly imported object should be selected
+            imported_object.name = config.DEFORM_OBJ_NAME # Rename it to become the new active mesh
+            self.report({'INFO'}, f"Successfully imported '{imported_object.name}' from {model_path}.")
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to import GLB: {e}")
-            # Try to restore the previous mesh if import fails
-            if current_mesh:
-                current_mesh.hide_set(False)
-                current_mesh.hide_render = False
-                history_collection.objects.unlink(current_mesh)
-                current_collection.objects.link(current_mesh)
-                current_mesh.name = config.DEFORM_OBJ_NAME
+            self.report({'ERROR'}, f"Failed to import GLB file: {e}")
             return {'CANCELLED'}
+            
+        # --- 5. Reset State File ---
+        if not update_state_file({"import_request": "done"}):
+            self.report({'WARNING'}, "Could not reset state file after import.")
 
-        # --- 3. Rename the newly imported object to be the active mesh ---
-        # The imported object is usually the last one selected/added.
-        if context.selected_objects:
-            newly_imported_obj = context.selected_objects[0]
-            # It might be an empty if the GLB has a scene root, find the mesh
-            if newly_imported_obj.type == 'EMPTY' and newly_imported_obj.children:
-                 mesh_child = next((child for child in newly_imported_obj.children if child.type == 'MESH'), None)
-                 if mesh_child:
-                    # Parent mesh to scene, remove empty
-                    mesh_child.parent = None
-                    bpy.data.objects.remove(newly_imported_obj)
-                    newly_imported_obj = mesh_child
-
-            newly_imported_obj.name = config.DEFORM_OBJ_NAME
-            # Ensure it's in the main scene collection
-            if newly_imported_obj.users_collection[0].name == "HISTORY":
-                 history_collection.objects.unlink(newly_imported_obj)
-                 scene.collection.objects.link(newly_imported_obj)
-
-            self.report({'INFO'}, f"Successfully imported and set '{config.DEFORM_OBJ_NAME}' as the active mesh.")
-        else:
-            self.report({'WARNING'}, "Could not find newly imported object to rename.")
-
-        return {'FINISHED'}
-
-
-classes = (
-    CONJURE_OT_generate_concepts,
-    CONJURE_OT_select_option_1,
-    CONJURE_OT_select_option_2,
-    CONJURE_OT_select_option_3,
-    CONJURE_OT_import_model,
-)
-
-def register():
-    """Registers the I/O operators."""
-    for cls in classes:
-        bpy.utils.register_class(cls)
-
-def unregister():
-    """Unregisters the I/O operators."""
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls) 
+        return {'FINISHED'} 

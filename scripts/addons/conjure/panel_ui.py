@@ -1,11 +1,9 @@
 import bpy
-from . import ops_io
 
 
-class CONJURE_PT_control_panel(bpy.types.Panel):
-    """Creates a Panel in the 3D Viewport UI to control the script."""
-    bl_label = "CONJURE Control"
-    bl_idname = "CONJURE_PT_control_panel"
+class CONJURE_PT_ui_panel(bpy.types.Panel):
+    bl_label = "CONJURE"
+    bl_idname = "CONJURE_PT_main_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'CONJURE'
@@ -14,57 +12,37 @@ class CONJURE_PT_control_panel(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
 
-        # --- Main Operator Controls ---
-        box = layout.box()
-        box.label(text="Main Controls")
-        wm = context.window_manager
-        if wm.conjure_is_running:
-            box.operator("conjure.stop_operator", text="Finalize CONJURE", icon='PAUSE')
-        else:
-            box.operator("conjure.fingertip_operator", text="Initiate CONJURE", icon='PLAY')
+        # Main Operator Button
+        layout.operator("conjure.fingertip_operator", text="Start/Stop CONJURE")
 
-        # --- Generative Pipeline Controls ---
-        gen_box = layout.box()
-        gen_box.label(text="Generative Pipeline")
+        # IO Operators
+        box = layout.box()
+        box.label(text="Generation Controls")
         
         # Add the dropdown for generation mode
-        gen_box.prop(scene.conjure_settings, "generation_mode")
+        box.prop(scene.conjure_settings, "generation_mode")
 
-        gen_box.operator("conjure.generate_concepts", text="Generate Concepts", icon='LIGHT')
+        box.operator("conjure.generate_concepts", text="Generate Concepts")
         
-        # --- Concept Selection ---
-        split = gen_box.split(factor=0.33, align=True)
-        col1 = split.column()
-        col2 = split.column()
-        col3 = split.column()
-        
-        col1.operator("conjure.select_option_1", text="Option 1")
-        col2.operator("conjure.select_option_2", text="Option 2")
-        col3.operator("conjure.select_option_3", text="Option 3")
+        row = box.row(align=True)
+        row.operator("conjure.select_concept", text="Opt 1").option_id = 1
+        row.operator("conjure.select_concept", text="Opt 2").option_id = 2
+        row.operator("conjure.select_concept", text="Opt 3").option_id = 3
 
-        # --- Manual Import ---
-        gen_box.operator("conjure.import_model", text="Import Last Model", icon='IMPORT')
+        # Agent Controls
+        agent_box = layout.box()
+        agent_box.label(text="Agent Communication")
+        agent_box.prop(scene, "conjure_user_input", text="")
+        agent_box.operator("conjure.send_to_agent", text="Send")
+
 
 class CONJURE_PG_settings(bpy.types.PropertyGroup):
-    """Custom property group to hold CONJURE settings."""
     generation_mode: bpy.props.EnumProperty(
         name="Mode",
-        description="Choose the generation pipeline mode",
+        description="Choose the generation model type.",
         items=[
-            ('standard', "Standard", "High-quality, slower generation"),
-            ('turbo', "Turbo", "Lower-quality, faster generation for previews"),
+            ('standard', "Standard", "Use the standard, high-quality models."),
+            ('turbo', "Turbo", "Use the fast, real-time turbo models.")
         ],
         default='standard'
-    )
-
-def register():
-    """Registers the UI panel and custom properties."""
-    bpy.utils.register_class(CONJURE_PT_control_panel)
-    bpy.utils.register_class(CONJURE_PG_settings)
-    bpy.types.Scene.conjure_settings = bpy.props.PointerProperty(type=CONJURE_PG_settings)
-
-def unregister():
-    """Unregisters the UI panel and custom properties."""
-    bpy.utils.unregister_class(CONJURE_PT_control_panel)
-    bpy.utils.unregister_class(CONJURE_PG_settings)
-    del bpy.types.Scene.conjure_settings 
+    ) 

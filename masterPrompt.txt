@@ -13,11 +13,31 @@ API Agent: Listen, and play by hosting an ElevenLabs API call with an agent.
 Subprocess Control: Launches and monitors background processes for ComfyUI workflows and CGAL segmentation modules as needed.
 
 API Agent: The Agent is a conversational AI interface powered by ElevenLabs with support for the Modular Control Protocol (MCP). Its purpose is to guide, interpret, and respond to user intent in both dialogue and design actions.
+
 It performs the following:
 Voice Understanding: Listens continuously to user speech and determines high-level intent. At critical points (e.g., after a mesh is completed or inspected), the Agent may autonomously trigger actions.
 Prompt Generation: Converts spoken input and scene context into clear textual prompts, which are sent to ComfyUI to generate images, variations, or 3D models.
 Scene Interpretation (Planned): The Agent may eventually evaluate screenshots or live camera feed to augment its decision-making (e.g., identify a mesh part, reaction, or user gesture).
 Narrative and Material Framing (Phase IV): In the final phase, the Agent becomes narratively active. It uses MCP to access predefined PBR materials and reconfigures the object into a cohesive design story. For example, it may label a segment as "sensor array," assign it a metallic finish, and explain its use based on prior user cues.
+
+
+The agent input will look like this: 
+Speech to text feed from the users microphone and, everytime the user starts speaking, /gestureCamera render.png get's bundled as part of the input. that way, CONJURE is always seeing and listening. 
+The agent will always be listening and observing, and everytime it responds, it will have three outputs which will be parsed, frontend and backend: 
+
+frontend: 
+    "spoken" will be what the user listens via TTS. 
+backend:  
+    the "instruction" contains the API call for the Python, which references the given toolset.
+    the "user_prompt" is a text that will constantly get rewritten. it's the written expression of what the agent wants to communicate, and it's directly related to the conversation that is currently happening. it will always be in SDXL prompt format (see SDXL prompt guidelines)
+
+for example:
+{
+  "spoken": "I’ve got your back! Let’s turn this around.",
+  "instruction": "send_primitive"
+  "user_prompt": "Hyperrealistic 4K image of a Sculpure of a greek male head, in flat black background"
+}
+
 
 Blender: Blender is the central modeling environment in CONJURE. All 3D operations—including deformation, segmentation, remeshing, and rendering—are handled using bpy without the need for custom add-ons.
 Blender is launched automatically when the CONJURE .exe is executed.
@@ -203,20 +223,38 @@ II: user modifies the mesh with hand gesture+voice prompting
 III: user selects segment and modifies the segment with the same logic as II
 IV: Material is selected and concept is defined.
 
+The agent will always be listening, and everytime it responds, it will have three outputs which will be parsed, frontend and backend: 
+
+frontend: 
+    "spoken" will be what the user listens via TTS. 
+backend:  
+    the "instruction" contains the API call for the Python, which references the given toolset.
+    the "user_prompt" is a text that will constantly get rewritten. it's the written expression of what the agent wants to communicate, and it's directly related to the conversation that is currently happening. it will always be in SDXL prompt format (see SDXL prompt guidelines)
+
+for example:
+{
+  "spoken": "I’ve got your back! Let’s turn this around.",
+  "instruction": "send_primitive"
+  "user_prompt": "Hyperrealistic 4K image of a Sculpure of a greek male head, in flat black background"
+}
+
 
 PHASE I: Start the Model
 1. Prompt and Primitive
 The Agent asks the user: "What would you like to start with?"
-Based on voice response, the system spawns a selected primitive in Blender (e.g., Sphere, Cube, Head).
+Based on voice response, the system spawns a selected primitive in Blender. these are the primitives: [Sphere, Cube, Cone, Cylinder, Disk, Torus, Head, Body]
 The user then modifies this primitive using hand gestures, tracked in real time via fingertips.json.
 2. Deformation
 The mesh is manipulated like digital clay. Fingertip positions deform the mesh in space.
-A closed fist gesture signals that the model is ready to be refined.
+The user signals via voice command that the mesh is ready for the next step. (The user can say "it's done", "i'm ready" or something similar).
 3. Optional Segmentation
+
 After gesture modeling, the user may choose to segment the mesh:
+The agent asks the user if they want to segment the mesh or work on it as a whole.
 Prebuilt meshes come with precomputed segments.
 Custom meshes are sent to the CGAL segmenter.
 Segments are imported back into Blender (via vertex colors) and presented as selectable units.
+
 PHASE II: Refinement by Prompt
 This phase repeats three times, increasing geometric resolution in each stage.
 The mesh get's imported from mvto3D and gets bounding box scaled and positioned.
@@ -227,15 +265,14 @@ Stage 2: 0.05 → 0.025
 Stage 3: 0.025 → 0.0125
 2. User Modification
 The user sculpts at each stage using real-time hand gestures.
-A closed fist again signals completion.
+The user signals via voice command that the mesh is ready for the next step. (The user can say "it's done", "i'm ready" or something similar).
 3. Image Prompting
 The GestureCamera renders the current mesh from a design-friendly angle.
 This image is saved in /input and, alongside the conversational prompt from the Agent, passed to ComfyUI's promptMaker.
 4. Selection
 promptMaker returns:
 3 images (for GUI display)
-3 backend prompts (linked to the images)
-The user selects one image → this indirectly selects its associated prompt.
+The user selects one image, which triggers one of the three workflows. 
 5. Multiview Generation
 The MVCamera renders the mesh from 6 defined angles:
 ["front", "right", "right-front", "back", "left", "left-front"]

@@ -114,30 +114,42 @@ The goal is to implement the full multi-view 2D-to-3D generation pipeline, inclu
 
 ---
 
-### **Phase 6: Conversational Agent Integration**
+### **Phase 6: Conversational Agent Integration (Design) (✅ Completed)**
 
-The goal is to bring the AI agent online for voice commands, starting with basic audio input and moving towards full command execution.
+The goal of this phase was to research the best approach for voice integration and to design the agent's core logic, personality, and technical interface.
 
--   **1. Implement Microphone Input:**
-    -   [ ] In a new `launcher/voice_input.py` module, implement a class to capture audio from the default microphone using a library like `PyAudio`.
-    -   [ ] The module should be able to start and stop listening on command from `main.py`.
-
--   **2. Integrate Speech-to-Text:**
-    -   [ ] Integrate a speech recognition library (e.g., `SpeechRecognition` with the Whisper backend) to process the audio stream.
-    -   [ ] The goal is to convert the spoken words into a text string in near real-time.
-
--   **3. Implement Command & Prompt Logic:**
-    -   [ ] Develop a simple parser to distinguish between commands (e.g., "generate concepts," "select option two") and free-form dictation for the `userPrompt.txt`.
-    -   [ ] When a command is recognized, update `state.json` to trigger the corresponding action in the main loop.
-    -   [ ] When dictation is recognized, overwrite the `userPrompt.txt` file.
-
--   **4. Integrate Text-to-Speech:**
-    -   [ ] In `launcher/agent_api.py`, integrate a service like ElevenLabs for text-to-speech.
-    -   [ ] Provide audio feedback to the user to confirm commands or report status (e.g., "Generating concepts now.").
+-   [x] **Research & Document ElevenLabs API:** Analyzed the `ElevenLabs Conversational AI` platform and documented a detailed integration strategy in `devnotes/elevenLabsnotes.txt`.
+-   [x] **Craft Agent System Prompt:** Created a comprehensive system prompt (`devnotes/agentPrompt.txt`) to define the agent's persona, rules, and step-by-step conversational flow for the entire creative process.
+-   [x] **Define Agent Toolset & Data Structure:** Specified a structured toolset (`devnotes/agentToolset.txt`) and a clear JSON output format, defining exactly how the agent is to interact with the CONJURE backend via tool calls.
 
 ---
 
-### **Phase 7: Overlay Transparent GUI**
+### **Phase 7: Agent Implementation**
+
+The goal is to bring the fully-designed conversational agent to life by implementing the connection to the ElevenLabs API and wiring its commands into our state-driven system.
+
+-   **1. Configure the Cloud Agent:**
+    -   [ ] In the ElevenLabs dashboard, create the Conversational AI Agent.
+    -   [ ] Configure it with a voice, an LLM (e.g., GPT-4o), and copy the contents of `devnotes/agentPrompt.txt` into its system prompt.
+    -   [ ] Implement the tools defined in `devnotes/agentToolset.txt` within the ElevenLabs agent's configuration.
+
+-   **2. Implement Real-Time Audio & API Connection:**
+    -   [ ] In `launcher/agent_api.py`, implement the WebSocket (`WSS`) connection to the ElevenLabs agent.
+    -   [ ] Add microphone audio capture (e.g., using `PyAudio`) and stream the live audio to the agent.
+    -   [ ] Add logic to receive the agent's TTS audio response and play it back to the user.
+
+-   **3. Implement Tool & Prompt Handling:**
+    -   [ ] In `launcher/agent_api.py`, create a listener for the agent's structured JSON output.
+    -   [ ] Write a parser for the `instruction` object. When a tool call is received, use `state_manager.py` to update `state.json` with the corresponding command.
+    -   [ ] Write the `user_prompt` string from the agent's JSON output to the `data/generated_text/userPrompt.txt` file.
+
+-   **4. Integrate with Main Application Loop:**
+    -   [ ] In `launcher/main.py`, instantiate and start the agent connection.
+    -   [ ] Ensure the main loop correctly reacts to the commands in `state.json` as they are now being triggered by the agent.
+
+---
+
+### **Phase 8: Overlay Transparent GUI**
 
 The goal is to build out the final user interface for displaying AI-generated images, status information, and a chat log.
 
@@ -147,7 +159,7 @@ The goal is to build out the final user interface for displaying AI-generated im
 
 ---
 
-### **Phase 8: CGAL Integration (Mesh Segmentation)**
+### **Phase 9: CGAL Integration (Mesh Segmentation)**
 
 The goal is to integrate the CGAL-based mesh segmenter to allow for part-based editing.
 

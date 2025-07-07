@@ -8,48 +8,32 @@ from pathlib import Path
 
 class StateManager:
     """Handles reading, writing, and managing the application's state.json file."""
-    def __init__(self, state_file='state.json'):
-        self.project_root = Path(__file__).parent.parent
-        self.state_path = self.project_root / "data" / "input" / state_file
-        self.state = {}
-        self.load_state()
+    def __init__(self, state_file='data/input/state.json'):
+        self.state_file_path = Path(state_file)
+        self.state_file_path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.state_file_path.exists():
+            with open(self.state_file_path, 'w') as f:
+                json.dump({}, f)
 
-    def load_state(self):
+    def get_state(self):
         """Loads the state from the JSON file, or creates it if it doesn't exist."""
         try:
-            with open(self.state_path, 'r') as f:
-                self.state = json.load(f)
-            print("State loaded from file.")
+            with open(self.state_file_path, 'r') as f:
+                return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            print("No valid state file found. Creating a new one with default values.")
-            self.state = self._get_default_state()
-            self.save_state()
-
-    def save_state(self):
-        """Saves the current state dictionary to the JSON file."""
-        try:
-            self.state_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.state_path, 'w') as f:
-                json.dump(self.state, f, indent=4)
-        except Exception as e:
-            print(f"Error saving state to {self.state_path}: {e}")
-
-    def get_state(self, key, default=None):
-        """Gets a value from the state."""
-        return self.state.get(key, default)
+            return {}
 
     def set_state(self, key, value):
         """Sets a value in the state and immediately saves it to disk."""
-        self.state[key] = value
-        self.save_state()
+        state = self.get_state()
+        state[key] = value
+        with open(self.state_file_path, 'w') as f:
+            json.dump(state, f, indent=4)
 
-    def _get_default_state(self):
-        """Returns the default initial state for the application."""
-        return {
-            "app_status": "initializing",
-            "blender_status": "stopped",
-            "hand_tracker_status": "stopped",
-            "comfyui_status": "stopped",
-            "current_phase": "modeling",
-            "last_action": None
-        } 
+    def clear_command(self):
+        """Sets the 'command' and 'text' keys to null in the state file."""
+        state = self.get_state()
+        state['command'] = None
+        state['text'] = None
+        with open(self.state_file_path, 'w') as f:
+            json.dump(state, f, indent=4) 

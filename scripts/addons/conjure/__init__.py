@@ -1,61 +1,43 @@
 # blender/__init__.py
 
+import bpy
+from .ops_agent import CONJURE_OT_send_to_agent
+from .operator_main import ConjureFingertipOperator
+from .ops_io import CONJURE_OT_generate_concepts, CONJURE_OT_select_concept, CONJURE_OT_import_model
+from .panel_ui import CONJURE_PT_ui_panel, CONJURE_PG_settings
+from .startup import register_properties, unregister_properties
+
 bl_info = {
     "name": "CONJURE",
     "author": "CONJURE Team",
-    "version": (1, 0, 0),
-    "blender": (3, 0, 0),
-    "location": "View3D > UI > CONJURE",
-    "description": "Core addon for the CONJURE gesture-based modeling experience.",
-    "warning": "This addon is part of the CONJURE ecosystem and is not standalone.",
-    "doc_url": "",
+    "version": (1, 0),
+    "blender": (3, 6, 0),
+    "location": "View3D > Sidebar > CONJURE",
+    "description": "Main addon for CONJURE application",
     "category": "3D View",
 }
 
-# Import all modules that contain Blender registration functions.
-from . import operator_main
-from . import panel_ui
-from . import ops_io
-from . import config
-
-# A list of all modules that contain register/unregister functions.
-# The order is critical. Operators must be registered before UI panels that use them.
-modules = [
-    config,
-    ops_io,
-    operator_main,
-    panel_ui,
+CLASSES = [
+    ConjureFingertipOperator,
+    CONJURE_PT_ui_panel,
+    CONJURE_PG_settings,
+    CONJURE_OT_generate_concepts,
+    CONJURE_OT_select_concept,
+    CONJURE_OT_import_model,
+    CONJURE_OT_send_to_agent,
 ]
 
 def register():
-    """
-    This function is called by Blender when the addon is enabled.
-    It iterates through our modules list and calls the register() function in each.
-    """
-    print("--- Registering CONJURE Modules ---")
-    for module in modules:
-        try:
-            module.register()
-            print(f"Registered module: {module.__name__}")
-        except Exception as e:
-            print(f"FAILED to register module: {module.__name__}")
-            print(f"Error: {e}")
-    print("--- CONJURE Addon Registration Complete ---")
+    register_properties()
+    for cls in CLASSES:
+        bpy.utils.register_class(cls)
+    bpy.types.Scene.conjure_settings = bpy.props.PointerProperty(type=CONJURE_PG_settings)
 
 def unregister():
-    """
-    This function is called by Blender when the addon is disabled.
-    It unregisters all classes in the reverse order of registration.
-    """
-    print("--- Unregistering CONJURE Modules ---")
-    for module in reversed(modules):
-        try:
-            module.unregister()
-            print(f"Unregistered module: {module.__name__}")
-        except Exception as e:
-            print(f"FAILED to unregister module: {module.__name__}")
-            print(f"Error: {e}")
-    print("--- CONJURE Addon Unregistration Complete ---")
+    del bpy.types.Scene.conjure_settings
+    for cls in reversed(CLASSES):
+        bpy.utils.unregister_class(cls)
+    unregister_properties()
 
 if __name__ == "__main__":
     register() 

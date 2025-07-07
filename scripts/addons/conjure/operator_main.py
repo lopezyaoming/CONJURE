@@ -20,6 +20,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 
 # Import all constants and settings from our new config file
 from . import config
+from .ops_io import update_state_file
 
 
 # --- FLICKER FIX ---
@@ -203,6 +204,44 @@ def map_hand_to_3d_space(x_norm, y_norm, z_norm):
         print(f"Warning: '{config.GESTURE_CAMERA_NAME}' not found. Using world-space mapping.")
         return local_point
 
+
+def spawn_new_primitive(primitive_name: str):
+    """
+    Destroys the current 'Mesh' object and replaces it with a copy
+    of a primitive from the 'PRIMITIVES' collection.
+    """
+    # --- 1. Delete the existing main mesh ---
+    current_mesh = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
+    if current_mesh:
+        bpy.data.objects.remove(current_mesh, do_unlink=True)
+        print(f"Removed existing mesh: '{config.DEFORM_OBJ_NAME}'")
+
+    # --- 2. Find the primitive in the PRIMITIVES collection ---
+    primitives_collection = bpy.data.collections.get("PRIMITIVES")
+    if not primitives_collection:
+        print("ERROR: 'PRIMITIVES' collection not found.")
+        return False
+    
+    primitive_to_copy = primitives_collection.objects.get(primitive_name)
+    if not primitive_to_copy:
+        print(f"ERROR: Primitive '{primitive_name}' not found in 'PRIMITIVES' collection.")
+        return False
+
+    # --- 3. Copy, rename, and place the new mesh ---
+    new_mesh = primitive_to_copy.copy()
+    new_mesh.data = primitive_to_copy.data.copy() # Also copy mesh data
+    new_mesh.name = config.DEFORM_OBJ_NAME
+    
+    # Place at origin and make visible
+    new_mesh.location = (0, 0, 0)
+    new_mesh.scale = (1, 1, 1)
+    new_mesh.rotation_euler = (0, 0, 0)
+    new_mesh.hide_set(False)
+
+    # Link to the main scene collection
+    bpy.context.scene.collection.objects.link(new_mesh)
+    print(f"Successfully spawned primitive '{primitive_name}' as '{config.DEFORM_OBJ_NAME}'.")
+    return True
 
 # === 4. MESH DEFORMATION ===
 def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
@@ -509,27 +548,34 @@ class ConjureFingertipOperator(bpy.types.Operator):
         blf.draw(font_id, f"Radius: {active_radius}")
 
     def check_for_launcher_requests(self):
-        """
-        Checks the state.json file for any requests from the launcher,
-        such as a request to import a newly generated model.
-        """
+        """Checks the state.json file for commands from the launcher."""
+        state_file = config.STATE_JSON_PATH
+        if not state_file.exists():
+            return
+
         try:
-            with open(config.STATE_JSON_PATH, 'r') as f:
+            with open(state_file, 'r') as f:
                 state_data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return # File is busy or empty, try again next tick
 
-            if state_data.get("import_request") == "new":
-                print(">>> CONJURE Addon: Detected 'import_request'.")
-                
-                # Reset the state so we don't import repeatedly
-                with open(config.STATE_JSON_PATH, 'w') as f:
-                    json.dump({"import_request": "done"}, f, indent=4)
-                
-                # Call the import operator
-                bpy.ops.conjure.import_model('INVOKE_DEFAULT')
+        command_obj = state_data.get('command')
+        if isinstance(command_obj, dict):
+            command_name = command_obj.get('name')
+            if command_name == 'spawn_primitive':
+                print("Received spawn_primitive command from launcher.")
+                primitive_type = command_obj.get('primitive_type')
+                if primitive_type and isinstance(primitive_type, str):
+                    if spawn_new_primitive(primitive_type):
+                        # Clear the command in the state file after processing
+                        update_state_file({"command": None})
+                    else:
+                        print(f"Failed to spawn primitive: {primitive_type}")
+                        update_state_file({"command": "error: spawn_failed"})
+                else:
+                    print("ERROR: spawn_primitive command received with invalid or missing 'primitive_type'.")
+                    update_state_file({"command": "error: invalid_primitive_type"})
 
-        except (IOError, json.JSONDecodeError):
-            # File might not exist yet or is being written, which is fine.
-            pass
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop

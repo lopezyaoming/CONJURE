@@ -1,0 +1,64 @@
+# ElevenLabs Conversational AI Integration Notes for CONJURE
+
+*Source: [ElevenLabs Conversational AI Overview](https://elevenlabs.io/docs/conversational-ai/overview)*
+
+## 1. Overview & Key Features
+
+ElevenLabs offers a comprehensive platform for deploying conversational voice agents, which aligns perfectly with the requirements for CONJURE's `agent_api.py`. It's not just a Text-to-Speech (TTS) service; it's a full conversational stack that handles the most difficult parts of building a voice-first interface.
+
+The key components relevant to us are:
+*   **Speech-to-Text (STT):** Transcribes user's spoken dialogue. This replaces the need for a separate library like Whisper.
+*   **Language Model (LLM):** The "brain" of the agent. It supports major providers like Google (Gemini), OpenAI (GPT-4), and Anthropic (Claude). This is where our `agentPrompt.txt` will be used.
+*   **Text-to-Speech (TTS):** Converts the LLM's response back into natural, low-latency speech.
+*   **Turn-Taking Model:** A custom model that intelligently decides when the agent should speak or listen, which is crucial for a natural, interruption-free conversation.
+*   **Composability:** The entire system is highly customizable via their API, allowing us to integrate it directly into our existing `launcher` architecture.
+
+## 2. Proposed Implementation Plan for CONJURE
+
+The ElevenLabs platform can be integrated directly into our `launcher` module, likely replacing or significantly building out the planned `agent_api.py`. The core idea is to have the ElevenLabs agent drive the application's state by modifying `state.json`.
+
+**Step 1: Agent Configuration (ElevenLabs Dashboard/API)**
+1.  **Create an Agent:** We will need to create a new Conversational AI agent in the ElevenLabs dashboard.
+2.  **Set the LLM:** Choose a provider and model (e.g., GPT-4o, Claude 3.5 Sonnet).
+3.  **Set the System Prompt:** This is the most critical step. We will copy the entire contents of `devnotes/agentPrompt.txt` into the agent's system prompt configuration. This will give the agent its identity, mission, and step-by-step instructions.
+4.  **Define Tools (MCP):** The documentation mentions "Tools" and "MCP" (Modular Control Protocol). This is our direct link to `state.json`. We can define "tools" for the agent that correspond to the commands in our `agentPrompt.txt`. For example:
+    *   `spawn_primitive(primitive_type: string)`
+    *   `segment_mesh()`
+    *   `generate_concepts(prompt: string)`
+    *   `select_option(option_id: int)`
+    *   `apply_material(segment_id: string, material_name: string)`
+    *   `export_final()`
+
+**Step 2: Integration within `launcher/agent_api.py`**
+1.  **API Connection:** The `agent_api.py` module will be responsible for establishing and managing the connection to the ElevenLabs agent, likely via their WebSocket API (`WSSAgent`) for real-time, low-latency interaction.
+2.  **Audio Streaming:** The module will need to capture microphone input (as planned in Phase 6 of `development_plan.txt`) and stream that audio data to the ElevenLabs agent endpoint.
+3.  **Receiving Events:** The agent will stream back events, including the final audio output (which we play to the user) and, most importantly, the **tool calls**.
+
+**Step 3: Connecting Agent Actions to `state_manager.py`**
+1.  **Handling Tool Calls:** When `agent_api.py` receives a tool call event from ElevenLabs (e.g., `spawn_primitive(primitive_type='sphere')`), it **does not** execute the command directly.
+2.  **Updating State:** Instead, it translates that tool call into a new state and uses `state_manager.py` to write the command to `data/state.json`. For example:
+    *   Agent call: `generate_concepts(prompt='a rusty sword')`
+    *   `agent_api.py` updates `userPrompt.txt` with "a rusty sword".
+    *   `agent_api.py` then calls `state_manager.write_state({ "command": "generate_concepts" })`.
+3.  **Main Loop Trigger:** The main loop in `launcher/main.py`, which is already designed to be state-driven, will see the change in `state.json` and trigger the appropriate function in `subprocess_manager.py` or the Blender addon, just as if it were triggered by a GUI button press.
+
+## 3. Workflow Summary
+
+1.  **User Speaks:** "Let's start with a cube."
+2.  **`agent_api.py`:** Streams user's voice to ElevenLabs.
+3.  **ElevenLabs Agent:**
+    *   STT transcribes the audio.
+    *   LLM, guided by `agentPrompt.txt`, understands the intent.
+    *   LLM decides to call the `spawn_primitive` tool with the argument `'cube'`.
+    *   An event containing this tool call is sent back.
+4.  **`agent_api.py`:**
+    *   Receives the tool call `spawn_primitive(primitive_type='cube')`.
+    *   Updates `state.json` to `{ "command": "spawn_primitive", "primitive_type": "cube" }`.
+5.  **`main.py`:**
+    *   The main event loop detects the state change.
+    *   It triggers the function responsible for telling Blender to create a cube.
+6.  **`agent_api.py`:**
+    *   Simultaneously, the ElevenLabs agent sends back the audio response (e.g., "Okay, I've created a cube for you.").
+    *   `agent_api.py` plays this audio through the user's speakers.
+
+This architecture leverages the strengths of both systems: ElevenLabs handles the entire complex conversational pipeline, while our `launcher` remains the simple, robust, state-driven orchestrator of the various CONJURE components. 
