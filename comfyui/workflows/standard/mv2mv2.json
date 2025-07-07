@@ -29,10 +29,10 @@
       "negative_prompt": "ugly, watermark, text, distorted, out of focus, bad, scary, NSFW",
       "width": 768,
       "height": 768,
-      "steps": 50,
+      "steps": 30,
       "cfg": 7,
-      "seed": 100000,
-      "controlnet_conditioning_scale": 0.30000000000000004,
+      "seed": 200000,
+      "controlnet_conditioning_scale": 0.5,
       "pipeline": [
         "19",
         0

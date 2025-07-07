@@ -1,4 +1,5 @@
 import bpy
+from . import ops_io
 
 
 class CONJURE_PT_control_panel(bpy.types.Panel):
@@ -11,59 +12,59 @@ class CONJURE_PT_control_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        wm = context.window_manager
+        scene = context.scene
 
-        # --- Main Interaction Controls ---
+        # --- Main Operator Controls ---
         box = layout.box()
-        box.label(text="Interaction")
-        # Check a custom property to see if the modal operator is running
-        if hasattr(wm, 'conjure_is_running') and wm.conjure_is_running:
+        box.label(text="Main Controls")
+        wm = context.window_manager
+        if wm.conjure_is_running:
             box.operator("conjure.stop_operator", text="Finalize CONJURE", icon='PAUSE')
         else:
-            # The 'conjure.fingertip_operator' is the main operator defined in operator_main.py
             box.operator("conjure.fingertip_operator", text="Initiate CONJURE", icon='PLAY')
 
         # --- Generative Pipeline Controls ---
-        box = layout.box()
-        box.label(text="Generative Pipeline (Debug)")
-
-        # Stage 1
-        box.operator("conjure.generate_concepts", icon='WORLD_DATA')
-
-        # Stage 2
-        row = box.row(align=True)
-        row.operator("conjure.select_option_1", text="Select Opt 1", icon='IMAGE_DATA')
-        row.operator("conjure.select_option_2", text="Select Opt 2", icon='IMAGE_DATA')
-        row.operator("conjure.select_option_3", text="Select Opt 3", icon='IMAGE_DATA')
+        gen_box = layout.box()
+        gen_box.label(text="Generative Pipeline")
         
-        # Stage 3
-        box.operator("conjure.import_model", icon='FILE_NEW')
+        # Add the dropdown for generation mode
+        gen_box.prop(scene.conjure_settings, "generation_mode")
 
+        gen_box.operator("conjure.generate_concepts", text="Generate Concepts", icon='LIGHT')
+        
+        # --- Concept Selection ---
+        split = gen_box.split(factor=0.33, align=True)
+        col1 = split.column()
+        col2 = split.column()
+        col3 = split.column()
+        
+        col1.operator("conjure.select_option_1", text="Option 1")
+        col2.operator("conjure.select_option_2", text="Option 2")
+        col3.operator("conjure.select_option_3", text="Option 3")
 
-class CONJURE_OT_stop_operator(bpy.types.Operator):
-    """A simple operator that sets a flag to signal the modal operator to stop."""
-    bl_idname = "conjure.stop_operator"
-    bl_label = "Stop Conjure Operator"
+        # --- Manual Import ---
+        gen_box.operator("conjure.import_model", text="Import Last Model", icon='IMPORT')
 
-    def execute(self, context):
-        # This property will be checked by the modal operator in its main loop
-        context.window_manager.conjure_should_stop = True
-        return {'FINISHED'}
-
-
-classes = (
-    CONJURE_PT_control_panel,
-    CONJURE_OT_stop_operator,
-)
-
+class CONJURE_PG_settings(bpy.types.PropertyGroup):
+    """Custom property group to hold CONJURE settings."""
+    generation_mode: bpy.props.EnumProperty(
+        name="Mode",
+        description="Choose the generation pipeline mode",
+        items=[
+            ('standard', "Standard", "High-quality, slower generation"),
+            ('turbo', "Turbo", "Lower-quality, faster generation for previews"),
+        ],
+        default='standard'
+    )
 
 def register():
-    """Registers the UI panel and stop operator."""
-    for cls in classes:
-        bpy.utils.register_class(cls)
-
+    """Registers the UI panel and custom properties."""
+    bpy.utils.register_class(CONJURE_PT_control_panel)
+    bpy.utils.register_class(CONJURE_PG_settings)
+    bpy.types.Scene.conjure_settings = bpy.props.PointerProperty(type=CONJURE_PG_settings)
 
 def unregister():
-    """Unregisters the UI panel and stop operator."""
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls) 
+    """Unregisters the UI panel and custom properties."""
+    bpy.utils.unregister_class(CONJURE_PT_control_panel)
+    bpy.utils.unregister_class(CONJURE_PG_settings)
+    del bpy.types.Scene.conjure_settings 

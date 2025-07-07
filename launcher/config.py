@@ -29,4 +29,6 @@ BLENDER_EXECUTABLE_PATH = r"C:\Program Files\Blender Foundation\Blender 4.4\blen
 
 # NOTE: This path is an educated guess based on error logs.
 # If your ComfyUI installation is elsewhere, please update this path.
-COMFYUI_ROOT_PATH = Path("C:/ComfyUI/ComfyUI_windows_portable_nvidia/ComfyUI_windows_portable/ComfyUI") 
+COMFYUI_ROOT_PATH = Path("C:/ComfyUI/ComfyUI_windows_portable_nvidia/ComfyUI_windows_portable/ComfyUI")
+COMFYUI_OUTPUT_PATH = COMFYUI_ROOT_PATH / "output"
+COMFYUI_CONJURE_OUTPUT_PATH = COMFYUI_OUTPUT_PATH / "CONJURE" 

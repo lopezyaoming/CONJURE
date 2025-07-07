@@ -139,3 +139,19 @@ Advances:
     *   Resolved an issue where UI buttons were not appearing due to an invalid icon name in the panel code.
     *   Added robust logging to the addon's `__init__.py` to make future registration errors easier to debug.
     *   Modified the launcher to auto-start the CONJURE operator, removing the need for an extra click on initialization. 
+
+---
+Date: 2025-06-09
+
+Focus on implementing the final 2D-to-3D generation pipeline and a mesh history system.
+
+Advances:
+1.  **Pipeline Bug Fix**:
+    *   Corrected a bug where multi-view images for the 3D generation step were accumulating in the `data/generated_images/mvResults` directory instead of being overwritten. The launcher now cleans this directory before each run.
+    *   Fixed a case-sensitivity bug where the `MVCamera` was not being found by correcting the name to `mvCamera` in the addon's configuration.
+
+2.  **3D Generation & Import Pipeline (In Progress)**:
+    *   Laid out the full implementation plan for the `mv23D` workflow.
+    *   The launcher will be updated to automatically trigger the `mv23D.json` workflow.
+    *   A state-based signaling system (`import_request`) will be added to notify Blender when a new model is ready.
+    *   A comprehensive mesh history system will be built in Blender to archive previous meshes and make the newly generated model the active sculpting target. 

@@ -508,6 +508,29 @@ class ConjureFingertipOperator(bpy.types.Operator):
         active_radius = config.RADIUS_LEVELS[self._current_radius_index]['name'].upper()
         blf.draw(font_id, f"Radius: {active_radius}")
 
+    def check_for_launcher_requests(self):
+        """
+        Checks the state.json file for any requests from the launcher,
+        such as a request to import a newly generated model.
+        """
+        try:
+            with open(config.STATE_JSON_PATH, 'r') as f:
+                state_data = json.load(f)
+
+            if state_data.get("import_request") == "new":
+                print(">>> CONJURE Addon: Detected 'import_request'.")
+                
+                # Reset the state so we don't import repeatedly
+                with open(config.STATE_JSON_PATH, 'w') as f:
+                    json.dump({"import_request": "done"}, f, indent=4)
+                
+                # Call the import operator
+                bpy.ops.conjure.import_model('INVOKE_DEFAULT')
+
+        except (IOError, json.JSONDecodeError):
+            # File might not exist yet or is being written, which is fine.
+            pass
+
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
         if context.window_manager.conjure_should_stop:
@@ -732,6 +755,10 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
             self._last_command = command
 
+            # This is our main refresh tick
+            self._timer_last_update = time.time()
+            self.check_for_launcher_requests()
+
         return {'PASS_THROUGH'}
 
     def execute(self, context):
@@ -804,15 +831,22 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
 
 # --- REGISTRATION ---
+classes = (
+    ConjureFingertipOperator,
+    CONJURE_OT_stop_operator,
+)
+
 def register():
-    bpy.utils.register_class(ConjureFingertipOperator)
+    for cls in classes:
+        bpy.utils.register_class(cls)
     # Register custom properties to the WindowManager
     bpy.types.WindowManager.conjure_is_running = bpy.props.BoolProperty(default=False)
     bpy.types.WindowManager.conjure_should_stop = bpy.props.BoolProperty(default=False)
 
 
 def unregister():
-    bpy.utils.unregister_class(ConjureFingertipOperator)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
     # Clean up the custom properties
     del bpy.types.WindowManager.conjure_is_running
     del bpy.types.WindowManager.conjure_should_stop

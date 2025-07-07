@@ -69,7 +69,7 @@ VOLUME_UPPER_LIMIT = 1.2
 
 
 # --- Multi-View Rendering & Model Generation ---
-MV_CAMERA_NAME = "MVCamera"
+MV_CAMERA_NAME = "mvCamera"
 MV_RENDER_DIR = DATA_DIR / "generated_images" / "multiviewRender"
 GENERATED_MODEL_DIR = DATA_DIR / "generated_models"
 FINAL_MODEL_NAME = "genMesh.glb"

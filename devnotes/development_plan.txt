@@ -71,49 +71,88 @@ The goal of this phase is to build out the main application that manages all the
 
 ---
 
-### **Phase 4: ComfyUI Integration & UI Controls**
+### **Phase 4: ComfyUI Integration & UI Controls (✅ Completed)**
 
 The goal is to get the first end-to-end generative loop working: from a Blender render to AI image options.
 
 1.  **Implement Generative UI Controls in Blender:**
     -   [x] In `scripts/addons/conjure/panel_ui.py`: Add a **"Generate Concepts"** button to the CONJURE UI panel.
     -   [x] In `scripts/addons/conjure/ops_io.py`: Create a placeholder operator that is called by the button.
-    -   [ ] In `scripts/addons/conjure/ops_io.py`: Implement the operator logic to render an image from the `GestureCamera` to the correct data path.
-    -   [ ] In `scripts/addons/conjure/ops_io.py`: Implement logic to update `state.json` to notify the launcher of a new generation request.
+    -   [x] In `scripts/addons/conjure/ops_io.py`: Implement the operator logic to render an image from the `GestureCamera` to the correct data path.
+    -   [x] In `scripts/addons/conjure/ops_io.py`: Implement logic to update `state.json` to notify the launcher of a new generation request.
 
 2.  **Implement ComfyUI Wrapper:**
-    -   [ ] In `comfyui/api_wrapper.py`: Write functions to connect to the ComfyUI server's API and trigger a workflow execution.
-    -   [ ] Ensure the `promptMaker.json` workflow is correctly configured to accept an input image.
+    -   [x] In `comfyui/api_wrapper.py`: Write functions to connect to the ComfyUI server's API and trigger a workflow execution.
+    -   [x] Ensure the `promptMaker.json` workflow is correctly configured to accept an input image.
 
 3.  **Create Basic GUI:**
-    -   In `launcher/gui.py`: Using PyQt6, create a very simple, non-interactive window that can display three images side-by-side.
-    -   In `launcher/main.py`: When the Blender render is complete (by checking for the file's existence), use the `api_wrapper` to send the image to ComfyUI.
-    -   When ComfyUI returns the 3 generated images, display them in the GUI window.
+    -   [x] In `launcher/gui.py`: Using PyQt6, create a very simple, non-interactive window that can display three images side-by-side.
+    -   [x] In `launcher/main.py`: When the Blender render is complete (by checking for the file's existence), use the `api_wrapper` to send the image to ComfyUI.
+    -   [x] When ComfyUI returns the 3 generated images, display them in the GUI window.
 
 ---
 
-### **Phase 5: ComfyUI Integration (3D `mvto3D` Workflow)**
+### **Phase 5: Full 2D-to-3D Pipeline (✅ Completed)**
 
-The goal is to implement the full multi-view 2D-to-3D generation pipeline.
+The goal is to implement the full multi-view 2D-to-3D generation pipeline, including the mesh history system.
 
 1.  **Implement Multi-View Rendering:**
-    -   In `conjure_blender.py`: Create a function that, when triggered, renders the `DeformableMesh` from 6 specific angles using the `MVCamera` and saves them to `data/generated_images/multiviewRender/`.
-    -   This should be triggered by a specific user action (e.g., selecting one of the 3 images from the GUI in Phase 4).
+    -   [x] In `scripts/addons/conjure/ops_io.py`: Create a function that, when triggered, renders the `DeformableMesh` from 6 specific angles using the `MVCamera` and saves them to `data/generated_images/multiviewRender/`.
+    -   [x] This is triggered by selecting one of the 3 concept images.
 
-2.  **Trigger `mvto3D` Workflow:**
-    -   In `launcher/main.py`: Once all 6 renders are present, use the `api_wrapper` to trigger the `mvto3D` workflow in ComfyUI, passing the images and a selected prompt.
+2.  **Trigger `mv23D` Workflow:**
+    -   [x] In `launcher/main.py`: Once the multi-view images are generated, use the `api_wrapper` to automatically trigger the `mv23D.json` workflow in ComfyUI.
+    -   [x] In `launcher/main.py`: Update `state.json` to signal to Blender that a new model is ready for import.
 
-3.  **Import Generated Mesh:**
-    -   In `conjure_blender.py`: Add a "file watcher" that periodically checks for the `genMesh.glb` file in `data/generated_models/`.
-    -   When a new mesh is detected, automatically import it, replace the current `DeformableMesh`, and normalize it to fit the bounding box.
+3.  **Implement Mesh History & Import System:**
+    -   [x] In `scripts/addons/conjure/operator_main.py`: The main operator will check the state file for an `import_request`.
+    -   [x] In `scripts/addons/conjure/ops_io.py`: The `import_model` operator will be triggered.
+    -   [x] The operator will create a "HISTORY" collection if one doesn't exist.
+    -   [x] It will rename the current "Mesh" to "Mesh.XXX", move it to the HISTORY collection, and hide it.
+    -   [x] It will then import the new `copyMesh.glb` from the dedicated ComfyUI output folder into `data/generated_models/`.
+    -   [x] Finally, it will rename the newly imported object to "Mesh", making it the active sculptable object.
 
 ---
 
-### **Phase 6 & Beyond: Agent, Segmentation, and Polish**
+### **Phase 6: Conversational Agent Integration**
 
-Once the core generative loop is working, we can add the final layers of functionality.
+The goal is to bring the AI agent online for voice commands, starting with basic audio input and moving towards full command execution.
 
-1.  **Conversational Agent (`agent_api.py`):** Integrate ElevenLabs for voice-to-text and text-to-speech to generate prompts and provide narrative feedback.
-2.  **CGAL Segmenter:** Implement the subprocess call to the C++ segmenter and the Blender logic to parse the resulting vertex-colored mesh.
-3.  **Full GUI Implementation:** Build out the complete, interactive GUI with chat boxes, loading screens, and segment selection.
-4.  **Refinement and Testing:** Thoroughly test each phase and optimize for performance and usability. 
+-   **1. Implement Microphone Input:**
+    -   [ ] In a new `launcher/voice_input.py` module, implement a class to capture audio from the default microphone using a library like `PyAudio`.
+    -   [ ] The module should be able to start and stop listening on command from `main.py`.
+
+-   **2. Integrate Speech-to-Text:**
+    -   [ ] Integrate a speech recognition library (e.g., `SpeechRecognition` with the Whisper backend) to process the audio stream.
+    -   [ ] The goal is to convert the spoken words into a text string in near real-time.
+
+-   **3. Implement Command & Prompt Logic:**
+    -   [ ] Develop a simple parser to distinguish between commands (e.g., "generate concepts," "select option two") and free-form dictation for the `userPrompt.txt`.
+    -   [ ] When a command is recognized, update `state.json` to trigger the corresponding action in the main loop.
+    -   [ ] When dictation is recognized, overwrite the `userPrompt.txt` file.
+
+-   **4. Integrate Text-to-Speech:**
+    -   [ ] In `launcher/agent_api.py`, integrate a service like ElevenLabs for text-to-speech.
+    -   [ ] Provide audio feedback to the user to confirm commands or report status (e.g., "Generating concepts now.").
+
+---
+
+### **Phase 7: Overlay Transparent GUI**
+
+The goal is to build out the final user interface for displaying AI-generated images, status information, and a chat log.
+
+-   [ ] **Flesh out GUI:** Build the complete, interactive GUI in `launcher/gui.py` using PyQt6.
+-   [ ] **Add Chat/Log Box:** Implement a text area to display agent messages and a log of system events.
+-   [ ] **Add Status Indicators:** Create visual elements to show when the system is busy (e.g., "Generating...", "Importing...").
+
+---
+
+### **Phase 8: CGAL Integration (Mesh Segmentation)**
+
+The goal is to integrate the CGAL-based mesh segmenter to allow for part-based editing.
+
+-   [ ] **Create Segmenter Wrapper:** Implement the subprocess call in `cgal/segmenter_wrapper.py` to run the C++ executable.
+-   [ ] **Add UI Control:** Add a "Segment Mesh" button to the Blender UI panel.
+-   [ ] **Implement I/O:** Add operator logic in Blender to export the current mesh as a `.ply` file for the segmenter.
+-   [ ] **Implement Parser:** Add logic to re-import the vertex-colored `.ply` file and parse the color groups into selectable segments in Blender.
+-   [ ] **Isolate Segment:** Develop the logic to select a segment and isolate it for a focused refinement loop. 

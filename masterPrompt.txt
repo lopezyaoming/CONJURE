@@ -84,7 +84,7 @@ This stage takes a user's idea and a snapshot of the current model to generate t
 
 **Stage 2: `mv2mv[1-3].json` - Refining the Concept into a Multi-view Set**
 
-Based on the user's choice, this stage refines the selected concept into a coherent set of six views, ready for 3D conversion.
+Based on the user's choice, this stage refines the selected concept into a coherent set of six views, ready for 3D conversion. This stage is mode-aware, using either the `standard` or `turbo` workflows.
 
 *   **Trigger:**
     1.  The user selects one of the three options (`OP1`, `OP2`, or `OP3`) via the UI or voice command.
@@ -95,36 +95,34 @@ Based on the user's choice, this stage refines the selected concept into a coher
     *   **Selected Concept Image:** The chosen image from Stage 1.
     *   **6 Multi-view Renders:** From `data/generated_images/multiviewRender/`.
     *   **Text:** `data/generated_text/userPrompt.txt` (may be updated by the agent).
+    *   **Mode:** The `generation_mode` (`standard` or `turbo`) from `state.json`.
 
 *   **Process:**
-    *   The corresponding workflow is executed:
-        *   If OP1 was selected -> `comfyui/workflows/mv2mv1.json`
-        *   If OP2 was selected -> `comfyui/workflows/mv2mv2.json`
-        *   If OP3 was selected -> `comfyui/workflows/mv2mv3.json`
+    *   The launcher reads the mode and constructs the correct path to the workflows.
+    *   The corresponding workflow is executed (e.g., `.../turbo/mv2mv2.json`).
     *   Each of these workflows has slightly different parameters (e.g., `controlnet_conditioning_scale`) to match the style of the selected option.
 
 *   **Outputs:**
-    *   **6 Refined Multi-view Images:** Saved to `data/generated_images/mvResults/` as `mv_1.png` through `mv_6.png`.
+    *   **Refined Multi-view Images:** Saved to `data/generated_images/mvResults/`. The filenames are standardized to `mv_1.png`, `mv_3.png`, and `mv_4.png` (for Turbo) and more for Standard, ensuring the next stage can find them.
 
 **Stage 3: `mv23D.json` - Generating the 3D Model**
 
-The final stage converts the refined multi-view image set into a 3D model.
+The final stage converts the refined multi-view image set into a 3D model. This stage is also mode-aware.
 
 *   **Trigger:**
     *   Successful completion of Stage 2.
 
 *   **Inputs:**
-    *   **4 of the 6 Refined Images** from `data/generated_images/mvResults/`. Specifically, the workflow uses:
-        *   `mv_1.png` (Front)
-        *   `mv_3.png` (Left)
-        *   `mv_4.png` (Back)
-        *   `mv_5.png` (Right)
+    *   **Refined Images** from `data/generated_images/mvResults/`, which are first copied by the launcher into ComfyUI's `/input` directory to ensure freshness.
+        *   **Standard Mode:** Uses `mv_1.png` (Front), `mv_3.png` (Left), `mv_4.png` (Back), `mv_5.png` (Right).
+        *   **Turbo Mode:** Uses `mv_1.png` (Front), `mv_3.png` (Left), `mv_4.png` (Back).
 
 *   **Process:**
-    *   The `comfyui/workflows/mv23D.json` workflow is executed.
+    *   The launcher executes the appropriate workflow (`mv23D.json` or `.../turbo/mv23Dturbo.json`).
+    *   The workflow is dynamically modified to save its output to a dedicated, clean folder: `ComfyUI/output/CONJURE/`.
 
 *   **Output:**
-    *   **A `.glb` 3D model file.** This file is saved to `data/generated_models/genMesh.glb` and then detected and imported back into the Blender scene by the launcher.
+    *   **A `.glb` 3D model file.** This file is saved with a predictable name (`copyMesh.glb`). The launcher then copies this file to `data/generated_models/` and notifies Blender.
 
 Triggered through ComfyUI's internal API from the Overlay executable.
 All workflows are stored as JSON configuration files and dynamically loaded depending on the current modeling phase.
@@ -167,7 +165,7 @@ Blender scene setup
 cameras: 
 AXOCamera: used for segmenting representation and selection of segment. Fixed top-down or axonometric view. Used for UI display and static representations (e.g., segment previews)
 GestureCamera: used for UI view of mesh when gesture modelling. Rotates dynamically based on user input or gesture orientation. Used for generating reference images to be sent to promptMaker. Captures render when the user signals "done" via closed fist
-MVCamera: used for rendering and exporting for MV usage (6 views). tatic multiview render camera
+mvCamera: used for rendering and exporting for MV usage (6 views). tatic multiview render camera
 Used to generate 6 render angles: ["front", "right", "right-front", "back", "left", "left-front"] Resolution: 1024 × 1024 px (native to SDXL) Renders are saved as .png files in /input directory.
 
 

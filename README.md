@@ -40,14 +40,27 @@ The central 3D modeling environment where all geometry is created, deformed, and
 ### 3. ComfyUI (`comfyui/`)
 The generative backbone of the platform, responsible for a sophisticated, multi-stage pipeline that transforms a sculpted shape and a text prompt into a high-quality 3D model. It runs as a background server process, orchestrated by the Launcher.
 
-- **`workflows/`**: Contains the JSON definitions for the generative pipeline. This is a multi-step process designed for iterative refinement.
+- **`workflows/`**: Contains the JSON definitions for the generative pipeline. This is a multi-step process designed for iterative refinement, with parallel `standard` and `turbo` versions for most stages.
   - **`promptMaker.json`**: The first stage. It takes a single render from Blender and a text prompt, producing three distinct stylistic image concepts (`OP1.png`, `OP2.png`, `OP3.png`).
-  - **`mv2mv[1-3].json`**: The second stage. Based on the user's choice of concept, one of these three workflows is run. Each takes the 6 multi-view renders of the current Blender mesh and the chosen concept image to generate a new, refined set of 6 multi-view images that match the target style.
-  - **`mv23D.json`**: The final stage. It takes four of the refined multi-view images and uses a 2D-to-3D diffusion model to generate the final 3D mesh, which is then sent back to Blender.
+  - **`standard/mv2mv[1-3].json`**: The second stage (Standard Mode). Based on the user's choice of concept, one of these three workflows is run. Each takes the 6 multi-view renders of the current Blender mesh and the chosen concept image to generate a new, refined set of 6 multi-view images that match the target style.
+  - **`turbo/mv2mv[1-3]turbo.json`**: The second stage (Turbo Mode). A faster version of the above.
+  - **`standard/mv23D.json`**: The final stage (Standard Mode). It takes four of the refined multi-view images and uses a 2D-to-3D diffusion model to generate the final 3D mesh, which is then sent back to Blender.
+  - **`turbo/mv23Dturbo.json`**: The final stage (Turbo Mode). A faster version that uses only three views.
 - **`api_wrapper.py`**: A Python wrapper to communicate with the ComfyUI API, allowing the Launcher to trigger these workflows programmatically.
 - **`panel_ui.py`**: Defines the "CONJURE Control" panel in the 3D Viewport for starting and stopping the interaction.
 - **`ops_io.py`**: Contains operators for the generative pipeline, such as rendering images and importing models. These are triggered by the UI panel.
 - **`...`**: Additional modules for specific operations.
+
+### 4. UI Panel
+The CONJURE UI Panel in Blender's 3D Viewport is your main command center for the generative pipeline.
+
+- **Initiate/Finalize CONJURE**: Starts or stops the main gesture control operator.
+- **Generation Mode**: A dropdown to switch between `Standard` and `Turbo` modes.
+  - **Standard**: Slower, higher-quality generation.
+  - **Turbo**: Much faster, lower-quality generation ideal for rapid prototyping.
+- **Generate Concepts**: Triggers the first stage of the AI pipeline.
+- **Select Option [1-3]**: Triggers the second stage with your chosen concept.
+- **Import Last Model**: Manually triggers an import of the last generated 3D model.
 
 ---
 
@@ -68,19 +81,21 @@ This stage creates three visual directions for your design.
 
 This stage refines your chosen concept into a full set of images ready for 3D generation.
 
-1.  **Trigger**: You select one of the three images (e.g., `OP2.png`) via the GUI or voice command.
+1.  **Trigger**: You select one of the three images (e.g., `OP2.png`) via the UI panel.
 2.  **Blender Renders**: The `MVCamera` in Blender renders your current mesh from 6 standard angles (`FRONT`, `BACK`, `LEFT`, etc.) and saves them to `data/generated_images/multiviewRender/`.
-3.  **AI Processing**: The Launcher triggers the corresponding workflow (e.g., `mv2mv2.json`), feeding it the 6 multi-view renders, your selected concept image, and the latest `userPrompt.txt`.
-4.  **Output**: The workflow generates a new, refined set of 6 multi-view images that are stylistically consistent with your selection. These are saved as `mv_1.png` through `mv_6.png` in `data/generated_images/mvResults/`.
+3.  **AI Processing**: The Launcher reads the `generation_mode` (`Standard` or `Turbo`) and triggers the corresponding workflow (e.g., `mv2mv2.json` or `mv2mv2turbo.json`), feeding it the 6 multi-view renders, your selected concept image, and the latest `userPrompt.txt`.
+4.  **Output**: The workflow generates a new, refined set of multi-view images that are stylistically consistent with your selection. These are saved to `data/generated_images/mvResults/`.
 
 ### Stage 3: 3D Model Generation (`mv23D.json`)
 
 The final stage builds the 3D model.
 
 1.  **Trigger**: This stage runs automatically after Stage 2 completes successfully.
-2.  **AI Processing**: The Launcher takes four of the refined images (`mv_1.png`, `mv_3.png`, `mv_4.png`, `mv_5.png`) from `data/generated_images/mvResults/` and sends them to the `mv23D.json` workflow.
-3.  **Output**: The workflow outputs a `.glb` file containing the new 3D mesh.
-4.  **Import to Blender**: The Launcher detects the new file and automatically imports it back into your Blender scene, replacing the old mesh. You can now continue sculpting or start the process over again.
+2.  **AI Processing**: The Launcher copies the necessary refined images from `mvResults/` into the ComfyUI input directory. It then sends them to the appropriate `mv23D` workflow (`standard` or `turbo`).
+    - **Standard Mode** uses 4 views.
+    - **Turbo Mode** uses 3 views for faster processing.
+3.  **Output**: The workflow outputs a `.glb` file containing the new 3D mesh to a dedicated output folder inside ComfyUI.
+4.  **Import to Blender**: The Launcher finds the new model, copies it to `data/generated_models/`, and signals Blender to import it into your scene, creating a history state of the previous mesh. You can now continue sculpting or start the process over again.
 
 ---
 
@@ -118,6 +133,7 @@ Now, you can launch the entire application with a single command.
 - To shut everything down, simply close the Blender window or press `Ctrl+C` in the terminal.
 
 The UI Panel will also contain a "Generative Pipeline" section with buttons to manually trigger each stage of the ComfyUI workflow for debugging and direct control.
+- **Generation Mode**: A dropdown allows you to select between `Standard` and `Turbo` modes before starting a generation. `Turbo` mode uses a faster, more lightweight set of workflows for rapid iteration.
 
 ---
 
@@ -174,8 +190,14 @@ CONJURE/
 │
 ├── comfyui/
 │   ├── workflows/
+│   │   ├── standard/
+│   │   │   ├── mv2mv1.json
+│   │   │   └── ...
+│   │   ├── turbo/
+│   │   │   ├── mv2mv1turbo.json
+│   │   │   └── ...
 │   │   ├── promptMaker.json
-│   │   └── mvto3D.json
+│   │   └── mv23D.json
 │   └── api_wrapper.py
 │
 ├── data/

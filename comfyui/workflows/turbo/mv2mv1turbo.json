@@ -1,0 +1,969 @@
+{
+  "11": {
+    "inputs": {
+      "image": "FRONT.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "FRONT"
+    }
+  },
+  "16": {
+    "inputs": {
+      "image": "BACK.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "BACK"
+    }
+  },
+  "17": {
+    "inputs": {
+      "image": "LEFT.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "LEFT"
+    }
+  },
+  "120": {
+    "inputs": {
+      "file_path": "C:\\Coding\\CONJURE\\data\\generated_text\\userPrompt.txt",
+      "dictionary_name": "[filename]"
+    },
+    "class_type": "Load Text File",
+    "_meta": {
+      "title": "Load Text File"
+    }
+  },
+  "121": {
+    "inputs": {
+      "STRING": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "163": {
+    "inputs": {
+      "seed": [
+        "180",
+        3
+      ],
+      "steps": 8,
+      "cfg": 2.2,
+      "sampler_name": "lcm",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "195",
+        0
+      ],
+      "positive": [
+        "175",
+        0
+      ],
+      "negative": [
+        "175",
+        1
+      ],
+      "latent_image": [
+        "208",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "164": {
+    "inputs": {
+      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "filename_prefix": "BACK",
+      "filename_delimiter": "",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "BACK SAVE"
+    }
+  },
+  "165": {
+    "inputs": {
+      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "filename_prefix": "FRONT",
+      "filename_delimiter": "",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "192",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "FRONT SAVE"
+    }
+  },
+  "166": {
+    "inputs": {
+      "seed": [
+        "181",
+        3
+      ],
+      "steps": 8,
+      "cfg": 2.2,
+      "sampler_name": "lcm",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "195",
+        0
+      ],
+      "positive": [
+        "183",
+        0
+      ],
+      "negative": [
+        "183",
+        1
+      ],
+      "latent_image": [
+        "207",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "167": {
+    "inputs": {
+      "seed": [
+        "179",
+        3
+      ],
+      "steps": 8,
+      "cfg": 2.2,
+      "sampler_name": "lcm",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "195",
+        0
+      ],
+      "positive": [
+        "186",
+        0
+      ],
+      "negative": [
+        "186",
+        1
+      ],
+      "latent_image": [
+        "209",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "168": {
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "169": {
+    "inputs": {
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "170": {
+    "inputs": {
+      "control_net_name": "control-lora-canny-rank256.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "171": {
+    "inputs": {
+      "coarse": "disable",
+      "resolution": 512,
+      "image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "LineArtPreprocessor",
+    "_meta": {
+      "title": "Realistic Lineart"
+    }
+  },
+  "173": {
+    "inputs": {
+      "control_net_name": "control-lora-canny-rank256.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "174": {
+    "inputs": {
+      "control_net_name": "control-lora-depth-rank256.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "175": {
+    "inputs": {
+      "strength": [
+        "206",
+        0
+      ],
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "184",
+        0
+      ],
+      "negative": [
+        "184",
+        1
+      ],
+      "control_net": [
+        "174",
+        0
+      ],
+      "image": [
+        "202",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "176": {
+    "inputs": {
+      "samples": [
+        "166",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "177": {
+    "inputs": {
+      "samples": [
+        "163",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "178": {
+    "inputs": {
+      "samples": [
+        "167",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "179": {
+    "inputs": {
+      "seed": 300000
+    },
+    "class_type": "Seed",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "180": {
+    "inputs": {
+      "seed": 300000
+    },
+    "class_type": "Seed",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "181": {
+    "inputs": {
+      "seed": 300000
+    },
+    "class_type": "Seed",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "182": {
+    "inputs": {
+      "strength": [
+        "206",
+        0
+      ],
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "217",
+        0
+      ],
+      "negative": [
+        "194",
+        0
+      ],
+      "control_net": [
+        "173",
+        0
+      ],
+      "image": [
+        "203",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "183": {
+    "inputs": {
+      "strength": [
+        "206",
+        0
+      ],
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "182",
+        0
+      ],
+      "negative": [
+        "182",
+        1
+      ],
+      "control_net": [
+        "174",
+        0
+      ],
+      "image": [
+        "204",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "184": {
+    "inputs": {
+      "strength": [
+        "206",
+        0
+      ],
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "216",
+        0
+      ],
+      "negative": [
+        "194",
+        0
+      ],
+      "control_net": [
+        "173",
+        0
+      ],
+      "image": [
+        "201",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "185": {
+    "inputs": {
+      "strength": [
+        "206",
+        0
+      ],
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "200",
+        0
+      ],
+      "negative": [
+        "194",
+        0
+      ],
+      "control_net": [
+        "173",
+        0
+      ],
+      "image": [
+        "171",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "186": {
+    "inputs": {
+      "strength": [
+        "206",
+        0
+      ],
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "185",
+        0
+      ],
+      "negative": [
+        "185",
+        1
+      ],
+      "control_net": [
+        "174",
+        0
+      ],
+      "image": [
+        "196",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "187": {
+    "inputs": {
+      "output_path": "C:\\Coding\\CONJURE\\data\\generated_images\\imageOPTIONS",
+      "filename_prefix": "LEFT",
+      "filename_delimiter": "",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "189",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "LEFT SAVE"
+    }
+  },
+  "188": {
+    "inputs": {
+      "images": [
+        "189",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "189": {
+    "inputs": {
+      "model_name": "u2net",
+      "image": [
+        "178",
+        0
+      ]
+    },
+    "class_type": "Image Remove Background (rembg)",
+    "_meta": {
+      "title": "Image Remove Background (rembg)"
+    }
+  },
+  "190": {
+    "inputs": {
+      "model_name": "u2net",
+      "image": [
+        "177",
+        0
+      ]
+    },
+    "class_type": "Image Remove Background (rembg)",
+    "_meta": {
+      "title": "Image Remove Background (rembg)"
+    }
+  },
+  "191": {
+    "inputs": {
+      "images": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "192": {
+    "inputs": {
+      "model_name": "u2net",
+      "image": [
+        "176",
+        0
+      ]
+    },
+    "class_type": "Image Remove Background (rembg)",
+    "_meta": {
+      "title": "Image Remove Background (rembg)"
+    }
+  },
+  "193": {
+    "inputs": {
+      "images": [
+        "192",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "194": {
+    "inputs": {
+      "text": " watermark, perspective, (low quality:1.5), distorted, out of focus, ugly, footpath, waterfall, saturated, lively, blurry, distorted, low quality, oversaturated, noisy, washed out, pixelated, cluttered, unnatural lighting, deformed, symmetrical, simplistic\n\n",
+      "clip": [
+        "168",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "195": {
+    "inputs": {
+      "lora_name": "lcm_lora_sdxl.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "168",
+        0
+      ],
+      "clip": [
+        "168",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "196": {
+    "inputs": {
+      "ckpt_name": "depth_anything_v2_vitl.pth",
+      "resolution": 512,
+      "image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "DepthAnythingV2Preprocessor",
+    "_meta": {
+      "title": "Depth Anything V2 - Relative"
+    }
+  },
+  "197": {
+    "inputs": {
+      "STRING": "Sleek biomechanical scarf with matte metallic finish, composed of interlocking plates and elongated perforations forming labyrinth-like patterns. Eye sockets are large and circular, resembling camera lenses. The helmet fully encloses the head and neck, evoking cybernetic stealth. Minimalist background, studio lighting, high-detail, futuristic surveillance or infiltration gear aesthetic.",
+      "INPUT": [
+        "198",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "198": {
+    "inputs": {
+      "file_path": "C:\\Coding\\CONJURE\\data\\generated_text\\userPrompt.txt",
+      "dictionary_name": "[filename]"
+    },
+    "class_type": "Load Text File",
+    "_meta": {
+      "title": "Load Text File"
+    }
+  },
+  "200": {
+    "inputs": {
+      "STRING": [
+        "212",
+        0
+      ],
+      "clip": [
+        "195",
+        1
+      ]
+    },
+    "class_type": "Griptape Convert: Text to CLIP Encode",
+    "_meta": {
+      "title": "Griptape Convert: Text to CLIP Encode"
+    }
+  },
+  "201": {
+    "inputs": {
+      "coarse": "disable",
+      "resolution": 512,
+      "image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "LineArtPreprocessor",
+    "_meta": {
+      "title": "Realistic Lineart"
+    }
+  },
+  "202": {
+    "inputs": {
+      "ckpt_name": "depth_anything_v2_vitl.pth",
+      "resolution": 512,
+      "image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "DepthAnythingV2Preprocessor",
+    "_meta": {
+      "title": "Depth Anything V2 - Relative"
+    }
+  },
+  "203": {
+    "inputs": {
+      "coarse": "disable",
+      "resolution": 512,
+      "image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "LineArtPreprocessor",
+    "_meta": {
+      "title": "Realistic Lineart"
+    }
+  },
+  "204": {
+    "inputs": {
+      "ckpt_name": "depth_anything_v2_vitl.pth",
+      "resolution": 512,
+      "image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "DepthAnythingV2Preprocessor",
+    "_meta": {
+      "title": "Depth Anything V2 - Relative"
+    }
+  },
+  "205": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "206": {
+    "inputs": {
+      "value": 0.9
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Float"
+    }
+  },
+  "207": {
+    "inputs": {
+      "pixels": [
+        "11",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "208": {
+    "inputs": {
+      "pixels": [
+        "16",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "209": {
+    "inputs": {
+      "pixels": [
+        "17",
+        0
+      ],
+      "vae": [
+        "168",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "210": {
+    "inputs": {
+      "delimiter": ", ",
+      "clean_whitespace": "true",
+      "text_a": [
+        "214",
+        0
+      ],
+      "text_b": [
+        "197",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Text Concatenate"
+    }
+  },
+  "211": {
+    "inputs": {
+      "delimiter": ", ",
+      "clean_whitespace": "true",
+      "text_a": [
+        "215",
+        0
+      ],
+      "text_b": [
+        "197",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Text Concatenate"
+    }
+  },
+  "212": {
+    "inputs": {
+      "delimiter": "",
+      "clean_whitespace": "true",
+      "text_a": [
+        "213",
+        0
+      ],
+      "text_b": [
+        "197",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Text Concatenate"
+    }
+  },
+  "213": {
+    "inputs": {
+      "STRING": "left side view of "
+    },
+    "class_type": "Griptape Create: Text",
+    "_meta": {
+      "title": "Griptape Create: Text"
+    }
+  },
+  "214": {
+    "inputs": {
+      "STRING": "back side view of "
+    },
+    "class_type": "Griptape Create: Text",
+    "_meta": {
+      "title": "Griptape Create: Text"
+    }
+  },
+  "215": {
+    "inputs": {
+      "STRING": "front side view of "
+    },
+    "class_type": "Griptape Create: Text",
+    "_meta": {
+      "title": "Griptape Create: Text"
+    }
+  },
+  "216": {
+    "inputs": {
+      "STRING": [
+        "210",
+        0
+      ],
+      "clip": [
+        "195",
+        1
+      ]
+    },
+    "class_type": "Griptape Convert: Text to CLIP Encode",
+    "_meta": {
+      "title": "Griptape Convert: Text to CLIP Encode"
+    }
+  },
+  "217": {
+    "inputs": {
+      "STRING": [
+        "211",
+        0
+      ],
+      "clip": [
+        "195",
+        1
+      ]
+    },
+    "class_type": "Griptape Convert: Text to CLIP Encode",
+    "_meta": {
+      "title": "Griptape Convert: Text to CLIP Encode"
+    }
+  }
+}
