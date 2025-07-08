@@ -7,12 +7,27 @@ import json
 from openai import OpenAI
 from pathlib import Path
 from instruction_manager import InstructionManager
+from elevenlabs import play
+from elevenlabs.client import ElevenLabs
+
+# --- ElevenLabs Configuration ---
+# You can find your Voice ID in the Voice Lab on the ElevenLabs website.
+# 'Adam' is a good, deep, generic male voice.
+TTS_VOICE_ID = "90ipbRoKi4CpHXvKVtl0" 
+# This is the latest and highest-quality model.
+TTS_MODEL_ID = "eleven_flash_v2_5"
 
 class ConversationalAgent:
-    def __init__(self, api_key: str, instruction_manager: InstructionManager):
-        if not api_key:
+    def __init__(self, openai_api_key: str, instruction_manager: InstructionManager):
+        if not openai_api_key:
             raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
-        self.client = OpenAI(api_key=api_key)
+        self.openai_client = OpenAI(api_key=openai_api_key)
+        
+        elevenlabs_api_key = os.environ.get("ELEVENLABS_API_KEY")
+        if not elevenlabs_api_key:
+            raise ValueError("ElevenLabs API key not found. Please set the ELEVENLABS_API_KEY environment variable.")
+        self.elevenlabs_client = ElevenLabs(api_key=elevenlabs_api_key)
+
         self.instruction_manager = instruction_manager
         self.history = []
         self.system_prompt = self._load_system_prompt()
@@ -20,20 +35,19 @@ class ConversationalAgent:
 
     def _load_system_prompt(self):
         try:
-            # Assuming the script is run from the project root (e.g., /CONJURE/launcher)
-            # and devnotes is at the same level
             prompt_path = Path(__file__).parent.parent / "devnotes" / "agentPrompt.txt"
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except FileNotFoundError:
-            print("ERROR: devnotes/agentPrompt.txt not found. Agent will use a basic prompt.")
-            return "You are a helpful assistant. Respond in JSON."
+            # The agentToolset.txt was deleted, so we can't rely on the old prompt.
+            print("WARNING: devnotes/agentPrompt.txt not found. Agent will use a basic prompt.")
+            return "You are a helpful 3D design assistant named Conjure. Respond in JSON."
 
     def get_response(self, user_message):
         self.history.append({"role": "user", "content": user_message})
 
         try:
-            response = self.client.chat.completions.create(
+            response = self.openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=self.history,
                 response_format={"type": "json_object"}
@@ -52,6 +66,21 @@ class ConversationalAgent:
             print(f"Error calling OpenAI API: {e}")
             return None
 
+    def _play_agent_response(self, text: str):
+        """Converts text to speech and plays it using ElevenLabs."""
+        try:
+            print("AGENT_API: Generating audio from ElevenLabs...")
+            audio = self.elevenlabs_client.text_to_speech.convert(
+                text=text,
+                voice_id=TTS_VOICE_ID,
+                model_id=TTS_MODEL_ID,
+            )
+            print("AGENT_API: Playing audio...")
+            play(audio)
+            print("AGENT_API: Audio playback finished.")
+        except Exception as e:
+            print(f"AGENT_API: Error playing ElevenLabs audio: {e}")
+
     def _parse_and_process_response(self, response_str):
         try:
             response_json = json.loads(response_str)
@@ -68,6 +97,7 @@ class ConversationalAgent:
 
             if spoken_text:
                 print(f"AGENT: {spoken_text}")
+                self._play_agent_response(spoken_text)
             
             if instruction:
                 self.instruction_manager.execute_instruction(instruction)

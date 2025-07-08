@@ -49,7 +49,7 @@ class ConjureApp:
         if not api_key:
             print("FATAL: OPENAI_API_KEY environment variable not set. Application will exit.")
             sys.exit(1) # Exit with a non-zero status code to indicate an error
-        self.agent = ConversationalAgent(api_key=api_key, instruction_manager=self.instruction_manager)
+        self.agent = ConversationalAgent(openai_api_key=api_key, instruction_manager=self.instruction_manager)
         print("CONJURE Agent is initialized and listening...")
 
     def start(self):
