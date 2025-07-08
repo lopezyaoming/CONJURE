@@ -28,6 +28,8 @@ class CONJURE_PT_ui_panel(bpy.types.Panel):
         row.operator("conjure.select_concept", text="Opt 1").option_id = 1
         row.operator("conjure.select_concept", text="Opt 2").option_id = 2
         row.operator("conjure.select_concept", text="Opt 3").option_id = 3
+        
+        box.operator("conjure.import_model", text="Import Last Model", icon='IMPORT')
 
         # Agent Controls
         agent_box = layout.box()

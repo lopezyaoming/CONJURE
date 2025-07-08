@@ -20,7 +20,6 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 
 # Import all constants and settings from our new config file
 from . import config
-from .ops_io import update_state_file
 
 
 # --- FLICKER FIX ---
@@ -204,44 +203,6 @@ def map_hand_to_3d_space(x_norm, y_norm, z_norm):
         print(f"Warning: '{config.GESTURE_CAMERA_NAME}' not found. Using world-space mapping.")
         return local_point
 
-
-def spawn_new_primitive(primitive_name: str):
-    """
-    Destroys the current 'Mesh' object and replaces it with a copy
-    of a primitive from the 'PRIMITIVES' collection.
-    """
-    # --- 1. Delete the existing main mesh ---
-    current_mesh = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
-    if current_mesh:
-        bpy.data.objects.remove(current_mesh, do_unlink=True)
-        print(f"Removed existing mesh: '{config.DEFORM_OBJ_NAME}'")
-
-    # --- 2. Find the primitive in the PRIMITIVES collection ---
-    primitives_collection = bpy.data.collections.get("PRIMITIVES")
-    if not primitives_collection:
-        print("ERROR: 'PRIMITIVES' collection not found.")
-        return False
-    
-    primitive_to_copy = primitives_collection.objects.get(primitive_name)
-    if not primitive_to_copy:
-        print(f"ERROR: Primitive '{primitive_name}' not found in 'PRIMITIVES' collection.")
-        return False
-
-    # --- 3. Copy, rename, and place the new mesh ---
-    new_mesh = primitive_to_copy.copy()
-    new_mesh.data = primitive_to_copy.data.copy() # Also copy mesh data
-    new_mesh.name = config.DEFORM_OBJ_NAME
-    
-    # Place at origin and make visible
-    new_mesh.location = (0, 0, 0)
-    new_mesh.scale = (1, 1, 1)
-    new_mesh.rotation_euler = (0, 0, 0)
-    new_mesh.hide_set(False)
-
-    # Link to the main scene collection
-    bpy.context.scene.collection.objects.link(new_mesh)
-    print(f"Successfully spawned primitive '{primitive_name}' as '{config.DEFORM_OBJ_NAME}'.")
-    return True
 
 # === 4. MESH DEFORMATION ===
 def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
@@ -529,6 +490,85 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _last_orbit_delta = {"x": 0.0, "y": 0.0}
     marker_states = []
 
+    def get_mesh_volume(self, mesh_obj):
+        """Calculates the volume of a given mesh object using bmesh."""
+        if not mesh_obj or mesh_obj.type != 'MESH':
+            print("Warning: get_mesh_volume called on an invalid object.")
+            return 0.0
+
+        # Use the evaluated dependency graph to get the mesh with all modifiers applied.
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        obj_eval = mesh_obj.evaluated_get(depsgraph)
+        mesh_from_eval = obj_eval.to_mesh()
+
+        bm = bmesh.new()
+        bm.from_mesh(mesh_from_eval)
+        
+        # Triangulation is good practice for robust volume calculation.
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+        
+        volume = bm.calc_volume(signed=True)
+        
+        # Clean up the temporary bmesh and mesh data
+        bm.free()
+        obj_eval.to_mesh_clear()
+        
+        return abs(volume)
+
+    def handle_spawn_primitive(self, primitive_type):
+        """
+        Spawns a new primitive by duplicating it from the 'PRIMITIVES' collection.
+        """
+        print(f"DEBUG: handle_spawn_primitive received type: {primitive_type}")
+
+        # --- 1. Find the Primitive Template ---
+        # Look inside CONJURE SETUP -> PRIMITIVES collection for the template
+        print("DEBUG: Searching for 'CONJURE SETUP/PRIMITIVES' collection...")
+        conjure_setup_coll = bpy.data.collections.get("CONJURE SETUP")
+        source_collections = conjure_setup_coll.children.get("PRIMITIVES") if conjure_setup_coll else None
+        
+        if not source_collections:
+             # Fallback for older scene structures
+            print("DEBUG: Fallback - Searching for top-level 'PRIMITIVES' collection.")
+            source_collections = bpy.data.collections.get("PRIMITIVES")
+            if not source_collections:
+                 print("ERROR: Could not find the 'PRIMITIVES' or 'CONJURE SETUP/PRIMITIVES' collection.")
+                 return
+
+        print(f"DEBUG: Found source collection: {source_collections.name}")
+
+        template_obj = source_collections.objects.get(primitive_type)
+        
+        if not template_obj:
+            print(f"ERROR: Primitive '{primitive_type}' not found in collection '{source_collections.name}'.")
+            return
+        
+        print(f"DEBUG: Found template object: {template_obj.name}")
+
+        # --- 2. Clear Existing Deformable Mesh ---
+        if config.DEFORM_OBJ_NAME in bpy.data.objects:
+            print(f"DEBUG: Removing existing '{config.DEFORM_OBJ_NAME}'.")
+            bpy.data.objects.remove(bpy.data.objects[config.DEFORM_OBJ_NAME], do_unlink=True)
+
+        # --- 3. Duplicate and Link the New Mesh ---
+        print("DEBUG: Duplicating template object...")
+        new_obj = template_obj.copy()
+        new_obj.data = template_obj.data.copy() # Also copy mesh data
+        new_obj.name = config.DEFORM_OBJ_NAME
+        bpy.context.scene.collection.objects.link(new_obj)
+        print(f"DEBUG: Successfully spawned '{new_obj.name}' from template '{template_obj.name}'.")
+        
+        # --- 4. Set as Active and Selected ---
+        print("DEBUG: Setting new object as active and selected.")
+        bpy.ops.object.select_all(action='DESELECT')
+        new_obj.select_set(True)
+        bpy.context.view_layer.objects.active = new_obj
+
+        # --- 5. Recalculate Initial Volume for Deformation ---
+        self._initial_volume = self.get_mesh_volume(new_obj)
+        print(f"Set initial volume for new mesh: {self._initial_volume}")
+
+
     def draw_ui_text(self, context):
         """Draws the current brush name on the viewport."""
         font_id = 0  # Default font
@@ -548,44 +588,68 @@ class ConjureFingertipOperator(bpy.types.Operator):
         blf.draw(font_id, f"Radius: {active_radius}")
 
     def check_for_launcher_requests(self):
-        """Checks the state.json file for commands from the launcher."""
-        state_file = config.STATE_JSON_PATH
-        if not state_file.exists():
-            return
-
+        """Checks state.json for commands from the launcher/agent."""
+        # Read the state file
         try:
-            with open(state_file, 'r') as f:
+            with open(config.STATE_JSON_PATH, 'r') as f:
                 state_data = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return # File is busy or empty, try again next tick
+        except (FileNotFoundError, json.JSONDecodeError):
+            return # File not found or invalid JSON, nothing to do
 
-        command_obj = state_data.get('command')
-        if isinstance(command_obj, dict):
-            command_name = command_obj.get('name')
-            if command_name == 'spawn_primitive':
-                print("Received spawn_primitive command from launcher.")
-                primitive_type = command_obj.get('primitive_type')
-                if primitive_type and isinstance(primitive_type, str):
-                    if spawn_new_primitive(primitive_type):
-                        # Clear the command in the state file after processing
-                        update_state_file({"command": None})
-                    else:
-                        print(f"Failed to spawn primitive: {primitive_type}")
-                        update_state_file({"command": "error: spawn_failed"})
-                else:
-                    print("ERROR: spawn_primitive command received with invalid or missing 'primitive_type'.")
-                    update_state_file({"command": "error: invalid_primitive_type"})
+        command = state_data.get("command")
+        if command:
+            print(f"DEBUG: Operator detected command '{command}' in state file.")
 
+        if command == "spawn_primitive":
+            primitive_type = state_data.get("primitive_type")
+            if primitive_type:
+                self.handle_spawn_primitive(primitive_type)
+                # Clear the command in the state file so it doesn't run again
+                print(f"DEBUG: Clearing command '{command}' from state file.")
+                state_data["command"] = None
+                state_data["primitive_type"] = None
+                with open(config.STATE_JSON_PATH, 'w') as f:
+                    json.dump(state_data, f, indent=4)
+        
+        # We can add more command handlers here with elif blocks
+        elif command == "import_last_model":
+            # We need to override the context to ensure the operator runs in the 3D view
+            area = next((a for a in bpy.context.screen.areas if a.type == 'VIEW_3D'), None)
+            if area:
+                try:
+                    print("DEBUG: Executing bpy.ops.conjure.import_model() with context override.")
+                    with bpy.context.temp_override(area=area):
+                        bpy.ops.conjure.import_model('EXEC_DEFAULT')
+                except Exception as e:
+                    print(f"ERROR: Failed to execute conjure.import_model operator: {e}")
+            else:
+                print("ERROR: Could not find a 3D View area to run the import operator.")
+            
+            # Clear the command
+            print(f"DEBUG: Clearing command '{command}' from state file.")
+            state_data["command"] = None
+            with open(config.STATE_JSON_PATH, 'w') as f:
+                json.dump(state_data, f, indent=4)
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
         if context.window_manager.conjure_should_stop:
-            return self.cancel(context)
+            context.window_manager.conjure_should_stop = False # Reset the flag
+            context.window_manager.conjure_is_running = False
+            self.cancel(context)
+            print("Conjure Fingertip Operator has been cancelled.")
+            return {'CANCELLED'}
 
-        if event.type in {'RIGHTMOUSE', 'ESC'}:
-            return self.cancel(context)
+        # --- Handle Mouse & Keyboard Input ---
+        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE', 'RIGHTMOUSE'}:
+            # Allow standard navigation controls to pass through
+            return {'PASS_THROUGH'}
 
+        # --- Handle Operator Logic only on Timer Events ---
         if event.type == 'TIMER':
+            # Check for commands from the launcher (e.g., spawn primitive)
+            self.check_for_launcher_requests()
+
             # --- Robustly find the 3D view context, regardless of mouse position ---
             area = next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
             if not area:
@@ -803,7 +867,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
             # This is our main refresh tick
             self._timer_last_update = time.time()
-            self.check_for_launcher_requests()
+            # self.check_for_launcher_requests() # Moved to the top of the modal method
 
         return {'PASS_THROUGH'}
 

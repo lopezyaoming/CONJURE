@@ -33,19 +33,23 @@ from state_manager import StateManager
 from comfyui.api_wrapper import load_workflow, run_workflow, modify_workflow_paths
 import launcher.config as config
 from agent_api import ConversationalAgent
-from launcher.instruction_handler import handle_instruction
+from instruction_manager import InstructionManager
 
 class ConjureApp:
     def __init__(self):
         print("Initializing CONJURE...")
         self.state_manager = StateManager()
         self.subprocess_manager = SubprocessManager()
+        self.instruction_manager = InstructionManager(self.state_manager)
         self.project_root = Path(__file__).parent.parent.resolve()
         atexit.register(self.stop)
         
         # Initialize the agent
         api_key = os.environ.get("OPENAI_API_KEY")
-        self.agent = ConversationalAgent(api_key=api_key)
+        if not api_key:
+            print("FATAL: OPENAI_API_KEY environment variable not set. Application will exit.")
+            sys.exit(1) # Exit with a non-zero status code to indicate an error
+        self.agent = ConversationalAgent(api_key=api_key, instruction_manager=self.instruction_manager)
         print("CONJURE Agent is initialized and listening...")
 
     def start(self):
@@ -75,17 +79,17 @@ class ConjureApp:
 
         if command == "agent_user_message":
             print(f"\nUser message received: {state_data.get('text')}")
-            instruction = self.agent.get_response(state_data.get('text'))
-            self.state_manager.clear_command() # Clear user input command
-            
-            # Handle the instruction returned by the agent
-            if instruction:
-                handle_instruction(instruction, self.state_manager)
-
+            # First, clear the user message command so it doesn't get processed again.
+            self.state_manager.clear_command()
+            # Now, get the agent's response. The agent may issue a new command
+            # to Blender by updating the state file itself.
+            self.agent.get_response(state_data.get('text'))
         elif state_data.get("generation_request") == "new":
             self.handle_generation_request()
+            self.state_manager.clear_specific_requests(["generation_request"])
         elif state_data.get("selection_request"):
             self.handle_selection_request(state_data, generation_mode)
+            self.state_manager.clear_specific_requests(["selection_request", "selection_status"])
 
     def handle_generation_request(self):
         """Handles the request to generate initial concept options."""
@@ -148,8 +152,14 @@ class ConjureApp:
             self.reset_state_file({"selection_status": "failed"})
             return
             
-        workflow_name = f"mv2mv{option_index}turbo.json" if mode == "turbo" else f"mv2mv{option_index}.json"
-        workflow_dir = self.project_root / "comfyui" / "workflows" / mode
+        # --- 2. Load and Modify mv2mv Workflow ---
+        if mode == 'turbo':
+            workflow_name = f"mv2mv{option_index}turbo.json"
+            workflow_dir = self.project_root / "comfyui" / "workflows" / "turbo"
+        else: # standard
+            workflow_name = f"mv2mv{option_index}.json"
+            workflow_dir = self.project_root / "comfyui" / "workflows" / "standard"
+
         workflow_path = workflow_dir / workflow_name
         
         workflow = load_workflow(str(workflow_path))
@@ -267,15 +277,12 @@ class ConjureApp:
             print(f"--- ERROR: {workflow_name} workflow failed. ---")
             self.reset_state_file({"3d_generation_request": "failed"})
 
-    def reset_state_file(self, data_to_write):
-        """Clears the state file to prevent re-running requests."""
-        state_file_path = self.project_root / "data" / "input" / "state.json"
-        try:
-            with open(state_file_path, 'w') as f:
-                json.dump(data_to_write, f, indent=4)
-            print("State file has been reset.")
-        except IOError as e:
-            print(f"ERROR: Could not reset state file: {e}")
+    def reset_state_file(self, data_to_update: dict):
+        """
+        Updates the state file with the given data, preserving existing keys.
+        """
+        self.state_manager.update_state(data_to_update)
+        print("State file has been updated.")
 
     def run(self):
         """Main application loop. Monitors subprocesses and checks for requests."""
@@ -295,15 +302,16 @@ class ConjureApp:
             self.stop()
 
     def stop(self):
-        """Stops all components and gracefully exits."""
-        if self.state_manager.get_state().get("app_status") == "stopped":
-            return
-            
+        """Stops all running subprocesses."""
         print("CONJURE application stopping...")
         self.subprocess_manager.stop_all()
-        self.state_manager.set_state("app_status", "stopped")
-        self.state_manager.set_state("hand_tracker_status", "stopped")
-        self.state_manager.set_state("blender_status", "stopped")
+
+        # Clear the state file to prevent stale commands on restart
+        print("Clearing application state...")
+        # Write an empty JSON object to the state file
+        with open(self.state_manager.state_file_path, 'w') as f:
+            json.dump({}, f)
+
         print("CONJURE has stopped.")
 
 if __name__ == "__main__":

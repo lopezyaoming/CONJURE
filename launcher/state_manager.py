@@ -30,10 +30,26 @@ class StateManager:
         with open(self.state_file_path, 'w') as f:
             json.dump(state, f, indent=4)
 
+    def update_state(self, data_to_update: dict):
+        """Merges the given dictionary into the current state and saves it."""
+        state = self.get_state()
+        state.update(data_to_update)
+        with open(self.state_file_path, 'w') as f:
+            json.dump(state, f, indent=4)
+
     def clear_command(self):
         """Sets the 'command' and 'text' keys to null in the state file."""
         state = self.get_state()
         state['command'] = None
         state['text'] = None
+        with open(self.state_file_path, 'w') as f:
+            json.dump(state, f, indent=4)
+
+    def clear_specific_requests(self, keys_to_clear: list):
+        """Sets the specified keys to null in the state file."""
+        state = self.get_state()
+        for key in keys_to_clear:
+            if key in state:
+                state[key] = None
         with open(self.state_file_path, 'w') as f:
             json.dump(state, f, indent=4) 

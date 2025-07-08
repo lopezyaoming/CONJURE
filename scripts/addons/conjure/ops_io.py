@@ -67,15 +67,35 @@ def render_multiview():
     print("Multi-view rendering complete.")
     return True
 
-def update_state_file(data):
-    """Writes the given dictionary to the state.json file."""
-    print(f"Updating state file at {config.STATE_JSON_PATH}...")
+def update_state_file(data_to_update: dict):
+    """
+    Reads the existing state file, merges the new data, and writes it back.
+    This prevents overwriting a key like 'app_status'.
+    """
+    print(f"Updating state file at {config.STATE_JSON_PATH} with: {data_to_update}")
+    
+    current_state = {}
+    try:
+        if os.path.exists(config.STATE_JSON_PATH):
+            with open(config.STATE_JSON_PATH, 'r') as f:
+                # Handle empty or corrupted JSON file
+                content = f.read()
+                if content:
+                    current_state = json.loads(content)
+    except (IOError, json.JSONDecodeError) as e:
+        print(f"Warning: Could not read or parse existing state file. A new one will be created. Error: {e}")
+        current_state = {}
+
+    # Update the state with the new data
+    current_state.update(data_to_update)
+
+    # Write the merged state back to the file
     try:
         with open(config.STATE_JSON_PATH, 'w') as f:
-            json.dump(data, f, indent=4)
-        print("State file updated for launcher.")
+            json.dump(current_state, f, indent=4)
+        print("State file updated successfully.")
         return True
-    except Exception as e:
+    except IOError as e:
         print(f"ERROR: Failed to write to state file: {e}")
         return False
 
@@ -173,7 +193,7 @@ class CONJURE_OT_import_model(bpy.types.Operator):
         
         # --- 1. Define Paths ---
         # The new location for the final mesh from the ComfyUI workflow
-        model_path = config.GENERATED_MODELS_DIR / "genMesh.glb"
+        model_path = config.GENERATED_MODEL_DIR / "genMesh.glb"
         
         if not model_path.exists():
             self.report({'ERROR'}, f"Model file not found at: {model_path}")

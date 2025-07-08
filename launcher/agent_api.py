@@ -6,12 +6,14 @@ import os
 import json
 from openai import OpenAI
 from pathlib import Path
+from instruction_manager import InstructionManager
 
 class ConversationalAgent:
-    def __init__(self, api_key):
+    def __init__(self, api_key: str, instruction_manager: InstructionManager):
         if not api_key:
             raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
         self.client = OpenAI(api_key=api_key)
+        self.instruction_manager = instruction_manager
         self.history = []
         self.system_prompt = self._load_system_prompt()
         self.history.append({"role": "system", "content": self.system_prompt})
@@ -66,6 +68,9 @@ class ConversationalAgent:
 
             if spoken_text:
                 print(f"AGENT: {spoken_text}")
+            
+            if instruction:
+                self.instruction_manager.execute_instruction(instruction)
             
             return instruction
 
