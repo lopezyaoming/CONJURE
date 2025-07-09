@@ -1,0 +1,89 @@
+**Title:** Implementation Plan: The CONJURE "Vanishing Interface"
+
+**1. Core Philosophy & Guiding Principles**
+*   This document outlines the plan to implement the new graphical user interface (GUI) for CONJURE.
+*   The guiding philosophy is the "Vanishing Interface": a hyper-minimal, glassmorphic overlay that prioritizes the user's creation, not the UI controls.
+*   **Key Principles:**
+    *   **No traditional controls:** No buttons, toggles, or sliders. Interaction is driven by voice and gesture.
+    *   **Informational, not actionable:** The UI's role is to display information (dialogue, options) and then disappear.
+    *   **Aesthetic:** Transparent, frosted glass (glassmorphism) with Helvetica Neue typography for a clean, ethereal feel.
+    *   **Two Core Components:** A persistent but minimal Dialog Bar and a transient Popup Option Selector.
+
+**2. Technology Stack & Setup**
+*   **Framework:** PyQt6. This is a modern, powerful library for creating desktop applications.
+*   **Windowing:** The UI will be a single, fullscreen, transparent, frameless, always-on-top window. This is achieved in PyQt6 by setting the `Qt.WindowType.FramelessWindowHint`, `Qt.Widget.WA_TranslucentBackground`, and `Qt.WindowType.WindowStaysOnTopHint` flags.
+*   **Styling (Glassmorphism):**
+    *   The "frosted glass" effect will be achieved using Qt Style Sheets (QSS).
+    *   We will use semi-transparent background colors (e.g., `background-color: rgba(255, 255, 255, 0.1);`).
+    *   **Note on Blur:** Achieving a true, real-time background blur ("glassmorphism") is complex and platform-dependent. For the initial implementation, we will simulate the effect with semi-transparent widgets. This provides a clean, consistent look across all systems.
+*   **Font:** Helvetica Neue. The UI will be configured to use this font. We must ensure the font is available on the target system.
+*   **Process Management:** The GUI will be a standalone Python process, launched and managed by the main `subprocess_manager.py` in the launcher.
+
+**3. Communication Protocol: The Role of `state.json`**
+*   The UI will be a "dumb" component that only reflects the application's current state. It will not contain any business logic.
+*   All communication will be handled by reading the central state file: `data/input/state.json`.
+*   A `QTimer` within the PyQt6 application will poll `state.json` at a regular interval (e.g., every 100-250ms).
+*   **Proposed `state.json` structure for UI:**
+    ```json
+    {
+      "status": "AWAITING_SELECTION",
+      // ... other state fields
+      "ui": {
+        "view": "SHOWING_OPTIONS", // or "DIALOG_ONLY", "HIDDEN"
+        "dialogue": {
+          "user_transcript": "Make it look more like a spaceship.",
+          "agent_response": "Understood. Generating three concepts for a spaceship design.",
+          "status": "Listening..." // or "Thinking...", "Speaking..."
+        },
+        "options_visible": true, // Redundant with 'view', but can be explicit
+        "selected_option": null // becomes 1, 2, or 3 after user choice
+      }
+    }
+    ```
+*   The `launcher/state_manager.py` will be responsible for updating this `ui` object in `state.json`. The UI process only reads from it.
+
+**4. Component 1: Dialog Bar**
+*   **Purpose:** To provide real-time feedback on voice interactions.
+*   **Position:** A slim, horizontal bar fixed to the bottom of the screen.
+*   **Content:**
+    *   It will display the latest `user_transcript` and `agent_response` from `state.json`.
+    *   It will also show the current agent `status` (e.g., "Listening...", "Say something...").
+*   **Implementation:**
+    *   A `QWidget` with a `QHBoxLayout`.
+    *   Two `QLabel` widgets for the text, styled with QSS for the glass effect and font.
+    *   The text of these labels will be updated by the polling `QTimer` whenever the corresponding values change in `state.json`.
+
+**5. Component 2: Popup Option Selector**
+*   **Purpose:** To present the three generated visual concepts for user selection.
+*   **Position:** Centered on the screen, appearing "over" the 3D model.
+*   **Behavior (The "Vanishing" Act):**
+    *   **Appearance Trigger:** The selector widget's visibility will be bound to the `ui.view` key in `state.json`. When the state changes to `"SHOWING_OPTIONS"`, the widget appears.
+    *   **Disappearance Trigger:** When the state changes away from `"SHOWING_OPTIONS"` (e.g., after a selection is made by gesture/voice and the main logic updates the state), the widget hides.
+*   **Content:**
+    *   Three `ImageFrame` widgets arranged horizontally. Each frame will display one of the concept images (`OP1.png`, `OP2.png`, `OP3.png`).
+    *   The file paths for these images will be read from `data/generated_images/imageOPTIONS/`.
+    *   The `ImageFrame` will be a custom `QWidget` that handles loading a `QPixmap` into a `QLabel`. It should include robust checks (file existence, file size, integrity) inspired by the reference `UI.py` to prevent crashes from partially written files.
+*   **Highlighting Selection:** When the user makes a selection (e.g., voice command "select option two"), the main logic will update `state.json` with `selected_option: 2`. The UI will read this and can apply a visual treatment (e.g., a glowing border) to the corresponding `ImageFrame` for a brief moment before the whole selector vanishes.
+
+**6. High-Level Implementation Plan**
+*   **File:** All UI code will be implemented in `launcher/gui.py`, replacing any existing content.
+*   **Step 1: Base Window & State Polling:**
+    *   Create the main `TransparentWindow(QMainWindow)` class.
+    *   Set the necessary window flags for a transparent, frameless, always-on-top overlay.
+    *   Implement the `QTimer` to poll `state.json` and store the result.
+*   **Step 2: Layout & Styling:**
+    *   Define the main layout (e.g., `QVBoxLayout`).
+    *   Create the placeholder widgets for the Dialog Bar (bottom) and Option Selector (center).
+    *   Apply the base glassmorphic styling and Helvetica Neue font using `app.setStyleSheet()`.
+*   **Step 3: Dialog Bar Implementation:**
+    *   Build the `DialogBar` widget.
+    *   Connect its update logic to the data from the state-polling timer.
+*   **Step 4: Option Selector Implementation:**
+    *   Build the `OptionSelector` container widget and the `ImageFrame` child widget.
+    *   Implement the logic to show/hide the `OptionSelector` based on `state.json`.
+    *   Implement the image loading logic within `ImageFrame`, including safety checks and refresh-on-change.
+*   **Step 5: Integration:**
+    *   Ensure `launcher/main.py` (or `subprocess_manager.py`) correctly launches `python launcher/gui.py` as a non-blocking subprocess.
+    *   Thoroughly test the communication loop: `launcher` updates `state.json` -> `gui.py` reads `state.json` -> UI display updates accordingly.
+
+This plan provides a clear path forward, respects your detailed design philosophy, and establishes a robust, decoupled architecture based on the existing project structure. 

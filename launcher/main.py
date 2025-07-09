@@ -46,6 +46,19 @@ class ConjureApp:
         self.project_root = Path(__file__).parent.parent.resolve()
         atexit.register(self.stop)
         
+        # Initialize UI state
+        self.state_manager.update_state({
+            "ui": {
+                "view": "DIALOG_ONLY",
+                "dialogue": {
+                    "user_transcript": "",
+                    "agent_response": "Welcome to CONJURE.",
+                    "status": "Say something..."
+                },
+                "selected_option": None
+            }
+        })
+
         # Initialize the agent
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
@@ -63,6 +76,9 @@ class ConjureApp:
         """Starts all the necessary components of the application."""
         print("CONJURE application starting...")
         self.state_manager.set_state("app_status", "running")
+
+        self.subprocess_manager.start_gui()
+        self.state_manager.set_state("gui_status", "running")
 
         self.subprocess_manager.start_hand_tracker()
         self.state_manager.set_state("hand_tracker_status", "running")
@@ -86,11 +102,23 @@ class ConjureApp:
         user_is_speaking = state_data.get("user_is_speaking")
 
         if user_is_speaking is True and not self.is_recording:
+            # Clear previous dialogue and set status to "Listening..."
+            self.state_manager.set_ui_state({
+                "dialogue": {
+                    "user_transcript": "",
+                    "agent_response": "",
+                    "status": "Listening..."
+                }
+            })
             self.voice_input_manager.start_recording()
             self.is_recording = True
         
         elif user_is_speaking is False and self.is_recording:
             self.is_recording = False
+            # Set status to "Thinking..." while we transcribe and process
+            self.state_manager.set_ui_state({
+                "dialogue": { "status": "Thinking..." }
+            })
             # This is a blocking call that will transcribe the audio.
             transcribed_text = self.voice_input_manager.stop_recording_and_transcribe()
             
@@ -101,7 +129,14 @@ class ConjureApp:
             # If transcription was successful, send the text to the agent.
             if transcribed_text:
                 print(f"\n>>> Sending to Agent: '{transcribed_text}'")
-                # This re-uses the existing command flow for agent text messages.
+                # First, update the UI with the user's transcript
+                self.state_manager.set_ui_state({
+                    "dialogue": {
+                        "user_transcript": transcribed_text,
+                        "agent_response": "..."
+                    }
+                })
+                # Now, set the command for the agent to process
                 self.state_manager.update_state({
                     "command": "agent_user_message",
                     "text": transcribed_text
@@ -119,7 +154,26 @@ class ConjureApp:
             self.state_manager.clear_command()
             # Now, get the agent's response. The agent may issue a new command
             # to Blender by updating the state file itself.
-            self.agent.get_response(state_data.get('text'))
+            agent_reply = self.agent.get_response(state_data.get('text'))
+            
+            # Check if the agent returned a valid spoken response.
+            if agent_reply:
+                # Update the UI with the agent's final response and reset status
+                self.state_manager.set_ui_state({
+                    "dialogue": { 
+                        "agent_response": agent_reply,
+                        "status": "Say something..."
+                    }
+                })
+            else:
+                # Inform the user that something went wrong.
+                error_message = "I had a problem processing that. Please try again."
+                self.state_manager.set_ui_state({
+                    "dialogue": { 
+                        "agent_response": error_message,
+                        "status": "Say something..."
+                    }
+                })
         elif state_data.get("generation_request") == "new":
             self.handle_generation_request()
             self.state_manager.clear_specific_requests(["generation_request"])
@@ -161,6 +215,8 @@ class ConjureApp:
         success = run_workflow(workflow, client_id)
         if success:
             print("--- promptMaker.json workflow completed successfully. ---")
+            # Update the UI to show the options
+            self.state_manager.set_ui_state({ "view": "SHOWING_OPTIONS" })
         else:
             print("--- ERROR: promptMaker.json workflow failed. ---")
 
@@ -203,6 +259,9 @@ class ConjureApp:
             print(f"ERROR: Could not load {workflow_path}.")
             self.reset_state_file({"selection_status": "failed"})
             return
+
+        # Hide the options selector while processing
+        self.state_manager.set_ui_state({ "view": "DIALOG_ONLY" })
 
         prompt_path_abs = self.project_root / "data" / "generated_text" / "userPrompt.txt"
         output_dir_abs = self.project_root / "data" / "generated_images" / "mvResults"

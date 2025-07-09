@@ -37,6 +37,27 @@ class StateManager:
         with open(self.state_file_path, 'w') as f:
             json.dump(state, f, indent=4)
 
+    def set_ui_state(self, ui_data_to_update: dict):
+        """
+        Safely updates nested keys within the 'ui' dictionary in the state.
+        """
+        state = self.get_state()
+        # Ensure the 'ui' key exists and is a dictionary
+        if 'ui' not in state or not isinstance(state['ui'], dict):
+            state['ui'] = {}
+        
+        # Merge the new data into the ui sub-dictionary
+        for key, value in ui_data_to_update.items():
+            if key == "dialogue" and isinstance(value, dict):
+                if 'dialogue' not in state['ui'] or not isinstance(state['ui']['dialogue'], dict):
+                    state['ui']['dialogue'] = {}
+                state['ui']['dialogue'].update(value)
+            else:
+                state['ui'][key] = value
+
+        with open(self.state_file_path, 'w') as f:
+            json.dump(state, f, indent=4)
+
     def clear_command(self):
         """Sets the 'command' and 'text' keys to null in the state file."""
         state = self.get_state()

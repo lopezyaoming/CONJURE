@@ -5,8 +5,18 @@
     "user_is_speaking": null,
     "command": null,
     "text": null,
-    "primitive_type": null,
+    "primitive_type": "Cylinder",
     "generation_request": null,
     "selection_request": null,
-    "import_request": null
+    "import_request": null,
+    "gui_status": "running",
+    "ui": {
+        "view": "DIALOG_ONLY",
+        "dialogue": {
+            "user_transcript": "Can we get a, can we get a carrot?",
+            "agent_response": "Absolutely, we can start with that. Let's create a cylinder, which we can sculpt into a carrot shape.",
+            "status": "Say something..."
+        },
+        "selected_option": null
+    }
 }

@@ -27,6 +27,14 @@ class SubprocessManager:
         self.processes['hand_tracker'] = process
         print("Hand tracker process started.")
 
+    def start_gui(self):
+        """Starts the gui.py script in a new process."""
+        print("Starting GUI...")
+        script_path = self.project_root / "launcher" / "gui.py"
+        process = subprocess.Popen([sys.executable, str(script_path)])
+        self.processes['gui'] = process
+        print("GUI process started.")
+
     def start_blender(self):
         """Starts Blender and enables the CONJURE addon."""
         print("Starting Blender...")

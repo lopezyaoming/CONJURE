@@ -19,6 +19,37 @@ class VoiceInputManager:
         self.recording_thread = None
         self.frames = []
 
+    def _trim_silence(self, audio, threshold_level=0.01, chunk_size=1024):
+        """
+        Trims silence from the beginning and end of a NumPy audio array.
+        """
+        if audio.size == 0:
+            return audio
+            
+        # Find the first chunk above the threshold
+        first_chunk = -1
+        for i in range(0, len(audio), chunk_size):
+            if np.max(np.abs(audio[i:i+chunk_size])) > threshold_level:
+                first_chunk = i
+                break
+        
+        # If all chunks are silent, return an empty array
+        if first_chunk == -1:
+            return np.array([])
+            
+        # Find the last chunk above the threshold
+        last_chunk = -1
+        for i in range(len(audio) - chunk_size, -1, -chunk_size):
+            if np.max(np.abs(audio[i:i+chunk_size])) > threshold_level:
+                last_chunk = i + chunk_size
+                break
+        
+        # Return the trimmed audio
+        start_index = max(0, first_chunk)
+        end_index = min(len(audio), last_chunk)
+        return audio[start_index:end_index]
+
+
     def _record_audio(self):
         """Callback-based audio recording to avoid blocking."""
         self.frames = []
@@ -55,13 +86,22 @@ class VoiceInputManager:
                 print(">>> Whisper: No audio recorded.")
                 return ""
 
-            # Concatenate all recorded frames
+            # 1. Concatenate all recorded frames
             recording = np.concatenate(self.frames, axis=0)
             
-            # Prepare the audio data in an in-memory WAV buffer
+            # 2. Trim silence from the start and end of the recording
+            trimmed_recording = self._trim_silence(recording)
+            
+            if trimmed_recording.size == 0:
+                print(">>> Whisper: Audio was all silence. Nothing to transcribe.")
+                return ""
+            
+            print(f">>> REC: Original duration: {len(recording)/self.sample_rate:.2f}s, Trimmed duration: {len(trimmed_recording)/self.sample_rate:.2f}s")
+
+            # 3. Prepare the audio data in an in-memory WAV buffer
             buffer = io.BytesIO()
             # Whisper prefers 16-bit PCM WAV
-            wav.write(buffer, self.sample_rate, (recording * 32767).astype(np.int16))
+            wav.write(buffer, self.sample_rate, (trimmed_recording * 32767).astype(np.int16))
             buffer.seek(0)
             
             # The OpenAI API needs a file tuple: (filename, file-like-object)

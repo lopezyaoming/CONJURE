@@ -9,12 +9,12 @@ Overlay Executable: Is the main orchestrator between all the subcomponents and B
 GUI: Transparent UI that displays image options, information, and The AI chat boxes, and loading screens. (maybe managed through PyQt6+QtCSS)
 Mediapipe: Camera and mediapipe models that track hand movement and writes coordinates into fingertips.json
 Communication: Communicate between Blender and ComfyUI. Operates event-based loop, triggered up by updates from state.json. can write/read shared .json files. 
-API Agent: Listen, and play by hosting an ElevenLabs API call with an agent. 
+API Agent: Manages conversational interaction, using Whisper for Speech-to-Text and ElevenLabs for Text-to-Speech.
 Subprocess Control: Launches and monitors background processes for ComfyUI workflows and CGAL segmentation modules as needed.
 
-API Agent: The Agent is a conversational AI interface powered by ElevenLabs with support for the Modular Control Protocol (MCP). Its purpose is to guide, interpret, and respond to user intent in both dialogue and design actions.
+API Agent: The Agent is a conversational AI interface powered by OpenAI (for language understanding) and ElevenLabs (for speech output), with support for the Modular Control Protocol (MCP). Its purpose is to guide, interpret, and respond to user intent in both dialogue and design actions.
 It performs the following:
-Voice Understanding: Listens continuously to user speech and determines high-level intent. At critical points (e.g., after a mesh is completed or inspected), the Agent may autonomously trigger actions.
+Voice Understanding: Listens to user speech via a "push-to-talk" system (holding the 't' key). The recorded audio is transcribed by Whisper, and the resulting text is processed to determine high-level intent. At critical points (e.g., after a mesh is completed or inspected), the Agent may autonomously trigger actions.
 Prompt Generation: Converts spoken input and scene context into clear textual prompts, which are sent to ComfyUI to generate images, variations, or 3D models.
 Scene Interpretation (Planned): The Agent may eventually evaluate screenshots or live camera feed to augment its decision-making (e.g., identify a mesh part, reaction, or user gesture).
 Narrative and Material Framing (Phase IV): In the final phase, the Agent becomes narratively active. It uses MCP to access predefined PBR materials and reconfigures the object into a cohesive design story. For example, it may label a segment as "sensor array," assign it a metallic finish, and explain its use based on prior user cues.

@@ -589,9 +589,13 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
     def check_for_launcher_requests(self):
         """Checks state.json for commands from the launcher/agent."""
+        # --- Define the absolute path to state.json relative to this script ---
+        # This is the most robust way to ensure we're always looking in the right place.
+        state_file_path = Path(__file__).parent.parent.parent / "data" / "input" / "state.json"
+
         # Read the state file
         try:
-            with open(config.STATE_JSON_PATH, 'r') as f:
+            with open(state_file_path, 'r') as f:
                 state_data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return # File not found or invalid JSON, nothing to do
@@ -608,7 +612,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 print(f"DEBUG: Clearing command '{command}' from state file.")
                 state_data["command"] = None
                 state_data["primitive_type"] = None
-                with open(config.STATE_JSON_PATH, 'w') as f:
+                with open(state_file_path, 'w') as f:
                     json.dump(state_data, f, indent=4)
         
         # We can add more command handlers here with elif blocks
@@ -628,16 +632,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
             # Clear the command
             print(f"DEBUG: Clearing command '{command}' from state file.")
             state_data["command"] = None
-            with open(config.STATE_JSON_PATH, 'w') as f:
+            with open(state_file_path, 'w') as f:
                 json.dump(state_data, f, indent=4)
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
         if context.window_manager.conjure_should_stop:
-            context.window_manager.conjure_should_stop = False # Reset the flag
             context.window_manager.conjure_is_running = False
+            context.window_manager.conjure_should_stop = False # Reset the flag
             self.cancel(context)
-            print("Conjure Fingertip Operator has been cancelled.")
             return {'CANCELLED'}
 
         # --- Handle Mouse & Keyboard Input ---
@@ -645,229 +648,76 @@ class ConjureFingertipOperator(bpy.types.Operator):
             # Allow standard navigation controls to pass through
             return {'PASS_THROUGH'}
 
-        # --- Handle Operator Logic only on Timer Events ---
+        # --- Main Logic on Timer Tick ---
         if event.type == 'TIMER':
-            # Check for commands from the launcher (e.g., spawn primitive)
+            # Add this call to poll for external commands
             self.check_for_launcher_requests()
 
-            # --- Robustly find the 3D view context, regardless of mouse position ---
-            area = next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
-            if not area:
-                return {'PASS_THROUGH'} # No 3D view available, do nothing
+            # --- 1. Read Hand Data ---
+            try:
+                with open(config.FINGERTIPS_JSON_PATH, 'r') as f:
+                    self.hand_data = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                self.hand_data = {} # Reset if file is missing or corrupt
+                pass # Continue silently if the file isn't ready
 
-            region = next((r for r in area.regions if r.type == 'WINDOW'), None)
-            if not region:
-                return {'PASS_THROUGH'} # No window region in the 3D view
+            # --- 2. Process Commands & Gestures ---
+            command = self.hand_data.get("command", "none")
+            remesh_type = self.hand_data.get("remesh_type", "NONE")
+            is_deforming = self.hand_data.get("deform_active", False)
+            closed_fist_detected = self.hand_data.get("closed_fist", False)
+            rotation_delta = self.hand_data.get("rotation", 0.0)
+            brush_change_request = self.hand_data.get("change_brush", 0) # -1 for prev, 1 for next
+            radius_change_request = self.hand_data.get("change_radius", 0) # -1 for prev, 1 for next
 
-            space_data = area.spaces.active
-            rv3d = space_data.region_3d if space_data else None
-            if not rv3d:
-                return {'PASS_THROUGH'} # No 3D region data
+            # Update the brush or radius if requested
+            if brush_change_request != 0:
+                self.handle_brush_change(brush_change_request)
+            if radius_change_request != 0:
+                self.handle_radius_change(radius_change_request)
 
-            depsgraph = context.evaluated_depsgraph_get()
+            # --- 3. Update Camera Orbit ---
+            self.handle_camera_orbit(rotation_delta)
 
-            live_data = {}
-            if os.path.exists(config.FINGERTIPS_JSON_PATH):
-                with open(config.FINGERTIPS_JSON_PATH, "r") as f:
-                    try:
-                        live_data = json.load(f)
-                    except json.JSONDecodeError:
-                        live_data = {} # Keep going with empty data
+            # --- 4. Update Fingertip Markers ---
+            self.update_fingertip_markers(context)
 
-            command = live_data.get("command", "none")
-            mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
-
-            # --- Process Fingertips for Visualization ---
-            right_hand_data = live_data.get("right_hand")
-            left_hand_data = live_data.get("left_hand")
-            
-            # Create a combined list of all 10 possible finger datas (None if not present)
-            all_finger_datas = (left_hand_data["fingertips"] if left_hand_data else [None]*5) + \
-                               (right_hand_data["fingertips"] if right_hand_data else [None]*5)
-
-            finger_positions_3d = [] # This will store the final, snapped positions for deformation
-
-            for i, tip in enumerate(all_finger_datas):
-                marker_obj = bpy.data.objects.get(f"Fingertip.{i:02d}")
-                if not marker_obj:
-                    continue
-
-                if tip:
-                    # --- FINGER IS PRESENT ---
-                    self.marker_states[i]['missing_frames'] = 0
-                    marker_obj.hide_viewport = False
-
-                    raw_pos_3d = map_hand_to_3d_space(tip['x'], tip['y'], tip['z'])
-                    
-                    # Default positions, in case no snapping occurs
-                    deformation_pos = raw_pos_3d
-                    visual_marker_pos = raw_pos_3d
-
-                    # --- SURFACE SNAPPING LOGIC ---
-                    if region and rv3d and mesh_obj:
-                        pos_2d = location_3d_to_region_2d(region, rv3d, raw_pos_3d)
-                        if pos_2d:
-                            ray_origin = region_2d_to_origin_3d(region, rv3d, pos_2d)
-                            ray_direction = region_2d_to_vector_3d(region, rv3d, pos_2d)
-                            hit, loc, normal, _, hit_obj, _ = context.scene.ray_cast(depsgraph, ray_origin, ray_direction)
-                            
-                            if hit and hit_obj == mesh_obj:
-                                # DEFORMATION happens at the exact hit location.
-                                deformation_pos = loc
-
-                                # VISUAL MARKER is offset directly back towards the camera to prevent all z-fighting.
-                                visual_marker_pos = loc - (ray_direction * config.MARKER_SURFACE_OFFSET)
-                            else:
-                                # If we aren't hitting the mesh, reset the last known normal.
-                                pass # No special handling needed if not hitting
-                    
-                    # The deformation list gets the precise, non-offset position.
-                    finger_positions_3d.append(deformation_pos)
-
-                    # Smooth the visual marker's movement to its target position.
-                    last_pos = self.marker_states[i]['last_pos']
-                    smoothed_pos = last_pos.lerp(visual_marker_pos, config.SMOOTHING_FACTOR)
-                    marker_obj.location = smoothed_pos
-                    self.marker_states[i]['last_pos'] = smoothed_pos
+            # --- 5. Perform Mesh Deformation ---
+            deform_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
+            if deform_obj and is_deforming and self.visible_fingers:
+                # Get the active brush type
+                brush_type = self.brush_settings['name']
                 
-                else:
-                    # --- FINGER IS MISSING ---
-                    finger_positions_3d.append(None) # Add a placeholder for indexing
-                    self.marker_states[i]['missing_frames'] += 1
-                    if self.marker_states[i]['missing_frames'] > config.HIDE_GRACE_PERIOD_FRAMES:
-                        marker_obj.hide_viewport = True
-
-            # --- Execute Commands ---
-            if not mesh_obj:
-                print(f"'{config.DEFORM_OBJ_NAME}' not found. Cannot execute commands.")
-                return {'PASS_THROUGH'}
-
-            # --- Calculate hand movement vector for GRAB brush ---
-            current_hand_center = None
-            hand_move_vector = None
-            if right_hand_data and "fingertips" in right_hand_data and len(right_hand_data["fingertips"]) >= 2:
-                thumb_tip = right_hand_data["fingertips"][0]
-                index_tip = right_hand_data["fingertips"][1]
-                # We use the raw positions for calculating the grab vector to avoid snapping influencing it
-                thumb_pos = map_hand_to_3d_space(thumb_tip['x'], thumb_tip['y'], thumb_tip['z'])
-                index_pos = map_hand_to_3d_space(index_tip['x'], index_tip['y'], index_tip['z'])
-                current_hand_center = (thumb_pos + index_pos) / 2.0
-                if self._last_hand_center:
-                    hand_move_vector = current_hand_center - self._last_hand_center
-            
-            # Update last hand center for the next frame
-            self._last_hand_center = current_hand_center
-
-            if command == "deform":
-                # The deform points are the thumb and index of the right hand (indices 5 and 6)
-                if len(finger_positions_3d) > 6 and finger_positions_3d[5] and finger_positions_3d[6]:
-                    deform_points = [finger_positions_3d[5], finger_positions_3d[6]]
-                    
-                    if config.USE_VELOCITY_FORCES:
-                        active_brush = config.BRUSH_TYPES[self._current_brush_index]
-                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, self, active_brush, hand_move_vector)
-                    else:
-                        deform_mesh(mesh_obj, deform_points, self._initial_volume)
-
-            elif command == "orbit":
-                camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
-                orbit_delta = live_data.get("orbit_delta", {"x": 0.0, "y": 0.0})
-
-                if camera and orbit_delta:
-                    # Apply smoothing to the raw delta values
-                    raw_delta_x = orbit_delta.get("x", 0.0)
-                    raw_delta_y = orbit_delta.get("y", 0.0)
-                    
-                    self._last_orbit_delta['x'] = self._last_orbit_delta['x'] * (1 - config.ORBIT_SMOOTHING_FACTOR) + raw_delta_x * config.ORBIT_SMOOTHING_FACTOR
-                    self._last_orbit_delta['y'] = self._last_orbit_delta['y'] * (1 - config.ORBIT_SMOOTHING_FACTOR) + raw_delta_y * config.ORBIT_SMOOTHING_FACTOR
-
-                    smoothed_delta_x = self._last_orbit_delta['x']
-                    smoothed_delta_y = self._last_orbit_delta['y']
-
-                    if abs(smoothed_delta_x) > 0.0001 or abs(smoothed_delta_y) > 0.0001:
-                        # Horizontal movement orbits around the world Z-axis
-                        angle_z = -smoothed_delta_x * math.radians(config.ORBIT_SENSITIVITY)
-                        rot_z = mathutils.Matrix.Rotation(angle_z, 4, 'Z')
-
-                        # Vertical movement orbits around the camera's local X-axis
-                        angle_x = -smoothed_delta_y * math.radians(config.ORBIT_SENSITIVITY)
-                        local_x_axis = camera.matrix_world.to_3x3().col[0]
-                        rot_x = mathutils.Matrix.Rotation(angle_x, 4, local_x_axis)
-
-                        # Apply rotation to the camera's location vector
-                        new_location = rot_z @ rot_x @ camera.location
-
-                        # Re-point the camera to the origin (0,0,0) after moving
-                        direction = -new_location
-                        rot_quat = direction.to_track_quat('-Z', 'Y')
-
-                        camera.location = new_location
-                        camera.rotation_euler = rot_quat.to_euler()
-
-            elif command == "reset_rotation":
-                # Also reset velocities when resetting camera for a clean stop
-                for index in self._vertex_velocities:
-                    self._vertex_velocities[index] = mathutils.Vector((0,0,0))
-
-                camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
-                if camera and self._initial_camera_matrix:
-                    camera.matrix_world = self._initial_camera_matrix
+                # Calculate hand movement vector for the GRAB brush
+                hand_move_vector = None
+                if brush_type == 'GRAB' and self._last_hand_center:
+                    current_hand_center = self.get_hand_center()
+                    if current_hand_center:
+                        hand_move_vector = current_hand_center - self._last_hand_center
                 
-                # Also reset the mesh's position to the world origin using the specified method
-                if mesh_obj:
-                    try:
-                        bpy.context.view_layer.objects.active = mesh_obj
-                        # 1. Move 3D cursor to the world origin
-                        bpy.context.scene.cursor.location = (0, 0, 0)
-                        # 2. Set the object's origin to the 3D cursor's location
-                        bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='MEDIAN')
-                        # 3. Move the geometry to the object's new origin
-                        bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN')
-                        print(f"'{config.DEFORM_OBJ_NAME}' has been re-centered using the 3D cursor method.")
-                    except RuntimeError as e:
-                        print(f"Could not re-center mesh. Operator context may be incorrect: {e}")
+                # Always use the viscosity-based deformation now
+                self.deform_mesh_with_viscosity(
+                    deform_obj,
+                    [f['world_pos'] for f in self.visible_fingers],
+                    self._initial_volume,
+                    self._vertex_velocities,
+                    self._history_buffer,
+                    self,
+                    brush_type=brush_type,
+                    hand_move_vector=hand_move_vector
+                )
 
-            elif command == "cycle_brush":
-                if self._last_command != "cycle_brush": # Trigger only once per gesture
-                    self._current_brush_index = (self._current_brush_index + 1) % len(config.BRUSH_TYPES)
-                    print(f"Switched brush to: {config.BRUSH_TYPES[self._current_brush_index]}")
+            # --- 6. Handle Gesture-based Rendering ---
+            if closed_fist_detected and not self.last_closed_fist_state:
+                self.handle_gesture_render()
 
-            elif command == "cycle_radius":
-                if self._last_command != "cycle_radius":
-                    self._current_radius_index = (self._current_radius_index + 1) % len(config.RADIUS_LEVELS)
-                    print(f"Set brush radius to: {config.RADIUS_LEVELS[self._current_radius_index]['name']}")
-
-            elif command == "rewind":
-                # With rewind as a continuous command, we pop one state per frame it's active.
-                if self._history_buffer and len(self._history_buffer) > 0:
-                    previous_verts = self._history_buffer.pop()
-                    for i, v_co in enumerate(previous_verts):
-                        mesh_obj.data.vertices[i].co = v_co
-                    mesh_obj.data.update()
-                    print(f"Rewind step. History has {len(self._history_buffer)} steps remaining.")
-                else:
-                    # To prevent console spam, we can just pass or have a silent print
-                    pass
-
-            else:
-                # If no command is active, gradually bring all vertex velocities to a stop.
-                # This makes the mesh feel like it's settling in a viscous fluid.
-                if config.USE_VELOCITY_FORCES:
-                    is_settling = False
-                    for index, vel in self._vertex_velocities.items():
-                        if vel.length > 0.001:
-                            self._vertex_velocities[index] *= config.VELOCITY_DAMPING_FACTOR
-                            is_settling = True
-                    
-                    # If any vertex is still moving, we need to update the mesh
-                    if is_settling:
-                        deform_mesh_with_viscosity(mesh_obj, [], self._initial_volume, self._vertex_velocities, self._history_buffer, self)
-
-            self._last_command = command
-
-            # This is our main refresh tick
-            self._timer_last_update = time.time()
-            # self.check_for_launcher_requests() # Moved to the top of the modal method
+            # --- 7. Update State & Redraw ---
+            self.last_closed_fist_state = closed_fist_detected
+            self._last_hand_center = self.get_hand_center() # Update for next frame
+            
+            # Tag the viewport for redrawing to show updates
+            if context.area:
+                context.area.tag_redraw()
 
         return {'PASS_THROUGH'}
 

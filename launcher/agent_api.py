@@ -102,7 +102,7 @@ class ConversationalAgent:
             if instruction:
                 self.instruction_manager.execute_instruction(instruction)
             
-            return instruction
+            return spoken_text
 
         except json.JSONDecodeError:
             print(f"Error: Could not decode JSON response from agent: {response_str}")

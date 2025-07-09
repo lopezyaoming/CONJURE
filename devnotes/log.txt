@@ -141,6 +141,26 @@ Advances:
     *   Modified the launcher to auto-start the CONJURE operator, removing the need for an extra click on initialization. 
 
 ---
+Date: 2025-06-10
+
+This session focused on integrating robust Speech-to-Text (STT) capabilities into the platform, enabling natural voice interaction with the conversational agent.
+
+Advances:
+1.  **Whisper STT Integration**:
+    *   Pivoted to OpenAI's Whisper API for high-accuracy transcription.
+    *   The system now uses a "push-to-talk" mechanism. The user holds the 't' key to record their voice command, which is then sent for transcription upon release.
+
+2.  **Voice Input Management**:
+    *   Created a new, self-contained `VoiceInputManager` module (`launcher/voice_input_manager.py`) to handle all audio recording and communication with the Whisper API.
+    *   The `hand_tracker.py` script was updated to listen for the 't' key presses and releases, signaling the start and end of the recording phase to the main application via `state.json`.
+
+3.  **Core Integration**:
+    *   The main application loop in `launcher/main.py` now orchestrates the STT lifecycle, managing the recording state and feeding the final transcribed text directly to the `ConversationalAgent`.
+    *   The existing ElevenLabs integration for Text-to-Speech (TTS) was preserved, allowing the agent to respond verbally.
+
+4.  **Latency Optimization**:
+    *   To improve responsiveness, a silence-trimming feature was added to the `VoiceInputManager`. This function automatically removes leading and trailing silence from audio clips before they are uploaded, reducing file size and speeding up the transcription process.
+---
 Date: 2025-06-09
 
 Focus on implementing the final 2D-to-3D generation pipeline and a mesh history system.
