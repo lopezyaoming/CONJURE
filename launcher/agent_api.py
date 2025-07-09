@@ -13,7 +13,7 @@ from elevenlabs.client import ElevenLabs
 # --- ElevenLabs Configuration ---
 # You can find your Voice ID in the Voice Lab on the ElevenLabs website.
 # 'Adam' is a good, deep, generic male voice.
-TTS_VOICE_ID = "90ipbRoKi4CpHXvKVtl0" 
+TTS_VOICE_ID = "XcXEQzuLXRU9RcfWzEJt" 
 # This is the latest and highest-quality model.
 TTS_MODEL_ID = "eleven_flash_v2_5"
 

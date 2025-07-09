@@ -13,8 +13,8 @@
     "ui": {
         "view": "DIALOG_ONLY",
         "dialogue": {
-            "user_transcript": "Can we get a, can we get a carrot?",
-            "agent_response": "Absolutely, we can start with that. Let's create a cylinder, which we can sculpt into a carrot shape.",
+            "user_transcript": "I repent. Instead, we should create a cylinder.",
+            "agent_response": "No problem, let's switch to a cylinder. I've created a cylinder for you.",
             "status": "Say something..."
         },
         "selected_option": null

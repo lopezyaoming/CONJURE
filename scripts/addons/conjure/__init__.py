@@ -4,6 +4,7 @@ import bpy
 from .ops_agent import CONJURE_OT_send_to_agent
 from .operator_main import ConjureFingertipOperator
 from .ops_io import CONJURE_OT_generate_concepts, CONJURE_OT_select_concept, CONJURE_OT_import_model
+from .ops_primitives import CONJURE_OT_spawn_primitive
 from .panel_ui import CONJURE_PT_ui_panel, CONJURE_PG_settings
 from .startup import register_properties, unregister_properties
 
@@ -25,6 +26,7 @@ CLASSES = [
     CONJURE_OT_select_concept,
     CONJURE_OT_import_model,
     CONJURE_OT_send_to_agent,
+    CONJURE_OT_spawn_primitive,
 ]
 
 def register():

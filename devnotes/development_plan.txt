@@ -124,38 +124,38 @@ The goal of this phase was to research the best approach for voice integration a
 
 ---
 
-### **Phase 7: Agent Implementation**
+### **Phase 7: Agent Implementation (✅ Completed)**
 
 The goal is to bring the fully-designed conversational agent to life by implementing the connection to the ElevenLabs API and wiring its commands into our state-driven system.
 
 -   **1. Configure the Cloud Agent:**
-    -   [ ] In the ElevenLabs dashboard, create the Conversational AI Agent.
-    -   [ ] Configure it with a voice, an LLM (e.g., GPT-4o), and copy the contents of `devnotes/agentPrompt.txt` into its system prompt.
-    -   [ ] Implement the tools defined in `devnotes/agentToolset.txt` within the ElevenLabs agent's configuration.
+    -   [x] In the ElevenLabs dashboard, create the Conversational AI Agent.
+    -   [x] Configure it with a voice, an LLM (e.g., GPT-4o), and copy the contents of `devnotes/agentPrompt.txt` into its system prompt.
+    -   [x] Implement the tools defined in `devnotes/agentToolset.txt` within the ElevenLabs agent's configuration.
 
 -   **2. Implement Real-Time Audio & API Connection:**
-    -   [ ] In `launcher/agent_api.py`, implement the WebSocket (`WSS`) connection to the ElevenLabs agent.
-    -   [ ] Add microphone audio capture (e.g., using `PyAudio`) and stream the live audio to the agent.
-    -   [ ] Add logic to receive the agent's TTS audio response and play it back to the user.
+    -   [x] In `launcher/agent_api.py`, implement the WebSocket (`WSS`) connection to the ElevenLabs agent.
+    -   [x] Add microphone audio capture (e.g., using `PyAudio`) and stream the live audio to the agent.
+    -   [x] Add logic to receive the agent's TTS audio response and play it back to the user.
 
 -   **3. Implement Tool & Prompt Handling:**
-    -   [ ] In `launcher/agent_api.py`, create a listener for the agent's structured JSON output.
-    -   [ ] Write a parser for the `instruction` object. When a tool call is received, use `state_manager.py` to update `state.json` with the corresponding command.
-    -   [ ] Write the `user_prompt` string from the agent's JSON output to the `data/generated_text/userPrompt.txt` file.
+    -   [x] In `launcher/agent_api.py`, create a listener for the agent's structured JSON output.
+    -   [x] Write a parser for the `instruction` object. When a tool call is received, use `state_manager.py` to update `state.json` with the corresponding command.
+    -   [x] Write the `user_prompt` string from the agent's JSON output to the `data/generated_text/userPrompt.txt` file.
 
 -   **4. Integrate with Main Application Loop:**
-    -   [ ] In `launcher/main.py`, instantiate and start the agent connection.
-    -   [ ] Ensure the main loop correctly reacts to the commands in `state.json` as they are now being triggered by the agent.
+    -   [x] In `launcher/main.py`, instantiate and start the agent connection.
+    -   [x] Ensure the main loop correctly reacts to the commands in `state.json` as they are now being triggered by the agent.
 
 ---
 
-### **Phase 8: Overlay Transparent GUI**
+### **Phase 8: Overlay Transparent GUI (✅ Completed)**
 
 The goal is to build out the final user interface for displaying AI-generated images, status information, and a chat log.
 
--   [ ] **Flesh out GUI:** Build the complete, interactive GUI in `launcher/gui.py` using PyQt6.
--   [ ] **Add Chat/Log Box:** Implement a text area to display agent messages and a log of system events.
--   [ ] **Add Status Indicators:** Create visual elements to show when the system is busy (e.g., "Generating...", "Importing...").
+-   [x] **Flesh out GUI:** Build the complete, interactive GUI in `launcher/gui.py` using PyQt6.
+-   [x] **Add Chat/Log Box:** Implement a text area to display agent messages and a log of system events.
+-   [x] **Add Status Indicators:** Create visual elements to show when the system is busy (e.g., "Generating...", "Importing...") and to display the active brush type and radius.
 
 ---
 

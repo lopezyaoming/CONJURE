@@ -126,7 +126,25 @@ class DialogBar(QWidget):
 
         main_layout.addWidget(self.user_transcript_label)
         main_layout.addWidget(self.agent_response_label)
-        main_layout.addStretch(1) # Pushes footer to the bottom of the box
+
+        # --- Brush Info Area ---
+        brush_info_layout = QHBoxLayout()
+        brush_info_layout.setContentsMargins(0, 15, 0, 5) # Add some vertical margin
+        brush_info_layout.setSpacing(30)
+
+        self.brush_type_label = QLabel("")
+        self.brush_type_label.setObjectName("BrushInfoLabel")
+        
+        self.brush_size_label = QLabel("")
+        self.brush_size_label.setObjectName("BrushInfoLabel")
+
+        brush_info_layout.addStretch(1)
+        brush_info_layout.addWidget(self.brush_type_label)
+        brush_info_layout.addWidget(self.brush_size_label)
+        brush_info_layout.addStretch(1)
+        
+        main_layout.addLayout(brush_info_layout)
+        main_layout.addStretch(1) # Pushes footer to the bottom
 
         # --- Footer Area ---
         footer_layout = QHBoxLayout()
@@ -135,12 +153,12 @@ class DialogBar(QWidget):
         self.status_label = QLabel("...")
         self.status_label.setObjectName("StatusLabel")
 
-        calliope_label = QLabel("CALLIOPE")
-        calliope_label.setObjectName("CalliopeLabel")
+        conjure_label = QLabel("CONJURE")
+        conjure_label.setObjectName("ConjureLabel")
 
         footer_layout.addWidget(self.status_label)
         footer_layout.addStretch(1)
-        footer_layout.addWidget(calliope_label)
+        footer_layout.addWidget(conjure_label)
 
         main_layout.addLayout(footer_layout)
 
@@ -150,6 +168,14 @@ class DialogBar(QWidget):
         self.user_transcript_label.setText(dialogue_state.get("user_transcript", ""))
         self.agent_response_label.setText(dialogue_state.get("agent_response", "..."))
         self.status_label.setText(dialogue_state.get("status", "..."))
+
+        # Update brush info, defaulting to empty strings if not present
+        brush_type = dialogue_state.get("brush_type", "")
+        brush_radius = dialogue_state.get("brush_radius", "")
+        
+        # Only display if the data is available
+        self.brush_type_label.setText(f"BRUSH: {brush_type.upper()}" if brush_type else "")
+        self.brush_size_label.setText(f"RADIUS: {brush_radius.upper()}" if brush_radius else "")
 
 
 class TransparentWindow(QMainWindow):
@@ -261,7 +287,13 @@ if __name__ == "__main__":
             color: white;
             font-weight: 700;
         }}
-        #CalliopeLabel {{
+        #BrushInfoLabel {{
+            font-family: "{FONT_NAME}";
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 300; /* Light */
+        }}
+        #ConjureLabel {{
             font-size: 14px;
             color: white;
             font-weight: 700;

@@ -491,149 +491,119 @@ class ConjureFingertipOperator(bpy.types.Operator):
     marker_states = []
 
     def get_mesh_volume(self, mesh_obj):
-        """Calculates the volume of a given mesh object using bmesh."""
-        if not mesh_obj or mesh_obj.type != 'MESH':
-            print("Warning: get_mesh_volume called on an invalid object.")
-            return 0.0
-
-        # Use the evaluated dependency graph to get the mesh with all modifiers applied.
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-        obj_eval = mesh_obj.evaluated_get(depsgraph)
-        mesh_from_eval = obj_eval.to_mesh()
-
+        """
+        Calculates the volume of a mesh.
+        """
+        # Ensure the mesh is a BMesh object
         bm = bmesh.new()
-        bm.from_mesh(mesh_from_eval)
-        
-        # Triangulation is good practice for robust volume calculation.
-        bmesh.ops.triangulate(bm, faces=bm.faces[:])
-        
+        bm.from_mesh(mesh_obj.data)
+        bm.transform(mesh_obj.matrix_world)
         volume = bm.calc_volume(signed=True)
-        
-        # Clean up the temporary bmesh and mesh data
         bm.free()
-        obj_eval.to_mesh_clear()
-        
         return abs(volume)
 
-    def handle_spawn_primitive(self, primitive_type):
-        """
-        Spawns a new primitive by duplicating it from the 'PRIMITIVES' collection.
-        """
-        print(f"DEBUG: handle_spawn_primitive received type: {primitive_type}")
-
-        # --- 1. Find the Primitive Template ---
-        # Look inside CONJURE SETUP -> PRIMITIVES collection for the template
-        print("DEBUG: Searching for 'CONJURE SETUP/PRIMITIVES' collection...")
-        conjure_setup_coll = bpy.data.collections.get("CONJURE SETUP")
-        source_collections = conjure_setup_coll.children.get("PRIMITIVES") if conjure_setup_coll else None
-        
-        if not source_collections:
-             # Fallback for older scene structures
-            print("DEBUG: Fallback - Searching for top-level 'PRIMITIVES' collection.")
-            source_collections = bpy.data.collections.get("PRIMITIVES")
-            if not source_collections:
-                 print("ERROR: Could not find the 'PRIMITIVES' or 'CONJURE SETUP/PRIMITIVES' collection.")
-            return
-
-        print(f"DEBUG: Found source collection: {source_collections.name}")
-
-        template_obj = source_collections.objects.get(primitive_type)
-        
-        if not template_obj:
-            print(f"ERROR: Primitive '{primitive_type}' not found in collection '{source_collections.name}'.")
-            return
-        
-        print(f"DEBUG: Found template object: {template_obj.name}")
-
-        # --- 2. Clear Existing Deformable Mesh ---
-        if config.DEFORM_OBJ_NAME in bpy.data.objects:
-            print(f"DEBUG: Removing existing '{config.DEFORM_OBJ_NAME}'.")
-            bpy.data.objects.remove(bpy.data.objects[config.DEFORM_OBJ_NAME], do_unlink=True)
-
-        # --- 3. Duplicate and Link the New Mesh ---
-        print("DEBUG: Duplicating template object...")
-        new_obj = template_obj.copy()
-        new_obj.data = template_obj.data.copy() # Also copy mesh data
-        new_obj.name = config.DEFORM_OBJ_NAME
-        bpy.context.scene.collection.objects.link(new_obj)
-        print(f"DEBUG: Successfully spawned '{new_obj.name}' from template '{template_obj.name}'.")
-
-        # --- 4. Set as Active and Selected ---
-        print("DEBUG: Setting new object as active and selected.")
-        bpy.ops.object.select_all(action='DESELECT')
-        new_obj.select_set(True)
-        bpy.context.view_layer.objects.active = new_obj
-
-        # --- 5. Recalculate Initial Volume for Deformation ---
-        self._initial_volume = self.get_mesh_volume(new_obj)
-        print(f"Set initial volume for new mesh: {self._initial_volume}")
-
-
+    def reinitialize_mesh_state(self):
+        """Resets the history and volume tracking for a new mesh."""
+        mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
+        if mesh_obj:
+            self._initial_volume = self.get_mesh_volume(mesh_obj)
+            self._vertex_velocities.clear()
+            self._history_buffer.clear()
+            self._history_buffer.add_state(mesh_obj.data) # Save the initial state of the new mesh
+            print("--- OPERATOR: Mesh state re-initialized. ---")
+            
     def draw_ui_text(self, context):
-        """Draws the current brush name on the viewport."""
-        font_id = 0  # Default font
-        
-        # Draw Brush Name
-        blf.position(font_id, 15, 60, 0)
-        blf.size(font_id, 20)
-        blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
-        active_brush = config.BRUSH_TYPES[self._current_brush_index]
-        blf.draw(font_id, f"Brush: {active_brush}")
+        """Draws the current command and radius on the 3D View."""
+        active_command = self.get_active_command()
+        radius_setting = config.RADIUS_LEVELS[self._current_radius_index]['name']
 
-        # Draw Radius Size
-        blf.position(font_id, 15, 30, 0)
-        blf.size(font_id, 20)
-        blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
-        active_radius = config.RADIUS_LEVELS[self._current_radius_index]['name'].upper()
-        blf.draw(font_id, f"Radius: {active_radius}")
+        # Choose a color based on the command
+        if active_command == 'PINCH':
+            color = (0.2, 0.6, 1.0, 1.0) # Blue
+        elif active_command == 'GRAB':
+            color = (1.0, 0.8, 0.2, 1.0) # Yellow
+        elif active_command == 'SMOOTH':
+            color = (0.4, 1.0, 0.4, 1.0) # Green
+        elif active_command == 'INFLATE':
+            color = (1.0, 0.4, 0.4, 1.0) # Red
+        elif active_command == 'FLATTEN':
+            color = (0.8, 0.5, 1.0, 1.0) # Purple
+        else:
+            color = (1.0, 1.0, 1.0, 1.0) # White
+
+        # --- Draw Text using blf ---
+        font_id = 0 # Default font
+        blf.position(font_id, 15, 50, 0)
+        blf.size(font_id, 16, 72)
+        blf.color(font_id, *color)
+        blf.draw(font_id, f"Brush: {active_command}")
+        
+        blf.position(font_id, 15, 25, 0)
+        blf.size(font_id, 14, 72)
+        blf.color(font_id, 0.8, 0.8, 0.8, 1.0)
+        blf.draw(font_id, f"Radius: {radius_setting.capitalize()}")
+
 
     def check_for_launcher_requests(self):
-        """Checks state.json for commands from the launcher/agent."""
-        # --- Define the absolute path to state.json relative to this script ---
-        # This is the most robust way to ensure we're always looking in the right place.
-        state_file_path = Path(__file__).parent.parent.parent / "data" / "input" / "state.json"
+        """Checks the state file for commands from the main launcher."""
+        state_file_path = config.STATE_JSON_PATH
+        
+        # Check if the file exists and has been modified recently
+        if not state_file_path.exists():
+            return
 
-        # Read the state file
         try:
             with open(state_file_path, 'r') as f:
                 state_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return # File not found or invalid JSON, nothing to do
+        except (json.JSONDecodeError, IOError):
+            # If the file is being written to or is corrupt, skip this check
+            return
 
         command = state_data.get("command")
-        if command:
-            print(f"DEBUG: Operator detected command '{command}' in state file.")
 
-        if command == "spawn_primitive":
-            primitive_type = state_data.get("primitive_type")
-            if primitive_type:
-                self.handle_spawn_primitive(primitive_type)
-                # Clear the command in the state file so it doesn't run again
+        if command:
+            # --- AGENT COMMANDS ---
+            if command == "spawn_primitive":
+                primitive_type = state_data.get("primitive_type")
+                if primitive_type:
+                    print(f"--- LAUNCHER REQUEST: Spawning primitive '{primitive_type}' ---")
+                    bpy.ops.conjure.spawn_primitive(primitive_type=primitive_type)
+                    self.reinitialize_mesh_state()
+                else:
+                    print("--- LAUNCHER WARNING: spawn_primitive command received but no primitive_type specified.")
+            
+            elif command == "change_brush":
+                new_brush = state_data.get("brush_type")
+                if new_brush and new_brush.upper() in config.BRUSH_TYPES:
+                    self.handle_brush_change(new_brush)
+                else:
+                    print(f"--- LAUNCHER WARNING: change_brush command received with invalid brush type '{new_brush}'.")
+            
+            elif command == "change_radius":
+                new_radius = state_data.get("radius_level")
+                if new_radius and new_radius.upper() in ['SMALL', 'MEDIUM', 'LARGE']:
+                    self.handle_radius_change(new_radius)
+                else:
+                    print(f"--- LAUNCHER WARNING: change_radius command received with invalid radius level '{new_radius}'.")
+            
+            elif command == "import_last_model":
+                # We need to override the context to ensure the operator runs in the 3D view
+                area = next((a for a in bpy.context.screen.areas if a.type == 'VIEW_3D'), None)
+                if area:
+                    try:
+                        print("DEBUG: Executing bpy.ops.conjure.import_model() with context override.")
+                        with bpy.context.temp_override(area=area):
+                            bpy.ops.conjure.import_model('EXEC_DEFAULT')
+                    except Exception as e:
+                        print(f"ERROR: Failed to execute conjure.import_model operator: {e}")
+                else:
+                    print("ERROR: Could not find a 3D View area to run the import operator.")
+                
+                # Clear the command
                 print(f"DEBUG: Clearing command '{command}' from state file.")
                 state_data["command"] = None
-                state_data["primitive_type"] = None
                 with open(state_file_path, 'w') as f:
                     json.dump(state_data, f, indent=4)
-        
-        # We can add more command handlers here with elif blocks
-        elif command == "import_last_model":
-            # We need to override the context to ensure the operator runs in the 3D view
-            area = next((a for a in bpy.context.screen.areas if a.type == 'VIEW_3D'), None)
-            if area:
-                try:
-                    print("DEBUG: Executing bpy.ops.conjure.import_model() with context override.")
-                    with bpy.context.temp_override(area=area):
-                        bpy.ops.conjure.import_model('EXEC_DEFAULT')
-                except Exception as e:
-                    print(f"ERROR: Failed to execute conjure.import_model operator: {e}")
-            else:
-                print("ERROR: Could not find a 3D View area to run the import operator.")
-            
-            # Clear the command
-            print(f"DEBUG: Clearing command '{command}' from state file.")
-            state_data["command"] = None
-            with open(state_file_path, 'w') as f:
-                json.dump(state_data, f, indent=4)
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop

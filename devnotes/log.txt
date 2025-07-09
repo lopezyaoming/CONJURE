@@ -175,3 +175,28 @@ Advances:
     *   The launcher will be updated to automatically trigger the `mv23D.json` workflow.
     *   A state-based signaling system (`import_request`) will be added to notify Blender when a new model is ready.
     *   A comprehensive mesh history system will be built in Blender to archive previous meshes and make the newly generated model the active sculpting target. 
+---
+Date: 2025-06-11
+
+Focus: Agent Actionability & Core Pipeline Fix
+
+Advances:
+1.  **Agent Command Execution Fix (`spawn_primitive`)**:
+    *   Identified and resolved a critical bug where the conversational agent's `spawn_primitive` instruction was correctly parsed by the launcher but was not executed in Blender.
+    *   **Problem**: The `operator_main.py` script was attempting to call a non-existent Blender operator.
+    *   **Solution**:
+        *   A new, dedicated operator (`CONJURE_OT_spawn_primitive`) was created in `scripts/addons/conjure/ops_primitives.py` to handle the logic of finding, unhiding, and renaming the primitive meshes.
+        *   The new operator was correctly registered in the addon's `__init__.py`.
+        *   The incorrect operator call in `operator_main.py` was surgically replaced with the correct one, `bpy.ops.conjure.spawn_primitive(...)`.
+    *   This fix establishes the final link between the agent's instructions and direct action in the scene, making the core conversational modeling workflow fully operational. 
+---
+Date: 2025-06-12
+
+Focus: Finalizing the User Interface
+
+Advances:
+1.  **GUI Polish and Information Display**:
+    *   Completed the main overlay GUI by adding crucial real-time status information for the user.
+    *   The `DialogBar` now displays the currently active **Brush Type** and **Brush Radius** directly below the agent's dialogue, providing immediate visual feedback for the user's gesture-based tool changes.
+    *   The new labels are styled with a lighter, secondary font (`Helvetica Neue Light`) to maintain a clear visual hierarchy.
+    *   Updated the UI branding, replacing the placeholder "CALLIOPE" logo with the official "CONJURE" brand mark. 
