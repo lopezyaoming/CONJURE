@@ -1,0 +1,66 @@
+# Guide: Adapting New ComfyUI Workflows for the CONJURE Pipeline
+
+This document outlines the process for integrating a new or "fresh" ComfyUI workflow JSON file into the CONJURE system.
+
+## Core Principle: Dynamic Path Overwriting
+
+It is critical to understand that we do **not** manually edit the file paths inside a workflow JSON file. The absolute paths you see (e.g., `C:\\Coding\\CONJURE\\...`) serve as placeholders.
+
+The CONJURE `launcher/main.py` script is responsible for **dynamically overwriting** these paths at runtime. It loads the workflow file into memory, injects the correct, project-relative paths for inputs and outputs, and then sends the modified workflow to the ComfyUI server.
+
+The process of adapting a new workflow, therefore, is about **identifying the unique ID numbers of the relevant nodes** so the launcher can target them.
+
+---
+
+## Step-by-Step Adaptation Process
+
+### Step 1: Identify Key Input Node IDs
+
+You need to find the ID for any node that loads data from an external file. The most common are the text prompt and the initial input images.
+
+1.  **Find the Prompt Loader Node:**
+    *   Open the new workflow JSON file.
+    *   Search for a node with the `class_type` of `"Load Text File"`.
+    *   Note its ID number (the key at the top level, e.g., `"120"`). This is the node that loads `userPrompt.txt`.
+
+2.  **Find the Image Loader Nodes:**
+    *   Search for nodes with the `class_type` of `"LoadImage"`.
+    *   These nodes load the initial view-dependent images (`FRONT.png`, `BACK.png`, etc.). The launcher automatically copies these files to the ComfyUI `input` directory, so the filenames in the JSON are correct. You typically do not need to modify the launcher for these, but it is good to be aware of them.
+
+### Step 2: Identify Key Output Node IDs
+
+You need to find the IDs for any node that saves a file, as the launcher must redirect the output to the correct `data` directory within the project.
+
+1.  **Find the Image Saver Nodes:**
+    *   Search for nodes with the `class_type` of `"Image Save"` or `"SaveImage"`.
+    *   These nodes are responsible for saving the final generated images.
+    *   Note the ID number for each save node. In the provided examples (`mv2mv1turbo.json`), these are `"164"`, `"165"`, and `"187"`.
+
+### Step 3: Update `launcher/main.py`
+
+This is the most important step. You must tell the launcher which nodes to modify in the new workflow.
+
+1.  **Open `launcher/main.py`** and navigate to the `handle_selection_request` function.
+
+2.  **Locate the `modifications` Dictionary:** You will see a dictionary variable named `modifications` inside an `if/else` block for the `standard` and `turbo` modes.
+
+3.  **Update the Dictionary:**
+    *   Verify that the ID for the prompt loader (from Step 1) is present. The line should look like this:
+        ```python
+        "120": {"file_path": str(prompt_path_abs)}, 
+        ```
+    *   Add or update the IDs for the image saver nodes (from Step 2). The launcher needs to control both the `output_path` and the `filename_prefix` to standardize the output for the next stage of the pipeline. The entries should look like this:
+        ```python
+        # The key ("165") is the Node ID from the JSON.
+        # The value tells the launcher what to change in that node's "inputs".
+        "165": {"output_path": str(output_dir_abs), "filename_prefix": "mv_1"},
+        "187": {"output_path": str(output_dir_abs), "filename_prefix": "mv_3"},
+        "164": {"output_path": str(output_dir_abs), "filename_prefix": "mv_4"},
+        ```
+        Ensure the prefixes (`mv_1`, `mv_3`, etc.) are correct for the subsequent `mv23D` workflow.
+
+---
+
+## Summary
+
+By following this process, you are not changing the workflow file itself, but teaching the launcher how to correctly adapt it on the fly. This makes the system more robust and avoids issues with hardcoded paths when moving the project to a different machine. 

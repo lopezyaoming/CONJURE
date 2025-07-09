@@ -159,7 +159,18 @@ The goal is to build out the final user interface for displaying AI-generated im
 
 ---
 
-### **Phase 9: CGAL Integration (Mesh Segmentation)**
+### **Phase 9: System Fine-Tuning**
+
+The goal of this phase is to perform a comprehensive calibration of all dynamic and generative parts of the system to perfect the user experience and creative output.
+
+-   [ ] **Tune Gesture Controls:** Iteratively adjust gesture detection thresholds, weights, and smoothing factors for sculpting and camera controls.
+-   [ ] **Calibrate Generative Workflows:** Fine-tune parameters within the ComfyUI JSON files (e.g., CFG, denoise, sampler steps) to optimize the quality and style of the generated images and models.
+-   [ ] **Refine Agent Personality:** Adjust the agent's voice tone, cadence, and conversational responses in the ElevenLabs platform and `masterPrompt.txt` for a more natural and engaging interaction.
+-   [ ] **Calibrate Image Feed:** Adjust camera settings, lighting, and pre-processors to ensure the image data being fed into the generative pipeline is of the highest possible quality.
+
+---
+
+### **Phase 10: CGAL Integration (Mesh Segmentation)**
 
 The goal is to integrate the CGAL-based mesh segmenter to allow for part-based editing.
 
