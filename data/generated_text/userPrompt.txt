@@ -1,0 +1,1 @@
+a sphere to serve as the foundational 3D shape

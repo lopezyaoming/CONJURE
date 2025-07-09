@@ -13,8 +13,8 @@
     "ui": {
         "view": "DIALOG_ONLY",
         "dialogue": {
-            "user_transcript": "",
-            "agent_response": "Welcome to CONJURE.",
+            "user_transcript": "Ok, let's start with the sphere.",
+            "agent_response": "Excellent choice. I've created a sphere for you.",
             "status": "Say something..."
         },
         "selected_option": null

@@ -532,7 +532,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 state_data = json.load(f)
                 command_data = state_data.get("command")
 
-                if not command_data:
+                if not command_data or not isinstance(command_data, dict):
                     return
 
                 tool_name = command_data.get("tool_name")
