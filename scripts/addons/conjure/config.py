@@ -19,6 +19,7 @@ except NameError:
 DATA_DIR = PROJECT_ROOT / "data"
 FINGERTIPS_JSON_PATH = DATA_DIR / "input" / "fingertips.json"
 STATE_JSON_PATH = DATA_DIR / "input" / "state.json"
+USER_PROMPT_PATH = DATA_DIR / "generated_text" / "userPrompt.txt"
 GESTURE_RENDER_PATH = DATA_DIR / "generated_images" / "gestureCamera" / "render.png"
 DEFORM_OBJ_NAME = "Mesh"  # The name of the mesh we will manipulate
 GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based mapping

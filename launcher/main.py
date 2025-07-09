@@ -204,7 +204,10 @@ class ConjureApp:
         output_dir_abs = self.project_root / "data" / "generated_images" / "imageOPTIONS"
         output_dir_abs.mkdir(parents=True, exist_ok=True)
         
+        prompt_path_abs = self.project_root / "data" / "generated_text" / "userPrompt.txt"
+        
         modifications = {
+            "134": {"file_path": str(prompt_path_abs)},
             "139": {"output_path": str(output_dir_abs)},
             "142": {"output_path": str(output_dir_abs)},
             "143": {"output_path": str(output_dir_abs)},

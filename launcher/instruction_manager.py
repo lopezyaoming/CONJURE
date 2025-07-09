@@ -12,6 +12,14 @@ class InstructionManager:
             "change_brush": self._update_for_change_brush,
             "change_radius": self._update_for_change_radius,
             "import_last_model": self._update_for_import_model,
+            "generate_concepts": self._update_for_generate_concepts,
+            "select_concept": self._update_for_select_concept,
+            "undo_last_action": self._update_for_undo_last_action,
+            # --- Tools to be implemented ---
+            "request_segmentation": self._not_yet_implemented,
+            "isolate_segment": self._not_yet_implemented,
+            "apply_material": self._not_yet_implemented,
+            "export_final_model": self._not_yet_implemented,
         }
 
     def execute_instruction(self, instruction: dict):
@@ -31,6 +39,52 @@ class InstructionManager:
             self.tool_map[tool_name](params)
         else:
             print(f"Warning: Unknown tool '{tool_name}' received from agent.")
+
+    def _not_yet_implemented(self, params: dict):
+        """Placeholder for tools that are defined but not yet implemented."""
+        print(f"NOTE: Tool called with params '{params}', but it is not yet implemented.")
+        pass
+
+    def _update_for_select_concept(self, params: dict):
+        """Updates the state file to trigger a concept selection."""
+        option_id = params.get("option_id")
+        if option_id not in [1, 2, 3]:
+            print(f"Warning: Invalid option_id '{option_id}' received for select_concept.")
+            return
+
+        state = self.state_manager.get_state()
+        generation_mode = state.get("generation_mode", "standard")
+
+        update_data = {
+            "selection_request": option_id,
+            "generation_mode": generation_mode
+        }
+        self.state_manager.update_state(update_data)
+
+    def _update_for_undo_last_action(self, params: dict):
+        """Updates the state file to trigger an undo action in Blender."""
+        command_to_write = {
+            "tool_name": "rewind_backward",
+            "parameters": {}
+        }
+        self.state_manager.update_state({"command": command_to_write})
+
+    def _update_for_generate_concepts(self, params: dict):
+        """
+        Updates the state file to trigger concept generation.
+        This assumes the agent has already written the prompt and Blender
+        has already rendered the source image.
+        """
+        # Read the last-used generation mode from the state file.
+        # This is set by the Blender UI when a generation is triggered.
+        state = self.state_manager.get_state()
+        generation_mode = state.get("generation_mode", "standard") # Default to standard
+
+        update_data = {
+            "generation_request": "new",
+            "generation_mode": generation_mode
+        }
+        self.state_manager.update_state(update_data)
 
     def _update_for_spawn_primitive(self, params: dict):
         """Updates the state file to trigger a primitive spawn in Blender."""

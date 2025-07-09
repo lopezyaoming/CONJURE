@@ -550,6 +550,16 @@ class ConjureFingertipOperator(bpy.types.Operator):
                         f.seek(0)
                         json.dump(state_data, f, indent=4)
                         f.truncate()
+                
+                elif tool_name == "rewind_backward":
+                    print(f"EXECUTING INSTRUCTION: {tool_name}")
+                    self.handle_rewind('backward')
+                    
+                    # Clear the command
+                    state_data["command"] = None
+                    f.seek(0)
+                    json.dump(state_data, f, indent=4)
+                    f.truncate()
 
         except (json.JSONDecodeError, IOError, ValueError) as e:
             # This can happen if the file is being written by the other process.

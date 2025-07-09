@@ -113,6 +113,19 @@ class CONJURE_OT_generate_concepts(bpy.types.Operator):
         scene = context.scene
         camera = scene.objects.get(config.GESTURE_CAMERA_NAME)
 
+        # --- 0. Get the prompt from the UI and write it to file ---
+        user_prompt = scene.conjure_user_input
+        if not user_prompt:
+            self.report({'WARNING'}, "User prompt is empty. Generation may not work as expected.")
+        
+        try:
+            with open(config.USER_PROMPT_PATH, 'w', encoding='utf-8') as f:
+                f.write(user_prompt)
+            print(f"Wrote prompt to {config.USER_PROMPT_PATH}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Could not write prompt file: {e}")
+            return {'CANCELLED'}
+
         if not camera:
             self.report({'ERROR'}, f"Camera '{config.GESTURE_CAMERA_NAME}' not found.")
             return {'CANCELLED'}

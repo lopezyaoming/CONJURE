@@ -13,10 +13,11 @@
     "ui": {
         "view": "DIALOG_ONLY",
         "dialogue": {
-            "user_transcript": "Ok, let's start with the sphere.",
-            "agent_response": "Excellent choice. I've created a sphere for you.",
+            "user_transcript": "Great! Now let's import the model back.",
+            "agent_response": "The model has been updated with your chosen design. If you'd like to continue refining or make any further adjustments, just let me know.",
             "status": "Say something..."
         },
         "selected_option": null
-    }
+    },
+    "generation_mode": "turbo"
 }
