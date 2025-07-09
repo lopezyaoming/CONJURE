@@ -200,3 +200,18 @@ Advances:
     *   The `DialogBar` now displays the currently active **Brush Type** and **Brush Radius** directly below the agent's dialogue, providing immediate visual feedback for the user's gesture-based tool changes.
     *   The new labels are styled with a lighter, secondary font (`Helvetica Neue Light`) to maintain a clear visual hierarchy.
     *   Updated the UI branding, replacing the placeholder "CALLIOPE" logo with the official "CONJURE" brand mark. 
+---
+Date: 2025-06-13
+
+Focus: Progressive Refinement & Workflow Automation
+
+Advances:
+1.  **Progressive Voxel Remeshing on Import**:
+    *   Implemented a crucial new feature to automatically refine the mesh quality at each stage of the generative pipeline.
+    *   A new state, `remesh_step`, was added to the application's state file to act as a "clock," tracking the current refinement level.
+    *   The model import operator now reads this clock and applies a progressively finer voxel remesh modifier:
+        *   **Step 1:** Voxel size of `0.15` (coarse shaping).
+        *   **Step 2:** Voxel size of `0.075` (medium detail).
+        *   **Step 3:** No remesh (preserves the final high-detail mesh).
+    *   This creates a natural, iterative workflow where the user starts with a rough block-out and ends with a high-resolution model, all handled automatically by the system.
+    *   Fixed a series of Blender-specific API bugs (`RuntimeError`, `AttributeError`, `NoneType` errors) related to context-sensitive operators and changes in the Python API between Blender versions, resulting in a stable and robust import process. 

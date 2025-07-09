@@ -13,11 +13,12 @@
     "ui": {
         "view": "DIALOG_ONLY",
         "dialogue": {
-            "user_transcript": "I like number 3. Let's go with number 3.",
-            "agent_response": "Excellent choice. I am now using your selection to generate a new, more detailed 3D model. This may take a moment.",
+            "user_transcript": "",
+            "agent_response": "Welcome to CONJURE.",
             "status": "Say something..."
         },
         "selected_option": null
     },
-    "generation_mode": "turbo"
+    "generation_mode": "turbo",
+    "remesh_step": 3
 }

@@ -147,6 +147,8 @@ class CONJURE_OT_generate_concepts(bpy.types.Operator):
         # Set new render settings
         render.filepath = str(config.GESTURE_RENDER_PATH)
         render.image_settings.file_format = 'PNG'
+        render.use_overwrite = True
+        render.use_file_extension = True
 
         # Trigger the render
         bpy.ops.render.render(write_still=True)
@@ -205,14 +207,22 @@ class CONJURE_OT_import_model(bpy.types.Operator):
         self.report({'INFO'}, "Attempting to import last generated model...")
         
         # --- 1. Define Paths ---
-        # The new location for the final mesh from the ComfyUI workflow
         model_path = config.GENERATED_MODEL_DIR / "genMesh.glb"
-        
         if not model_path.exists():
             self.report({'ERROR'}, f"Model file not found at: {model_path}")
             return {'CANCELLED'}
+
+        # --- 2. Read remesh state and calculate next step ---
+        state = {}
+        if os.path.exists(config.STATE_JSON_PATH):
+            with open(config.STATE_JSON_PATH, 'r') as f:
+                state = json.load(f)
+        
+        current_step = state.get("remesh_step", 0)
+        next_step = (current_step % 3) + 1
+        print(f"Remesh Clock: Current step is {current_step}, next step will be {next_step}.")
             
-        # --- 2. Create History Collection ---
+        # --- 3. Create History Collection ---
         history_collection_name = "HISTORY"
         if history_collection_name not in bpy.data.collections:
             history_collection = bpy.data.collections.new(history_collection_name)
@@ -220,7 +230,7 @@ class CONJURE_OT_import_model(bpy.types.Operator):
         else:
             history_collection = bpy.data.collections[history_collection_name]
 
-        # --- 3. Move Current Mesh to History ---
+        # --- 4. Move Current Mesh to History ---
         current_mesh = context.scene.objects.get(config.DEFORM_OBJ_NAME)
         if current_mesh:
             # Find a new, unique name for the history object
@@ -238,18 +248,57 @@ class CONJURE_OT_import_model(bpy.types.Operator):
             current_mesh.hide_set(True) # Hide it from the viewport
             print(f"Moved '{config.DEFORM_OBJ_NAME}' to HISTORY as '{new_name}'.")
 
-        # --- 4. Import the New Model ---
+        # --- 5. Import the New Model and Apply Remesh ---
         try:
             bpy.ops.import_scene.gltf(filepath=str(model_path))
-            imported_object = context.selected_objects[0] # The newly imported object should be selected
-            imported_object.name = config.DEFORM_OBJ_NAME # Rename it to become the new active mesh
-            self.report({'INFO'}, f"Successfully imported '{imported_object.name}' from {model_path}.")
+            
+            # --- Find the actual mesh from the imported objects ---
+            mesh_object = None
+            extra_objects = []
+            for obj in context.selected_objects:
+                if obj.type == 'MESH':
+                    mesh_object = obj
+                else:
+                    extra_objects.append(obj)
+            
+            if not mesh_object:
+                raise RuntimeError("No mesh object found in the imported GLB file.")
+
+            # --- Clean up other imported objects (like parent empties) ---
+            for obj in extra_objects:
+                bpy.data.objects.remove(obj, do_unlink=True)
+
+            mesh_object.name = config.DEFORM_OBJ_NAME
+            context.view_layer.objects.active = mesh_object
+            
+            if next_step == 1:
+                voxel_size = 0.15
+                print(f"Applying Voxel Remesh: Level 1 (Size: {voxel_size})")
+                remesh_mod = mesh_object.modifiers.new(name="VoxelRemesh", type='REMESH')
+                remesh_mod.mode = 'VOXEL'
+                remesh_mod.voxel_size = voxel_size
+                bpy.ops.object.modifier_apply(modifier=remesh_mod.name)
+            elif next_step == 2:
+                voxel_size = 0.075
+                print(f"Applying Voxel Remesh: Level 2 (Size: {voxel_size})")
+                remesh_mod = mesh_object.modifiers.new(name="VoxelRemesh", type='REMESH')
+                remesh_mod.mode = 'VOXEL'
+                remesh_mod.voxel_size = voxel_size
+                bpy.ops.object.modifier_apply(modifier=remesh_mod.name)
+            else: # next_step == 3
+                print("Skipping remesh for Level 3.")
+
+            self.report({'INFO'}, f"Successfully imported and processed '{mesh_object.name}'.")
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to import GLB file: {e}")
+            self.report({'ERROR'}, f"Failed to import and remesh GLB file: {e}")
             return {'CANCELLED'}
             
-        # --- 5. Reset State File ---
-        if not update_state_file({"import_request": "done"}):
+        # --- 6. Reset State File and update remesh step ---
+        state_update = {
+            "import_request": "done",
+            "remesh_step": next_step
+        }
+        if not update_state_file(state_update):
             self.report({'WARNING'}, "Could not reset state file after import.")
 
         return {'FINISHED'} 

@@ -222,10 +222,11 @@ PHASE II: Refinement by Prompt
 This phase repeats three times, increasing geometric resolution in each stage.
 The mesh get's imported from mvto3D and gets bounding box scaled and positioned.
 1. Remeshing
-The mesh is voxel-remeshed using the following resolution cascade:
-Stage 1: 0.1 → 0.05
-Stage 2: 0.05 → 0.025
-Stage 3: 0.025 → 0.0125
+The refinement process is automated via a three-stage "clock". Each time a new model is imported, the system automatically applies a progressively finer voxel remesh:
+- **Stage 1:** Voxel size of `0.15` for coarse, initial shaping.
+- **Stage 2:** Voxel size of `0.075` for medium detail.
+- **Stage 3:** No remesh is applied to preserve the final high-resolution details from the generative model.
+The clock resets after stage 3.
 2. User Modification
 The user sculpts at each stage using real-time hand gestures.
 A closed fist again signals completion.

@@ -46,6 +46,12 @@ class ConjureApp:
         self.project_root = Path(__file__).parent.parent.resolve()
         atexit.register(self.stop)
         
+        # Initialize remesh step if it doesn't exist
+        current_state = self.state_manager.get_state()
+        if "remesh_step" not in current_state:
+            self.state_manager.update_state({"remesh_step": 0})
+            print("Initialized remesh_step to 0 in state file.")
+        
         # Initialize UI state
         self.state_manager.update_state({
             "ui": {

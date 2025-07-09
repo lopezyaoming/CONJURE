@@ -111,6 +111,7 @@ The goal is to implement the full multi-view 2D-to-3D generation pipeline, inclu
     -   [x] It will rename the current "Mesh" to "Mesh.XXX", move it to the HISTORY collection, and hide it.
     -   [x] It will then import the new `copyMesh.glb` from the dedicated ComfyUI output folder into `data/generated_models/`.
     -   [x] Finally, it will rename the newly imported object to "Mesh", making it the active sculptable object.
+    -   [x] **Implement Progressive Remeshing:** A "clock" was added to the state file to track the generative stage. On import, the operator automatically applies a progressively finer voxel remesh (Stage 1: 0.15, Stage 2: 0.075, Stage 3: No Remesh) to automate the refinement workflow.
 
 ---
 
