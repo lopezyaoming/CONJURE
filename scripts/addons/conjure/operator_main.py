@@ -530,6 +530,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
         try:
             with open(state_file_path, 'r+') as f:
                 state_data = json.load(f)
+                
+                # --- 1. Check for an automatic import request ---
+                if state_data.get("import_request") == "new":
+                    print("EXECUTING INSTRUCTION: import_last_model (automatic)")
+                    bpy.ops.conjure.import_model('EXEC_DEFAULT')
+                    # The import operator handles setting the state to "done"
+                    return # Exit after handling the import
+
+                # --- 2. Check for an agent command ---
                 command_data = state_data.get("command")
 
                 if not command_data or not isinstance(command_data, dict):
