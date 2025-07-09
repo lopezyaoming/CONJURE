@@ -34,6 +34,8 @@ from comfyui.api_wrapper import load_workflow, run_workflow, modify_workflow_pat
 import launcher.config as config
 from agent_api import ConversationalAgent
 from instruction_manager import InstructionManager
+from launcher.voice_input_manager import VoiceInputManager
+
 
 class ConjureApp:
     def __init__(self):
@@ -50,6 +52,11 @@ class ConjureApp:
             print("FATAL: OPENAI_API_KEY environment variable not set. Application will exit.")
             sys.exit(1) # Exit with a non-zero status code to indicate an error
         self.agent = ConversationalAgent(openai_api_key=api_key, instruction_manager=self.instruction_manager)
+        
+        # Initialize Voice Input Manager for STT
+        self.voice_input_manager = VoiceInputManager(api_key=api_key)
+        self.is_recording = False
+        
         print("CONJURE Agent is initialized and listening...")
 
     def start(self):
@@ -74,6 +81,35 @@ class ConjureApp:
         if not state_data:
             return
 
+        # --- Handle Voice Input (STT) ---
+        # This block handles the push-to-talk state from the hand tracker.
+        user_is_speaking = state_data.get("user_is_speaking")
+
+        if user_is_speaking is True and not self.is_recording:
+            self.voice_input_manager.start_recording()
+            self.is_recording = True
+        
+        elif user_is_speaking is False and self.is_recording:
+            self.is_recording = False
+            # This is a blocking call that will transcribe the audio.
+            transcribed_text = self.voice_input_manager.stop_recording_and_transcribe()
+            
+            # Important: Reset the speaking state to avoid re-triggering.
+            # We set it to None instead of False.
+            self.state_manager.update_state({"user_is_speaking": None})
+
+            # If transcription was successful, send the text to the agent.
+            if transcribed_text:
+                print(f"\n>>> Sending to Agent: '{transcribed_text}'")
+                # This re-uses the existing command flow for agent text messages.
+                self.state_manager.update_state({
+                    "command": "agent_user_message",
+                    "text": transcribed_text
+                })
+            # After handling, we can return to process this on the next cycle.
+            return 
+        
+        # --- Handle Agent and Blender Commands ---
         command = state_data.get("command")
         generation_mode = state_data.get("generation_mode", "standard")
 
@@ -308,9 +344,15 @@ class ConjureApp:
 
         # Clear the state file to prevent stale commands on restart
         print("Clearing application state...")
-        # Write an empty JSON object to the state file
-        with open(self.state_manager.state_file_path, 'w') as f:
-            json.dump({}, f)
+        # We preserve the state file, but clear volatile keys
+        self.state_manager.update_state({
+            "command": None,
+            "text": None,
+            "user_is_speaking": None,
+            "generation_request": None,
+            "selection_request": None,
+            "import_request": None
+        })
 
         print("CONJURE has stopped.")
 

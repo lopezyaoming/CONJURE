@@ -1,0 +1,83 @@
+# CONJURE Speech-to-Text (STT) Implementation Plan
+
+## 1. Objective
+
+To integrate real-time Speech-to-Text functionality into the CONJURE application, allowing the user to speak commands instead of typing them into the Blender UI. This will replace the need for the text input box and create a fully voice-driven interaction loop.
+
+## 2. Core Technology
+
+Based on the ElevenLabs documentation, a real-time conversational interface requires using their WebSocket API for STT, not the file-upload API. The file-upload API is designed for transcribing pre-existing audio files with high accuracy, whereas the WebSocket provides the low-latency streaming needed for a live conversation.
+
+This implementation will therefore use the `websockets` Python library in conjunction with `pyaudio` to stream microphone data directly to the ElevenLabs streaming endpoint.
+
+## 3. Implementation Steps
+
+### Step 3.1: Create a Dedicated Voice Input Manager
+
+A new module will be created to handle all aspects of microphone input and STT streaming.
+
+-   **New File:** `launcher/voice_input_manager.py`
+
+This module will contain a `VoiceInputManager` class that runs in a separate thread to ensure it does not block the main application loop.
+
+### Step 3.2: `VoiceInputManager` Class Details
+
+-   **Initialization (`__init__`):**
+    -   The class will be initialized with a reference to the `StateManager` to allow it to push commands back into the main application.
+    -   It will store the ElevenLabs API key and the WebSocket URI.
+    -   It will set up threading events (e.g., `threading.Event`) to gracefully start and stop the connection.
+
+-   **Main Thread Logic (`run` method):**
+    -   This method will contain the main loop that manages the WebSocket connection.
+    -   It will use a `while not self.stop_event.is_set()` loop to keep running.
+    -   Inside the loop, it will handle connecting, sending audio, and receiving transcripts.
+
+-   **Audio Streaming (Internal method or nested thread):**
+    -   It will use `pyaudio` to open a stream from the default microphone.
+    -   It will read audio in small chunks inside a `while` loop.
+    -   Each chunk of audio data will be sent over the WebSocket connection.
+
+-   **Transcript Handling (in the `run` loop):**
+    -   The loop will asynchronously listen for messages from the ElevenLabs WebSocket server.
+    -   It will parse the incoming JSON messages. The key is to look for a "final" transcript message (e.g., where a flag like `"is_final": true` is present).
+    -   When a final transcript is received, the manager will call the `_handle_final_transcript` method.
+
+-   **State Update (`_handle_final_transcript` method):**
+    -   This method will take the final transcribed text.
+    -   It will use the `StateManager` instance to update `state.json` with the following data:
+        ```json
+        {
+          "command": "agent_user_message",
+          "text": "The transcribed text from the user."
+        }
+        ```
+    -   This reuses the exact same mechanism as the Blender text box, ensuring perfect integration with the existing agent logic.
+
+-   **Thread Management (`start` and `stop` methods):**
+    -   A `start()` method will create and start the main processing thread.
+    -   A `stop()` method will set the `stop_event` and join the thread to ensure a clean shutdown.
+
+### Step 3.3: Integrate into the Main Application
+
+The `VoiceInputManager` will be wired into the main application lifecycle.
+
+-   **File to Modify:** `launcher/main.py`
+
+-   **In `ConjureApp.__init__`:**
+    -   Import `VoiceInputManager`.
+    -   Instantiate it: `self.voice_input_manager = VoiceInputManager(self.state_manager)`.
+
+-   **In `ConjureApp.start`:**
+    -   After starting other subprocesses, call `self.voice_input_manager.start()`.
+
+-   **In `ConjureApp.stop`:**
+    -   Before the application fully exits, call `self.voice_input_manager.stop()`.
+
+## 4. Summary of Plan
+
+1.  **Create `devnotes/STT.txt`** with this detailed plan. (This step)
+2.  **Create `launcher/voice_input_manager.py`** with the `VoiceInputManager` class.
+3.  **Implement** the threading, `pyaudio` streaming, and WebSocket communication logic inside the manager.
+4.  **Integrate** the `VoiceInputManager` into `launcher/main.py` to be started and stopped with the application.
+
+This plan ensures a robust, non-blocking implementation that seamlessly integrates real-time voice commands into the existing CONJURE architecture. 

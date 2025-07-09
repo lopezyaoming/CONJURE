@@ -1,1 +1,12 @@
-{}
+{
+    "app_status": "running",
+    "hand_tracker_status": "running",
+    "blender_status": "running",
+    "user_is_speaking": null,
+    "command": null,
+    "text": null,
+    "primitive_type": null,
+    "generation_request": null,
+    "selection_request": null,
+    "import_request": null
+}

@@ -43,7 +43,7 @@ class StateManager:
         state['command'] = None
         state['text'] = None
         with open(self.state_file_path, 'w') as f:
-            json.dump(state, f, indent=4)
+            json.dump(state, f, indent=4) 
 
     def clear_specific_requests(self, keys_to_clear: list):
         """Sets the specified keys to null in the state file."""

@@ -11,6 +11,12 @@ import math
 import time
 from pathlib import Path
 
+# --- Add new imports for keyboard listening ---
+import keyboard
+from state_manager import StateManager
+# ---------------------------------------------
+
+
 # --- Configuration ---
 # This setup allows the script to be run from anywhere and still find the project root.
 try:
@@ -50,6 +56,32 @@ def is_thumb_and_finger_touching(hand_landmarks, finger_tip_id):
     
     return distance < TOUCH_THRESHOLD
 
+# --- Keyboard Listening Setup ---
+def setup_voice_hooks(state_manager):
+    """Sets up keyboard hooks to listen for the 't' key."""
+    # Use a simple class to manage state to avoid global variables
+    class KeyState:
+        is_pressed = False
+
+    def on_press_t(e):
+        if not KeyState.is_pressed:
+            print("Talk key pressed. Sending state...")
+            state_manager.update_state({'user_is_speaking': True})
+            KeyState.is_pressed = True
+    
+    def on_release_t(e):
+        if KeyState.is_pressed:
+            print("Talk key released. Sending state...")
+            state_manager.update_state({'user_is_speaking': False})
+            KeyState.is_pressed = False
+
+    # Note: The keyboard library runs in the background.
+    # This may require administrator/root privileges on some systems.
+    keyboard.on_press_key('t', on_press_t, suppress=False)
+    keyboard.on_release_key('t', on_release_t, suppress=False)
+    print("Keyboard hooks for 't' key are active. Hold 't' to talk.")
+
+
 # --- Main Application Logic ---
 def run_hand_tracker():
     """Initializes camera, runs Mediapipe, and writes data to JSON."""
@@ -64,6 +96,13 @@ def run_hand_tracker():
         min_detection_confidence=0.7,
         min_tracking_confidence=0.5
     )
+
+    # --- Setup State Manager and Voice Hooks ---
+    state_manager = StateManager()
+    # Clear any stale 'speaking' state on startup
+    state_manager.update_state({'user_is_speaking': None}) 
+    setup_voice_hooks(state_manager)
+    # -----------------------------------------
 
     # Define all gestures, their target finger, hand, and behavior
     GESTURE_MAPPING = {
@@ -226,6 +265,8 @@ def run_hand_tracker():
             break
 
     # Cleanup
+    # Clear speaking state on exit
+    state_manager.update_state({'user_is_speaking': None})
     hands.close()
     cap.release()
     cv2.destroyAllWindows()

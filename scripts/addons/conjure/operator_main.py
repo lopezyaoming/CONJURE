@@ -533,7 +533,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
             source_collections = bpy.data.collections.get("PRIMITIVES")
             if not source_collections:
                  print("ERROR: Could not find the 'PRIMITIVES' or 'CONJURE SETUP/PRIMITIVES' collection.")
-                 return
+            return
 
         print(f"DEBUG: Found source collection: {source_collections.name}")
 
@@ -557,7 +557,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
         new_obj.name = config.DEFORM_OBJ_NAME
         bpy.context.scene.collection.objects.link(new_obj)
         print(f"DEBUG: Successfully spawned '{new_obj.name}' from template '{template_obj.name}'.")
-        
+
         # --- 4. Set as Active and Selected ---
         print("DEBUG: Setting new object as active and selected.")
         bpy.ops.object.select_all(action='DESELECT')
