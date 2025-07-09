@@ -40,18 +40,8 @@ MARKER_SURFACE_OFFSET = 0.15
 SMOOTHING_FACTOR = 0.35
 
 
-# --- UI & VISUALIZATION ---
-BRUSH_COLORS = {
-    'PINCH':   (0.2, 0.6, 1.0, 1.0), # Blue
-    'GRAB':    (1.0, 0.8, 0.2, 1.0), # Yellow
-    'SMOOTH':  (0.4, 1.0, 0.4, 1.0), # Green
-    'INFLATE': (1.0, 0.4, 0.4, 1.0), # Red
-    'FLATTEN': (0.8, 0.5, 1.0, 1.0)  # Purple
-}
-
-
 # --- CAMERA ORBIT ---
-ORBIT_SENSITIVITY = 40.0
+ORBIT_SENSITIVITY = 450.0
 ORBIT_SMOOTHING_FACTOR = 0.25
 
 

@@ -204,274 +204,164 @@ def map_hand_to_3d_space(x_norm, y_norm, z_norm):
         return local_point
 
 
+# === 3. HISTORY BUFFER ===
+class HistoryBuffer:
+    """A circular buffer to store mesh states for undo/redo functionality."""
+    def __init__(self, max_size):
+        self.max_size = max_size
+        self.buffer = deque(maxlen=max_size)
+        self.cursor = -1
+
+    def add_state(self, mesh_data):
+        """Adds a new state to the buffer, clearing any 'future' states."""
+        if self.cursor < len(self.buffer) - 1:
+            temp_buffer = list(self.buffer)
+            self.buffer = deque(temp_buffer[:self.cursor + 1], maxlen=self.max_size)
+        
+        new_mesh_data = mesh_data.copy()
+        self.buffer.append(new_mesh_data)
+        self.cursor = len(self.buffer) - 1
+
+    def rewind(self):
+        """Moves the cursor back one step in history."""
+        if self.cursor > 0:
+            self.cursor -= 1
+        return self.get_current_state()
+
+    def fast_forward(self):
+        """Moves the cursor forward one step in history."""
+        if self.cursor < len(self.buffer) - 1:
+            self.cursor += 1
+        return self.get_current_state()
+
+    def get_current_state(self):
+        """Returns the mesh data at the current cursor position."""
+        if 0 <= self.cursor < len(self.buffer):
+            return self.buffer[self.cursor]
+        return None
+
+    def clear(self):
+        """Clears the entire history buffer."""
+        self.buffer.clear()
+        self.cursor = -1
+
 # === 4. MESH DEFORMATION ===
-def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
+def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, vertex_velocities, history_buffer, operator_instance, brush_type='PINCH', hand_move_vector=None):
     """
-    Deforms the mesh using bmesh based on the 3D positions of the fingertips.
-    This version operates on mesh data directly for stability and performance,
-    and is based on the robust implementation from fingertipmain.py.
+    Deforms the mesh using a velocity-based system for a more 'viscous' feel.
+    This is the primary deformation logic.
     """
     if not mesh_obj or not finger_positions_3d:
         return
 
-    # Use the 'medium' radius setting as a default for this legacy function.
-    radius_settings = config.RADIUS_LEVELS[1] # 0=small, 1=medium, 2=large
-    finger_influence_radius = radius_settings['finger']
-
+    radius_settings = operator_instance.get_current_radius_setting()
+    
     bm = bmesh.new()
     bm.from_mesh(mesh_obj.data)
+    bm.verts.ensure_lookup_table()
     
     world_matrix = mesh_obj.matrix_world
-    world_matrix_inv = world_matrix.inverted()
+    
+    # --- 1. Calculate forces on each vertex ---
+    vertex_forces = {}
+    
+    # A. Calculate average position of active fingers (for brushes like FLATTEN)
+    avg_finger_pos = mathutils.Vector((0, 0, 0))
+    for finger_pos in finger_positions_3d:
+        avg_finger_pos += finger_pos
+    if finger_positions_3d:
+        avg_finger_pos /= len(finger_positions_3d)
 
-    # 1. Calculate raw vertex displacements
-    vertex_displacements = {}
     for v in bm.verts:
         v_world = world_matrix @ v.co
-        net_displacement = mathutils.Vector((0, 0, 0))
-        
+        net_force = mathutils.Vector((0, 0, 0))
+
         for finger_pos in finger_positions_3d:
             to_finger = finger_pos - v_world
             dist = to_finger.length
             
-            if dist < finger_influence_radius:
-                # Use a squared falloff for a smoother gradient
-                falloff = (1.0 - (dist / finger_influence_radius))**2
-                direction = to_finger.normalized()
-                force = direction * config.FINGER_FORCE_STRENGTH * falloff
-                net_displacement += force
-        
-        if net_displacement.length > 0.0001:
-            # Clamp displacement to avoid extreme results
-            if net_displacement.length > config.MAX_DISPLACEMENT_PER_FRAME:
-                net_displacement = net_displacement.normalized() * config.MAX_DISPLACEMENT_PER_FRAME
-            vertex_displacements[v.index] = net_displacement
-
-    # 2. Smooth the displacements for a more cohesive mass-like effect
-    smoothed_displacements = {}
-    if not vertex_displacements:
-        bm.free()
-        return # No vertices were affected, so we can exit early.
-        
-    for v in bm.verts:
-        if v.index not in vertex_displacements:
-            continue
-        
-        original_displacement = vertex_displacements[v.index]
-        neighbor_verts = [e.other_vert(v) for e in v.link_edges]
-        
-        if not neighbor_verts:
-            smoothed_displacements[v.index] = original_displacement
-            continue
+            # --- BRUSH-SPECIFIC LOGIC ---
+            if brush_type == 'PINCH':
+                radius = radius_settings['finger']
+                if dist < radius:
+                    falloff = (1.0 - (dist / radius))**2
+                    net_force += to_finger.normalized() * config.FINGER_FORCE_STRENGTH * falloff
             
-        neighbor_avg = mathutils.Vector((0, 0, 0))
-        for nv in neighbor_verts:
-            if nv.index in vertex_displacements:
-                neighbor_avg += vertex_displacements[nv.index]
-        
-        if len(neighbor_verts) > 0:
-            neighbor_avg /= len(neighbor_verts)
+            elif brush_type == 'GRAB' and hand_move_vector:
+                radius = radius_settings['grab']
+                if dist < radius:
+                    falloff = (1.0 - (dist / radius))**2
+                    net_force += hand_move_vector * config.GRAB_FORCE_STRENGTH * falloff
+
+            elif brush_type == 'INFLATE':
+                radius = radius_settings['inflate']
+                if dist < radius:
+                    falloff = (1.0 - (dist / radius))**2
+                    # Use vertex normal for inflation/deflation direction
+                    net_force += v.normal * config.INFLATE_FORCE_STRENGTH * falloff
+
+            elif brush_type == 'SMOOTH':
+                radius = radius_settings['finger']
+                if dist < radius:
+                    # Move vertex towards the average position of its neighbors
+                    avg_neighbor_pos = mathutils.Vector()
+                    if v.link_edges:
+                        for edge in v.link_edges:
+                            avg_neighbor_pos += edge.other_vert(v).co
+                        avg_neighbor_pos /= len(v.link_edges)
+                        
+                        # Convert to world space for calculation
+                        avg_neighbor_pos_world = world_matrix @ avg_neighbor_pos
+                        smoothing_vec = avg_neighbor_pos_world - v_world
+                        falloff = (1.0 - (dist / radius))**2
+                        net_force += smoothing_vec * config.SMOOTH_FORCE_STRENGTH * falloff
             
-        # Interpolate between the raw displacement and the average of its neighbors
-        smoothed_displacement = original_displacement.lerp(neighbor_avg, config.MASS_COHESION_FACTOR)
-        smoothed_displacements[v.index] = smoothed_displacement
-        
-    # 3. Apply the smoothed displacements to the vertices
-    if smoothed_displacements:
-        for v_index, displacement in smoothed_displacements.items():
-            # Ensure lookup table is fresh before indexed access
-            bm.verts.ensure_lookup_table()
-            v = bm.verts[v_index]
-            v_world = world_matrix @ v.co
-            # Apply the smoothed displacement over time for a continuous effect
-            v_world += displacement * config.DEFORM_TIMESTEP
-            # Convert back to local space to update the vertex
-            v.co = world_matrix_inv @ v_world
+            elif brush_type == 'FLATTEN':
+                radius = radius_settings['flatten']
+                if dist < radius:
+                    # Project vertex onto a plane defined by the average finger position and normal
+                    plane_normal = (v_world - avg_finger_pos).normalized()
+                    plane_point = avg_finger_pos
+                    
+                    point_on_plane = v_world.project(plane_point + plane_normal) - v_world.project(plane_point)
+                    flatten_vec = (plane_point + point_on_plane) - v_world
 
-    # 4. Volume Preservation
-    # This crucial step prevents the mesh from collapsing on itself.
-    current_volume = bm.calc_volume(signed=True)
-    if initial_volume != 0: # Avoid division by zero
-        volume_ratio = current_volume / initial_volume
-        
-        if volume_ratio < config.VOLUME_LOWER_LIMIT or volume_ratio > config.VOLUME_UPPER_LIMIT:
-            target_ratio = max(config.VOLUME_LOWER_LIMIT, min(volume_ratio, config.VOLUME_UPPER_LIMIT))
-            scale_factor = (target_ratio / volume_ratio)**(1/3)
-            
-            # Calculate the centroid of the mesh to scale from the center
-            centroid = mathutils.Vector()
-            for v in bm.verts:
-                centroid += v.co
-            centroid /= len(bm.verts)
-            
-            # Apply corrective scaling to each vertex
-            for v in bm.verts:
-                v.co = centroid + (v.co - centroid) * scale_factor
+                    falloff = (1.0 - (dist / radius))**2
+                    net_force += flatten_vec * config.FLATTEN_FORCE_STRENGTH * falloff
 
-    # 5. Write the modified bmesh data back to the mesh
-    bm.to_mesh(mesh_obj.data)
-    bm.free()
+        if net_force.length > 0.0001:
+            vertex_forces[v.index] = net_force
 
-    # 6. Tag the mesh to ensure the viewport updates
-    mesh_obj.data.update()
+    # --- 2. Update velocities and apply displacements ---
+    for v_idx, force in vertex_forces.items():
+        # Update velocity: v_new = (v_old * damping) + (force * timestep)
+        old_velocity = vertex_velocities.get(v_idx, mathutils.Vector((0, 0, 0)))
+        new_velocity = (old_velocity * config.VELOCITY_DAMPING_FACTOR) + (force * config.DEFORM_TIMESTEP)
+        vertex_velocities[v_idx] = new_velocity
 
-
-# === 5. MESH DEFORMATION (with Viscosity) ===
-def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, vertex_velocities, history_buffer, operator_instance, brush_type='PINCH', hand_move_vector=None):
-    """
-    Deforms the mesh by applying forces and simulating viscosity.
-    This version updates vertex velocities for a more dynamic and weighty feel.
-    """
-    if not mesh_obj:
-        return
-
-    # --- Save current state to history before deforming ---
-    # We only save if there are active forces being applied (for PINCH/GRAB).
-    if finger_positions_3d:
-        current_verts = [v.co.copy() for v in mesh_obj.data.vertices]
-        history_buffer.append(current_verts)
-
-    bm = bmesh.new()
-    bm.from_mesh(mesh_obj.data)
-
-    world_matrix = mesh_obj.matrix_world
-    world_matrix_inv = world_matrix.inverted()
-
-    # --- 1. Calculate Forces and Update Velocities based on Brush Type ---
-    new_displacements = {}
-    
-    # Create a KDTree for faster spatial lookups, used by all brushes
-    size = len(bm.verts)
-    kd = mathutils.kdtree.KDTree(size)
-    for i, v in enumerate(bm.verts):
-        kd.insert(v.co, i)
-    kd.balance()
-
-    # Ensure the lookup table is fresh before any indexed access.
-    bm.verts.ensure_lookup_table()
-
-    # Determine the center of influence (average of finger positions)
-    influence_center = mathutils.Vector()
-    if finger_positions_3d:
-        for pos in finger_positions_3d:
-            influence_center += world_matrix_inv @ pos # Convert to local space
-        influence_center /= len(finger_positions_3d)
-
-    # Determine the effective radius based on the brush type and current radius level
-    radius_level = config.RADIUS_LEVELS[operator_instance._current_radius_index]
-    if brush_type == 'GRAB':
-        effective_radius = radius_level['grab']
-    elif brush_type == 'INFLATE':
-        effective_radius = radius_level['inflate']
-    elif brush_type == 'FLATTEN':
-        effective_radius = radius_level['flatten']
-    else: # PINCH, SMOOTH use the default
-        effective_radius = radius_level['finger']
-
-    # --- Special pre-calculation for FLATTEN brush ---
-    flatten_plane_center = None
-    flatten_plane_normal = None
-    if brush_type == 'FLATTEN' and finger_positions_3d:
-        verts_in_range_indices = [v_idx for co, v_idx, dist in kd.find_range(influence_center, effective_radius)]
-        if verts_in_range_indices:
-            flatten_plane_center = mathutils.Vector()
-            for v_idx in verts_in_range_indices:
-                flatten_plane_center += bm.verts[v_idx].co
-            flatten_plane_center /= len(verts_in_range_indices)
-
-            flatten_plane_normal = mathutils.Vector()
-            for v_idx in verts_in_range_indices:
-                flatten_plane_normal += bm.verts[v_idx].normal
-            
-            if flatten_plane_normal.length > 0:
-                flatten_plane_normal.normalize()
-
-    # Iterate through vertices within the brush influence
-    for (co, v_idx, dist_from_center) in kd.find_range(influence_center, effective_radius):
-        v = bm.verts[v_idx]
-        current_velocity = vertex_velocities.get(v.index, mathutils.Vector((0,0,0)))
-        force = mathutils.Vector((0, 0, 0))
-
-        # Calculate a smooth falloff based on distance from the brush center.
-        # This is the key to making the brushes feel natural and not jagged.
-        falloff = (1.0 - (dist_from_center / effective_radius))**2
-
-        if brush_type == 'PINCH':
-            # PINCH has its own special falloff based on distance to each finger,
-            # so we don't use the centered falloff.
-            v_world = world_matrix @ v.co
-            for finger_pos in finger_positions_3d:
-                to_finger = finger_pos - v_world
-                dist = to_finger.length
-                if dist < effective_radius:
-                    pinch_falloff = (1.0 - (dist / effective_radius))**2
-                    force += to_finger.normalized() * config.FINGER_FORCE_STRENGTH * pinch_falloff
-
-        elif brush_type == 'GRAB':
-            # Moves vertices along with the hand's movement vector, scaled by falloff.
-            if hand_move_vector:
-                force = hand_move_vector * config.GRAB_FORCE_STRENGTH * falloff
-
-        elif brush_type == 'SMOOTH':
-            # Moves vertices towards their neighbors' average position, scaled by falloff.
-            neighbor_avg_pos = mathutils.Vector()
-            linked_verts = [e.other_vert(v) for e in v.link_edges]
-            if linked_verts:
-                for nv in linked_verts:
-                    neighbor_avg_pos += nv.co
-                neighbor_avg_pos /= len(linked_verts)
-                force = (neighbor_avg_pos - v.co) * config.SMOOTH_FORCE_STRENGTH * falloff
-        
-        elif brush_type == 'INFLATE':
-            # Pushes vertices outwards along their normal, scaled by falloff.
-            force = v.normal * config.INFLATE_FORCE_STRENGTH * falloff
-
-        elif brush_type == 'FLATTEN':
-            # Pushes vertices towards a plane, scaled by falloff.
-            if flatten_plane_center and flatten_plane_normal:
-                dist_to_plane = (v.co - flatten_plane_center).dot(flatten_plane_normal)
-                force = -flatten_plane_normal * dist_to_plane * config.FLATTEN_FORCE_STRENGTH * falloff
-
-        # Update velocity: add force and apply damping
-        new_velocity = (current_velocity + force) * config.VELOCITY_DAMPING_FACTOR
-        vertex_velocities[v.index] = new_velocity
-        
-        # Calculate the displacement for this frame
+        # Apply displacement
         displacement = new_velocity * config.DEFORM_TIMESTEP
         if displacement.length > config.MAX_DISPLACEMENT_PER_FRAME:
             displacement = displacement.normalized() * config.MAX_DISPLACEMENT_PER_FRAME
         
-        new_displacements[v.index] = displacement
+        bm.verts[v_idx].co += displacement
 
-    # --- 2. Apply Displacements ---
-    if new_displacements:
-        for v_index, displacement in new_displacements.items():
-            bm.verts.ensure_lookup_table()
-            # For GRAB, the displacement is in world space, others are local. This is a simplification.
-            # A more robust implementation would handle spaces more carefully.
-            bm.verts[v_index].co += displacement
-
-    # --- 3. Volume Preservation ---
+    # --- 3. Enforce Volume Constraints ---
     current_volume = bm.calc_volume(signed=True)
-    if initial_volume != 0:
-        volume_ratio = current_volume / initial_volume
-        if volume_ratio < config.VOLUME_LOWER_LIMIT or volume_ratio > config.VOLUME_UPPER_LIMIT:
-            target_ratio = max(config.VOLUME_LOWER_LIMIT, min(volume_ratio, config.VOLUME_UPPER_LIMIT))
-            scale_factor = (target_ratio / volume_ratio)**(1/3)
-            centroid = mathutils.Vector()
-            for v in bm.verts:
-                centroid += v.co
-            centroid /= len(bm.verts)
-            for v in bm.verts:
-                v.co = centroid + (v.co - centroid) * scale_factor
+    volume_ratio = current_volume / initial_volume
+    
+    if not (config.VOLUME_LOWER_LIMIT < volume_ratio < config.VOLUME_UPPER_LIMIT):
+        # If volume is out of bounds, scale the mesh back towards the original volume
+        scale_factor = (1.0 / volume_ratio)**(1/3) # Cube root for uniform scaling
+        bmesh.ops.scale(bm, vec=(scale_factor, scale_factor, scale_factor), verts=bm.verts)
 
-    # --- 4. Finalize ---
+    # --- 4. Update the actual mesh data and clean up ---
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(mesh_obj.data)
     bm.free()
     mesh_obj.data.update()
 
-
-# === 6. BLENDER MODAL OPERATOR ===
+# --- 5. MAIN OPERATOR ---
 class ConjureFingertipOperator(bpy.types.Operator):
     """The main operator that reads hand data and orchestrates actions."""
     bl_idname = "conjure.fingertip_operator"
@@ -506,104 +396,166 @@ class ConjureFingertipOperator(bpy.types.Operator):
         """Resets the history and volume tracking for a new mesh."""
         mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
         if mesh_obj:
+            # Ensure the history buffer is initialized
+            if not self._history_buffer:
+                self._history_buffer = HistoryBuffer(max_size=config.MAX_HISTORY_STEPS)
+
             self._initial_volume = self.get_mesh_volume(mesh_obj)
             self._vertex_velocities.clear()
             self._history_buffer.clear()
             self._history_buffer.add_state(mesh_obj.data) # Save the initial state of the new mesh
-            print("--- OPERATOR: Mesh state re-initialized. ---")
+            print("Mesh state reinitialized.")
             
     def draw_ui_text(self, context):
-        """Draws the current command and radius on the 3D View."""
+        """Draws the current brush and radius on the viewport."""
         active_command = self.get_active_command()
-        radius_setting = config.RADIUS_LEVELS[self._current_radius_index]['name']
-
-        # Choose a color based on the command
-        if active_command == 'PINCH':
-            color = (0.2, 0.6, 1.0, 1.0) # Blue
-        elif active_command == 'GRAB':
-            color = (1.0, 0.8, 0.2, 1.0) # Yellow
-        elif active_command == 'SMOOTH':
-            color = (0.4, 1.0, 0.4, 1.0) # Green
-        elif active_command == 'INFLATE':
-            color = (1.0, 0.4, 0.4, 1.0) # Red
-        elif active_command == 'FLATTEN':
-            color = (0.8, 0.5, 1.0, 1.0) # Purple
-        else:
-            color = (1.0, 1.0, 1.0, 1.0) # White
+        radius_setting = self.get_current_radius_setting()['name']
+        color = config.BRUSH_COLORS.get(active_command, (1.0, 1.0, 1.0, 1.0))
 
         # --- Draw Text using blf ---
         font_id = 0 # Default font
         blf.position(font_id, 15, 50, 0)
-        blf.size(font_id, 16, 72)
+        blf.size(font_id, 16)
         blf.color(font_id, *color)
         blf.draw(font_id, f"Brush: {active_command}")
         
         blf.position(font_id, 15, 25, 0)
-        blf.size(font_id, 14, 72)
+        blf.size(font_id, 14)
         blf.color(font_id, 0.8, 0.8, 0.8, 1.0)
         blf.draw(font_id, f"Radius: {radius_setting.capitalize()}")
 
+    def handle_sculpting(self, context, hand_data):
+        """Handles the mesh deformation based on the active brush."""
+        mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
+        if not mesh_obj:
+            return
+
+        active_brush = self.get_active_command()
+        
+        # Filter for only the visible finger positions to pass to the deformer
+        visible_finger_locations = [
+            state['location'] for state in self.marker_states if state['visible']
+        ]
+        
+        # Calculate the hand movement vector for the 'GRAB' brush
+        hand_move_vector = None
+        current_hand_center = self.get_hand_center()
+        if self._last_hand_center and current_hand_center:
+            hand_move_vector = current_hand_center - self._last_hand_center
+        self._last_hand_center = current_hand_center
+        
+        # Call the main deformation function with all necessary parameters
+        deform_mesh_with_viscosity(
+            mesh_obj,
+            visible_finger_locations,
+            self._initial_volume,
+            self._vertex_velocities,
+            self._history_buffer,
+            self, # Pass the operator instance itself
+            brush_type=active_brush,
+            hand_move_vector=hand_move_vector
+        )
+
+    def handle_brush_change(self):
+        """Cycles through the available brush types."""
+        self._current_brush_index = (self._current_brush_index + 1) % len(config.BRUSH_TYPES)
+        print(f"Brush changed to: {self.get_active_command()}")
+
+    def handle_radius_change(self):
+        """Cycles through the available radius sizes."""
+        self._current_radius_index = (self._current_radius_index + 1) % len(config.RADIUS_LEVELS)
+        print(f"Radius changed to: {self.get_current_radius_setting()['name']}")
+
+    def handle_camera_orbit(self, rotation_delta):
+        """Orbits the camera around the world origin based on hand gesture data."""
+        camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
+        if not camera:
+            return
+
+        # Smooth the rotation delta to prevent jerky movements
+        smoothed_delta_x = self._last_orbit_delta['x'] * (1.0 - config.ORBIT_SMOOTHING_FACTOR) + rotation_delta['x'] * config.ORBIT_SMOOTHING_FACTOR
+        smoothed_delta_y = self._last_orbit_delta['y'] * (1.0 - config.ORBIT_SMOOTHING_FACTOR) + rotation_delta['y'] * config.ORBIT_SMOOTHING_FACTOR
+        
+        self._last_orbit_delta['x'] = smoothed_delta_x
+        self._last_orbit_delta['y'] = smoothed_delta_y
+
+        # Apply rotation around the Z (yaw) and X (pitch) axes
+        # Note: We rotate around the world origin (0,0,0)
+        pivot = mathutils.Vector((0.0, 0.0, 0.0))
+        
+        # Yaw rotation (around world Z-axis)
+        bpy.ops.object.select_all(action='DESELECT')
+        camera.select_set(True)
+        bpy.ops.transform.rotate(
+            value=-smoothed_delta_x * config.ORBIT_SENSITIVITY, 
+            orient_axis='Z', 
+            orient_type='GLOBAL', 
+            center_override=pivot
+        )
+        
+        # Pitch rotation (around camera's local X-axis)
+        bpy.ops.transform.rotate(
+            value=-smoothed_delta_y * config.ORBIT_SENSITIVITY, 
+            orient_axis='X', 
+            orient_type='LOCAL',
+            center_override=pivot
+        )
+
+    def handle_rewind(self, direction):
+        """Rewinds or fast-forwards the mesh history."""
+        mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
+        if not mesh_obj or not self._history_buffer:
+            return
+            
+        if direction == 'backward':
+            self._history_buffer.rewind()
+        elif direction == 'forward':
+            self._history_buffer.fast_forward()
+        
+        # Apply the state from the buffer to the mesh
+        current_state = self._history_buffer.get_current_state()
+        if current_state:
+            bm = bmesh.new()
+            bm.from_mesh(current_state)
+            bm.to_mesh(mesh_obj.data)
+            bm.free()
+            mesh_obj.data.update()
 
     def check_for_launcher_requests(self):
         """Checks the state file for commands from the main launcher."""
         state_file_path = config.STATE_JSON_PATH
-        
-        # Check if the file exists and has been modified recently
         if not state_file_path.exists():
             return
-
+        
         try:
-            with open(state_file_path, 'r') as f:
+            with open(state_file_path, 'r+') as f:
                 state_data = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            # If the file is being written to or is corrupt, skip this check
-            return
+                command_data = state_data.get("command")
 
-        command = state_data.get("command")
+                if not command_data:
+                    return
 
-        if command:
-            # --- AGENT COMMANDS ---
-            if command == "spawn_primitive":
-                primitive_type = state_data.get("primitive_type")
-                if primitive_type:
-                    print(f"--- LAUNCHER REQUEST: Spawning primitive '{primitive_type}' ---")
-                    bpy.ops.conjure.spawn_primitive(primitive_type=primitive_type)
-                    self.reinitialize_mesh_state()
-                else:
-                    print("--- LAUNCHER WARNING: spawn_primitive command received but no primitive_type specified.")
-            
-            elif command == "change_brush":
-                new_brush = state_data.get("brush_type")
-                if new_brush and new_brush.upper() in config.BRUSH_TYPES:
-                    self.handle_brush_change(new_brush)
-                else:
-                    print(f"--- LAUNCHER WARNING: change_brush command received with invalid brush type '{new_brush}'.")
-            
-            elif command == "change_radius":
-                new_radius = state_data.get("radius_level")
-                if new_radius and new_radius.upper() in ['SMALL', 'MEDIUM', 'LARGE']:
-                    self.handle_radius_change(new_radius)
-                else:
-                    print(f"--- LAUNCHER WARNING: change_radius command received with invalid radius level '{new_radius}'.")
-            
-            elif command == "import_last_model":
-                # We need to override the context to ensure the operator runs in the 3D view
-                area = next((a for a in bpy.context.screen.areas if a.type == 'VIEW_3D'), None)
-                if area:
-                    try:
-                        print("DEBUG: Executing bpy.ops.conjure.import_model() with context override.")
-                        with bpy.context.temp_override(area=area):
-                            bpy.ops.conjure.import_model('EXEC_DEFAULT')
-                    except Exception as e:
-                        print(f"ERROR: Failed to execute conjure.import_model operator: {e}")
-                else:
-                    print("ERROR: Could not find a 3D View area to run the import operator.")
+                tool_name = command_data.get("tool_name")
+                params = command_data.get("parameters", {})
                 
-                # Clear the command
-                print(f"DEBUG: Clearing command '{command}' from state file.")
-                state_data["command"] = None
-                with open(state_file_path, 'w') as f:
-                    json.dump(state_data, f, indent=4)
+                if tool_name == "spawn_primitive":
+                    primitive_type = params.get("primitive_type")
+                    if primitive_type:
+                        print(f"EXECUTING INSTRUCTION: spawn_primitive with params: {params}")
+                        bpy.ops.conjure.spawn_primitive(primitive_type=primitive_type)
+                        self.reinitialize_mesh_state()
+                        
+                        # Clear the command and write back to the file
+                        state_data["command"] = None
+                        f.seek(0)
+                        json.dump(state_data, f, indent=4)
+                        f.truncate()
+
+        except (json.JSONDecodeError, IOError, ValueError) as e:
+            # This can happen if the file is being written by the other process.
+            # It's safe to just skip this check and try again on the next tick.
+            # print(f"Could not process state.json: {e}")
+            pass
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
@@ -613,84 +565,132 @@ class ConjureFingertipOperator(bpy.types.Operator):
             self.cancel(context)
             return {'CANCELLED'}
 
-        # --- Handle Mouse & Keyboard Input ---
-        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE', 'RIGHTMOUSE'}:
-            # Allow standard navigation controls to pass through
-            return {'PASS_THROUGH'}
-
-        # --- Main Logic on Timer Tick ---
         if event.type == 'TIMER':
-            # Add this call to poll for external commands
-            self.check_for_launcher_requests()
-
-            # --- 1. Read Hand Data ---
+            # --- Primary Update Loop ---
             try:
                 with open(config.FINGERTIPS_JSON_PATH, 'r') as f:
-                    self.hand_data = json.load(f)
+                    hand_data = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
-                self.hand_data = {} # Reset if file is missing or corrupt
-                pass # Continue silently if the file isn't ready
+                return {'PASS_THROUGH'} # Continue if file is missing or malformed
 
-            # --- 2. Process Commands & Gestures ---
-            command = self.hand_data.get("command", "none")
-            remesh_type = self.hand_data.get("remesh_type", "NONE")
-            is_deforming = self.hand_data.get("deform_active", False)
-            closed_fist_detected = self.hand_data.get("closed_fist", False)
-            rotation_delta = self.hand_data.get("rotation", 0.0)
-            brush_change_request = self.hand_data.get("change_brush", 0) # -1 for prev, 1 for next
-            radius_change_request = self.hand_data.get("change_radius", 0) # -1 for prev, 1 for next
+            # --- 1. Process Agent/Launcher Commands ---
+            # This is the new integration point for agent-driven actions.
+            self.check_for_launcher_requests()
 
-            # Update the brush or radius if requested
-            if brush_change_request != 0:
-                self.handle_brush_change(brush_change_request)
-            if radius_change_request != 0:
-                self.handle_radius_change(radius_change_request)
+            # --- 2. Process Hand Gesture Commands ---
+            command = hand_data.get("command", "none")
+            command_data = hand_data.get("data", {})
 
-            # --- 3. Update Camera Orbit ---
-            self.handle_camera_orbit(rotation_delta)
-
-            # --- 4. Update Fingertip Markers ---
-            self.update_fingertip_markers(context)
-
-            # --- 5. Perform Mesh Deformation ---
-            deform_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
-            if deform_obj and is_deforming and self.visible_fingers:
-                # Get the active brush type
-                brush_type = self.brush_settings['name']
-                
-                # Calculate hand movement vector for the GRAB brush
-                hand_move_vector = None
-                if brush_type == 'GRAB' and self._last_hand_center:
-                    current_hand_center = self.get_hand_center()
-                    if current_hand_center:
-                        hand_move_vector = current_hand_center - self._last_hand_center
-                
-                # Always use the viscosity-based deformation now
-                self.deform_mesh_with_viscosity(
-                    deform_obj,
-                    [f['world_pos'] for f in self.visible_fingers],
-                    self._initial_volume,
-                    self._vertex_velocities,
-                    self._history_buffer,
-                    self,
-                    brush_type=brush_type,
-                    hand_move_vector=hand_move_vector
-                )
-
-            # --- 6. Handle Gesture-based Rendering ---
-            if closed_fist_detected and not self.last_closed_fist_state:
-                self.handle_gesture_render()
-
-            # --- 7. Update State & Redraw ---
-            self.last_closed_fist_state = closed_fist_detected
-            self._last_hand_center = self.get_hand_center() # Update for next frame
+            # A. Handle Continuous Actions (like sculpting and orbiting)
+            if command == "sculpt":
+                self.handle_sculpting(context, hand_data)
+            elif command == "orbit":
+                if "rotation_delta" in command_data:
+                    self.handle_camera_orbit(command_data["rotation_delta"])
             
+            # B. Handle One-Shot Actions (triggered only on change)
+            if command != self._last_command:
+                if command == "brush_change":
+                    self.handle_brush_change()
+                elif command == "radius_change":
+                    self.handle_radius_change()
+                elif command == "rewind_backward":
+                    self.handle_rewind('backward')
+                elif command == "rewind_forward":
+                    self.handle_rewind('forward')
+                
+                # Update UI state for speaking
+                is_speaking = (command == "start_speaking")
+                state_file_path = config.STATE_JSON_PATH # Use the correct path from the config
+                if state_file_path.exists():
+                    try:
+                        with open(state_file_path, 'r+') as f:
+                            state = json.load(f)
+                            # Only write if the state is different to avoid extra processing
+                            if state.get("user_is_speaking") != is_speaking:
+                                state["user_is_speaking"] = is_speaking
+                                f.seek(0)
+                                json.dump(state, f, indent=4)
+                                f.truncate()
+                    except (IOError, json.JSONDecodeError) as e:
+                        print(f"Error updating speaking state: {e}")
+
+
+            self._last_command = command
+
+            # --- 3. Update Visuals ---
+            self.update_fingertip_markers(context, hand_data.get("fingers", []))
+
             # Tag the viewport for redrawing to show updates
             if context.area:
                 context.area.tag_redraw()
 
         return {'PASS_THROUGH'}
 
+    def get_active_command(self):
+        """Gets the name of the currently active brush."""
+        if 0 <= self._current_brush_index < len(config.BRUSH_TYPES):
+            return config.BRUSH_TYPES[self._current_brush_index]
+        return "UNKNOWN"
+
+    def get_current_radius_setting(self):
+        """Gets the entire dictionary for the current radius level."""
+        return config.RADIUS_LEVELS[self._current_radius_index]
+
+    def update_fingertip_markers(self, context, finger_data):
+        """
+        Updates the position and visibility of the fingertip markers based on live data.
+        This is a stable, restored implementation.
+        """
+        if not finger_data:
+            # If no fingers are detected, hide all markers.
+            for i in range(10):
+                marker = bpy.data.objects.get(f"Fingertip.{i:02d}")
+                if marker:
+                    marker.location = config.MARKER_OUT_OF_VIEW_LOCATION
+                    marker.hide_viewport = True
+            self.marker_states.clear()
+            return
+            
+        new_marker_states = []
+        for i, finger in enumerate(finger_data):
+            marker_name = f"Fingertip.{i:02d}"
+            marker = bpy.data.objects.get(marker_name)
+            if not marker:
+                continue
+
+            # Map normalized coordinates to world space
+            world_pos = map_hand_to_3d_space(finger['x'], finger['y'], finger['z'])
+            
+            # Smooth the marker's movement
+            smoothed_pos = marker.location.lerp(world_pos, config.SMOOTHING_FACTOR)
+            marker.location = smoothed_pos
+            marker.hide_viewport = False # Make the marker visible
+            
+            new_marker_states.append({
+                "name": marker_name,
+                "location": smoothed_pos,
+                "visible": True # All detected fingers are considered visible
+            })
+
+        # Hide any markers that are no longer in use
+        for i in range(len(finger_data), 10):
+            marker = bpy.data.objects.get(f"Fingertip.{i:02d}")
+            if marker:
+                marker.location = config.MARKER_OUT_OF_VIEW_LOCATION
+                marker.hide_viewport = True # Hide the unused marker
+
+        self.marker_states = new_marker_states
+
+    def get_hand_center(self):
+        """Calculates the average position of all VISIBLE fingertips."""
+        if not self.visible_fingers:
+            return None
+        center = mathutils.Vector()
+        for finger in self.visible_fingers:
+            center += finger['world_pos']
+        return center / len(self.visible_fingers) if self.visible_fingers else None
+        
     def execute(self, context):
         setup_scene()
 
@@ -743,6 +743,9 @@ class ConjureFingertipOperator(bpy.types.Operator):
         # Add the draw handler for the UI text
         self._draw_handler = bpy.types.SpaceView3D.draw_handler_add(self.draw_ui_text, (context,), 'WINDOW', 'POST_PIXEL')
 
+        self.visible_fingers = []
+        self.last_closed_fist_state = False
+
         return {'RUNNING_MODAL'}
 
     def cancel(self, context):
@@ -783,6 +786,10 @@ def unregister():
 
 
 if __name__ == "__main__":
+    # Example of how to add a dummy function if it were missing
+    # This is not needed if the function is properly added to the class
+    # setattr(ConjureFingertipOperator, 'handle_camera_orbit', lambda self, rot: None)
+    
     register()
     # We no longer call the operator directly. It must be started from the UI panel.
     # bpy.ops.conjure.fingertip_operator() 

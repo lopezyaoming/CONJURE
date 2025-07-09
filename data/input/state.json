@@ -5,7 +5,7 @@
     "user_is_speaking": null,
     "command": null,
     "text": null,
-    "primitive_type": "Cylinder",
+    "primitive_type": "Sphere",
     "generation_request": null,
     "selection_request": null,
     "import_request": null,
@@ -13,8 +13,8 @@
     "ui": {
         "view": "DIALOG_ONLY",
         "dialogue": {
-            "user_transcript": "I repent. Instead, we should create a cylinder.",
-            "agent_response": "No problem, let's switch to a cylinder. I've created a cylinder for you.",
+            "user_transcript": "",
+            "agent_response": "Welcome to CONJURE.",
             "status": "Say something..."
         },
         "selected_option": null

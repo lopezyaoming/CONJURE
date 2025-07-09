@@ -11,12 +11,6 @@ import math
 import time
 from pathlib import Path
 
-# --- Add new imports for keyboard listening ---
-import keyboard
-from state_manager import StateManager
-# ---------------------------------------------
-
-
 # --- Configuration ---
 # This setup allows the script to be run from anywhere and still find the project root.
 try:
@@ -56,32 +50,6 @@ def is_thumb_and_finger_touching(hand_landmarks, finger_tip_id):
     
     return distance < TOUCH_THRESHOLD
 
-# --- Keyboard Listening Setup ---
-def setup_voice_hooks(state_manager):
-    """Sets up keyboard hooks to listen for the 't' key."""
-    # Use a simple class to manage state to avoid global variables
-    class KeyState:
-        is_pressed = False
-
-    def on_press_t(e):
-        if not KeyState.is_pressed:
-            print("Talk key pressed. Sending state...")
-            state_manager.update_state({'user_is_speaking': True})
-            KeyState.is_pressed = True
-    
-    def on_release_t(e):
-        if KeyState.is_pressed:
-            print("Talk key released. Sending state...")
-            state_manager.update_state({'user_is_speaking': False})
-            KeyState.is_pressed = False
-
-    # Note: The keyboard library runs in the background.
-    # This may require administrator/root privileges on some systems.
-    keyboard.on_press_key('t', on_press_t, suppress=False)
-    keyboard.on_release_key('t', on_release_t, suppress=False)
-    print("Keyboard hooks for 't' key are active. Hold 't' to talk.")
-
-
 # --- Main Application Logic ---
 def run_hand_tracker():
     """Initializes camera, runs Mediapipe, and writes data to JSON."""
@@ -97,24 +65,16 @@ def run_hand_tracker():
         min_tracking_confidence=0.5
     )
 
-    # --- Setup State Manager and Voice Hooks ---
-    state_manager = StateManager()
-    # Clear any stale 'speaking' state on startup
-    state_manager.update_state({'user_is_speaking': None}) 
-    setup_voice_hooks(state_manager)
-    # -----------------------------------------
-
-    # Define all gestures. The names MUST match the commands expected by operator_main.py
+    # Define all gestures, their target finger, hand, and behavior
     GESTURE_MAPPING = {
         # Right Hand
-        "sculpt":          {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Right", "type": "continuous"},
-        "orbit":           {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Right", "type": "continuous"},
-        "brush_change":    {"finger": HAND_LANDMARKS.RING_FINGER_TIP,   "hand": "Right", "type": "oneshot"},
-        "rewind_backward": {"finger": HAND_LANDMARKS.PINKY_TIP,        "hand": "Right", "type": "oneshot"},
+        "deform":       {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "orbit":        {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Right", "type": "continuous"},
+        "cycle_brush":  {"finger": HAND_LANDMARKS.RING_FINGER_TIP,   "hand": "Right", "type": "oneshot"},
+        "rewind":       {"finger": HAND_LANDMARKS.PINKY_TIP,        "hand": "Right", "type": "continuous"},
         # Left Hand
-        "start_speaking":  {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Left",  "type": "oneshot"},
-        "radius_change":   {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left",  "type": "oneshot"},
-        "rewind_forward":  {"finger": HAND_LANDMARKS.RING_FINGER_TIP,   "hand": "Left",  "type": "oneshot"},
+        "reset_rotation": {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+        "cycle_radius":   {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left", "type": "oneshot"},
     }
 
     # Initialize Webcam
@@ -237,19 +197,14 @@ def run_hand_tracker():
                 mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
         # --- Structure and Write JSON ---
-        # This structure must match what the Blender operator expects.
-        all_fingers = []
-        if left_hand_fingertips:
-            all_fingers.extend(left_hand_fingertips)
-        if right_hand_fingertips:
-            all_fingers.extend(right_hand_fingertips)
-
         output_data = {
             "command": final_command,
-            "data": { # The operator now expects a 'data' sub-dictionary
-                "rotation_delta": orbit_delta
-            },
-            "fingers": all_fingers
+            "left_hand": {"fingertips": left_hand_fingertips} if left_hand_fingertips else None,
+            "right_hand": {"fingertips": right_hand_fingertips} if right_hand_fingertips else None,
+            "orbit_delta": orbit_delta,
+            "anchors": [],
+            "scale_axis": "XYZ",
+            "remesh_type": "BLOCKS"
         }
 
         try:
@@ -271,8 +226,6 @@ def run_hand_tracker():
             break
 
     # Cleanup
-    # Clear speaking state on exit
-    state_manager.update_state({'user_is_speaking': None})
     hands.close()
     cap.release()
     cv2.destroyAllWindows()
