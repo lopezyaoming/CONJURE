@@ -41,6 +41,7 @@ class ConversationalAgent:
         # Now that a full turn has completed, trigger Agent B
         conversation_turn = "\n".join(self.full_transcript)
         print("--- Sending to Backend Agent ---")
+        print(conversation_turn)
         self.backend_agent.get_response(conversation_turn)
         
         # Clear the transcript for the next turn
