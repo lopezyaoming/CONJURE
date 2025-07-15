@@ -1,1 +1,5 @@
-{}
+{
+    "app_status": "stopped",
+    "hand_tracker_status": "running",
+    "blender_status": "running"
+}

@@ -27,12 +27,14 @@ import json
 import uuid
 from pathlib import Path
 import shutil
+import threading
 
 from subprocess_manager import SubprocessManager
 from state_manager import StateManager
 from comfyui.api_wrapper import load_workflow, run_workflow, modify_workflow_paths
 import launcher.config as config
-from agent_api import ConversationalAgent
+from backend_agent import BackendAgent
+from conversational_agent import ConversationalAgent
 from instruction_manager import InstructionManager
 
 class ConjureApp:
@@ -41,16 +43,12 @@ class ConjureApp:
         self.state_manager = StateManager()
         self.subprocess_manager = SubprocessManager()
         self.instruction_manager = InstructionManager(self.state_manager)
+        self.backend_agent = BackendAgent(instruction_manager=self.instruction_manager)
+        self.conversational_agent = ConversationalAgent(backend_agent=self.backend_agent)
         self.project_root = Path(__file__).parent.parent.resolve()
         atexit.register(self.stop)
         
-        # Initialize the agent
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            print("FATAL: OPENAI_API_KEY environment variable not set. Application will exit.")
-            sys.exit(1) # Exit with a non-zero status code to indicate an error
-        self.agent = ConversationalAgent(api_key=api_key, instruction_manager=self.instruction_manager)
-        print("CONJURE Agent is initialized and listening...")
+        print("CONJURE Agents are initialized.")
 
     def start(self):
         """Starts all the necessary components of the application."""
@@ -68,6 +66,12 @@ class ConjureApp:
 
         print("\nCONJURE is now running. Close the Blender window or press Ctrl+C here to exit.")
 
+        # Start the conversational agent in a separate thread
+        self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
+        self.agent_thread.start()
+        print("Conversational agent is now listening in a background thread...")
+
+
     def check_for_requests(self):
         """Checks the state file for requests from Blender and triggers workflows."""
         state_data = self.state_manager.get_state()
@@ -77,14 +81,17 @@ class ConjureApp:
         command = state_data.get("command")
         generation_mode = state_data.get("generation_mode", "standard")
 
-        if command == "agent_user_message":
-            print(f"\nUser message received: {state_data.get('text')}")
-            # First, clear the user message command so it doesn't get processed again.
-            self.state_manager.clear_command()
-            # Now, get the agent's response. The agent may issue a new command
-            # to Blender by updating the state file itself.
-            self.agent.get_response(state_data.get('text'))
-        elif state_data.get("generation_request") == "new":
+        # This part of the logic is now handled by the new agent system.
+        # The old agent was triggered by Blender UI, the new one is voice-driven.
+        # We'll keep the generation/selection logic as it's triggered by Blender/gestures.
+        # if command == "agent_user_message":
+        #     print(f"\nUser message received: {state_data.get('text')}")
+        #     # First, clear the user message command so it doesn't get processed again.
+        #     self.state_manager.clear_command()
+        #     # Now, get the agent's response. The agent may issue a new command
+        #     # to Blender by updating the state file itself.
+        #     self.agent.get_response(state_data.get('text'))
+        if state_data.get("generation_request") == "new":
             self.handle_generation_request()
             self.state_manager.clear_specific_requests(["generation_request"])
         elif state_data.get("selection_request"):
@@ -285,36 +292,29 @@ class ConjureApp:
         print("State file has been updated.")
 
     def run(self):
-        """Main application loop. Monitors subprocesses and checks for requests."""
+        """Main application loop."""
+        self.start()
         try:
             while self.state_manager.get_state().get("app_status") == "running":
                 self.check_for_requests()
-
-                blender_process = self.subprocess_manager.processes.get('blender')
-                if blender_process and blender_process.poll() is not None:
-                    print("Blender window was closed. Shutting down.")
-                    break
-
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\nKeyboard interrupt detected. Shutting down CONJURE.")
+            print("\nKeyboardInterrupt detected. Shutting down CONJURE.")
         finally:
             self.stop()
 
     def stop(self):
-        """Stops all running subprocesses."""
-        print("CONJURE application stopping...")
+        """Stops all application components."""
+        print("Stopping CONJURE application components...")
+        self.state_manager.set_state("app_status", "stopped")
+        
+        # Stop the conversational agent
+        self.conversational_agent.stop()
+        # No need to join the agent_thread if it's a daemon
+
         self.subprocess_manager.stop_all()
-
-        # Clear the state file to prevent stale commands on restart
-        print("Clearing application state...")
-        # Write an empty JSON object to the state file
-        with open(self.state_manager.state_file_path, 'w') as f:
-            json.dump({}, f)
-
-        print("CONJURE has stopped.")
+        print("All subprocesses terminated.")
 
 if __name__ == "__main__":
     app = ConjureApp()
-    app.start()
     app.run() 

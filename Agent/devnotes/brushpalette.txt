@@ -1,0 +1,37 @@
+# CONJURE Brush Palette Proposal
+
+This document outlines an expanded set of brushes for CONJURE. The philosophy is to provide a powerful but limited toolkit focused on high-level form-finding, not photorealistic sculpting, in line with CONJURE's goal of guiding generative AI.
+
+---
+
+### Core Brush Palette
+
+#### 1. GRAB (Existing)
+- **Purpose:** Make large-scale changes to proportions. Move entire sections of the mesh.
+- **Analogy:** Grabbing and pulling a piece of wet clay.
+
+#### 2. PINCH (Existing)
+- **Purpose:** Create sharper details, edges, or points. Pull small sections of the mesh out into fine shapes.
+- **Analogy:** Using tweezers or small pliers to pull at a surface.
+
+#### 3. SMOOTH (Existing)
+- **Purpose:** Relax the surface and remove unwanted detail or lumpiness. Ideal for cleaning up a form after making other edits.
+- **Analogy:** Using fine-grit sandpaper or running water over a rough surface.
+
+#### 4. INFLATE (New Proposal)
+- **Purpose:** Add or subtract volume from an area without pulling it. Pushes vertices outward or inward along their own normals. Excellent for making a section feel more massive or thinner.
+- **Analogy:** Inflating or deflating a balloon. A negative strength would allow for a "deflate" or "dent" effect.
+
+#### 5. FLATTEN (New Proposal)
+- **Purpose:** Create hard surfaces or planar areas. Pushes the vertices within the brush radius towards a single, averaged plane. Invaluable for sculpting intentional, non-organic surfaces.
+- **Analogy:** Pressing a block or a spatula against a soft surface to create a flat plane.
+
+---
+
+### Implementation Notes
+
+- The five brushes can still be cycled through using the existing "cycle_brush" gesture (Left Hand, Thumb + Middle Finger).
+- The `INFLATE` and `FLATTEN` brushes would be implemented in `conjure_blender.py` within the `deform_mesh_with_viscosity` function, similar to the existing brush types.
+- They would add two new "if/elif" conditions to the brush logic, calculating force vectors based on vertex normals (`INFLATE`) or an averaged plane (`FLATTEN`).
+
+This curated set of five brushes provides a comprehensive toolkit for shaping, refining, and preparing a mesh for the generative stages of the CONJURE pipeline, without overwhelming the user with excessive options. 

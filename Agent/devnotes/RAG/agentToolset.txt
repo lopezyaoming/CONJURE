@@ -1,0 +1,74 @@
+# CONJURE Agent Toolset
+
+## 1. Introduction & Agent Output Structure
+
+This document defines the complete set of tools available to the CONJURE conversational agent. These tools are the bridge between the agent's understanding and the CONJURE application's backend logic.
+
+As specified in `masterPrompt.txt`, the agent's response for every turn must be a JSON object with a specific structure. The backend (`launcher/agent_api.py`) will parse this object to extract the spoken response, the user prompt for generation, and the instruction to execute.
+
+**Agent Output JSON Structure:**
+```json
+{
+  "spoken": "The text-to-speech string for the user to hear.",
+  "instruction": {
+    "tool_name": "name_of_the_tool_to_call",
+    "parameters": {
+      "param1": "value1",
+      "param2": "value2"
+    }
+  },
+  "user_prompt": "An SDXL-optimized text prompt, constantly updated based on the conversation."
+}
+```
+
+-   `spoken`: What the agent says out loud.
+-   `instruction`: The structured command for the backend. If no command is needed for a specific conversational turn, this can be `null`.
+-   `user_prompt`: The generative prompt for ComfyUI, which the agent refines throughout the conversation.
+
+The `launcher` will execute the function associated with `tool_name`, passing the `parameters` object to it.
+
+---
+
+## 2. Toolset Definition
+
+### Tool: `spawn_primitive`
+-   **Description:** Creates a new primitive mesh object in the Blender scene, replacing any existing mesh. This is the starting point for a new creation.
+-   **Parameters:**
+    -   `primitive_type` (string): The type of primitive to spawn.
+        -   *Allowed Values:* "Sphere", "Cube", "Cone", "Cylinder", "Disk", "Torus", "Head", "Body".
+
+### Tool: `request_segmentation`
+-   **Description:** Triggers the CGAL mesh segmentation process. This command exports the current mesh, runs the external segmenter executable, and re-imports the result with vertex-colored segments.
+-   **Parameters:** None.
+
+### Tool: `generate_concepts`
+-   **Description:** Initiates the first stage of the generative pipeline. This instructs Blender to render the current view from the `GestureCamera` and tells the `launcher` to execute the `promptMaker.json` workflow in ComfyUI using the current `user_prompt.txt`.
+-   **Parameters:** None. (The agent is expected to have updated `user_prompt.txt` before calling this tool).
+
+### Tool: `select_concept`
+-   **Description:** Called after the user chooses one of the three generated concepts. This triggers the multi-view rendering and the `mv2mv` and `mv23D` workflows to generate the new 3D model.
+-   **Parameters:**
+    -   `option_id` (integer): The number of the selected option.
+        -   *Allowed Values:* 1, 2, 3.
+
+### Tool: `isolate_segment`
+-   **Description:** Used during Phase III (Segment Refinement). This command prepares the currently selected mesh segment for a focused refinement loop by isolating it and centering it in the bounding box.
+-   **Parameters:** None. (The backend will use the segment ID currently stored in `state.json`, which is updated by the gesture recognition system).
+
+### Tool: `apply_material`
+-   **Description:** Used during Phase IV (Material + Narrative). This command applies a PBR material to a mesh segment. The backend is responsible for interpreting the user's description and finding the best-matching material from its library.
+-   **Parameters:**
+    -   `material_description` (string): The user's natural language description of the desired material (e.g., "a dark, rusty metal," "glowing blue crystals," "worn leather").
+    -   `segment_id` (string, optional, default="CURRENTLY_SELECTED"): The target segment. If not provided, the backend will apply the material to the currently selected segment from `state.json`.
+
+### Tool: `export_final_model`
+-   **Description:** Exports the final model as a `.glb` file, along with final renders and any associated metadata. This concludes the creative session.
+-   **Parameters:** None.
+
+### Tool: `undo_last_action`
+-   **Description:** Reverts the last major action. This could include undoing a mesh import, a material application, or a segmentation operation. It leverages the history system described in the development plan.
+-   **Parameters:** None.
+
+### Tool: `import_last_model`
+-   **Description:** Imports the most recently generated 3D model from `data/generated_models/genMesh.glb` into the Blender scene, replacing the current mesh.
+-   **Parameters:** None. 
