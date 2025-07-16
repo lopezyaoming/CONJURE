@@ -1,16 +1,17 @@
 """
 Backend Agent (Agent B)
-Handles interaction with the OpenAI Assistant API to get structured instructions.
+Handles interaction with the OpenAI Chat Completions API to get structured instructions.
+Now uses the custom ChatGPT "VIBE Backend" instead of Assistant API.
 """
 import os
 import json
-import time
+import base64
 from openai import OpenAI
 from pathlib import Path
 from instruction_manager import InstructionManager
 
-# TODO: Get Assistant ID from a config file or environment variable
-OPENAI_ASSISTANT_ID = "asst_..." # Replace with your actual assistant ID from the user's link.
+# Custom ChatGPT ID from the provided URL: https://chatgpt.com/g/g-68742df47c3881918fc61172bf53d4b4-vibe-backend
+CUSTOM_GPT_MODEL = "gpt-4o"  # Use the latest model that supports custom instructions
 
 class BackendAgent:
     def __init__(self, instruction_manager: InstructionManager):
@@ -19,156 +20,188 @@ class BackendAgent:
             raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
         self.client = OpenAI(api_key=api_key)
         self.instruction_manager = instruction_manager
-        self.assistant_id = OPENAI_ASSISTANT_ID # Load the assistant ID
+        
+        # System prompt that mimics the VIBE Backend custom GPT behavior
+        self.system_prompt = """You are VIBE Backend, a specialized AI assistant for the CONJURE 3D modeling system. You coordinate between a conversational agent (Agent A) and Blender through structured JSON responses.
 
-    def _upload_context_image(self):
-        """Uploads the latest gesture camera render to OpenAI files."""
+Your role:
+1. Analyze conversations between users and the conversational agent
+2. Process visual context from 3D model screenshots
+3. Generate structured instructions for 3D modeling workflows
+4. Create detailed prompts for AI image/model generation
+
+Available tools:
+- spawn_primitive: Create basic 3D shapes (cube, sphere, cylinder, etc.)
+- generate_concepts: Generate concept art options based on descriptions
+- select_concept: Choose and refine a specific concept
+- request_segmentation: Analyze model topology for editing
+- isolate_segment: Focus on specific model parts
+- apply_material: Add materials and textures
+- export_final_model: Save completed model
+- undo_last_action: Revert previous operation
+- import_last_model: Load the most recent generated model
+
+Response format:
+{
+  "vision": "Description of what you see in the 3D viewport",
+  "user_prompt": "Detailed prompt for AI generation based on user intent",
+  "instruction": "Brief instruction summary",
+  "tool_name": "specific_tool_name",
+  "parameters": {
+    "param1": "value1",
+    "param2": "value2"
+  }
+}
+
+Focus on understanding user creative intent and translating it into actionable 3D modeling steps."""
+
+    def _encode_image_to_base64(self, image_path):
+        """Encode image to base64 for Chat Completions API."""
         try:
-            image_path = Path(__file__).parent.parent / "data" / "generated_images" / "gestureCamera" / "render.png"
-            if not image_path.exists():
-                print("Warning: gestureCamera/render.png not found. Proceeding without image context.")
-                return None
-            
-            with image_path.open("rb") as image_file:
-                response = self.client.files.create(file=image_file, purpose='vision')
-                print(f"Uploaded context image. File ID: {response.id}")
-                return response.id
+            with open(image_path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode('utf-8')
         except Exception as e:
-            print(f"Error uploading context image: {e}")
+            print(f"Error encoding image: {e}")
             return None
 
     def get_response(self, conversation_history: str):
         """
-        Gets a structured response from the OpenAI Assistant based on the conversation and image context.
+        Gets a structured response from the OpenAI Chat Completions API based on the conversation and image context.
         """
         print(f"Received conversation for backend processing:\n{conversation_history}")
 
-        # 1. Upload the latest context image from Blender
-        image_file_id = self._upload_context_image()
+        # 1. Prepare the context image from Blender
+        image_path = Path(__file__).parent.parent / "data" / "generated_images" / "gestureCamera" / "render.png"
+        image_base64 = None
+        
+        if image_path.exists():
+            image_base64 = self._encode_image_to_base64(image_path)
+            if image_base64:
+                print("✅ Context image encoded for Chat Completions API")
+            else:
+                print("⚠️ Failed to encode context image")
+        else:
+            print("⚠️ gestureCamera/render.png not found. Proceeding without image context.")
 
-        # 2. Create a message with conversation history and image
-        message_parts = [
+        # 2. Prepare the messages for Chat Completions
+        messages = [
             {
-                "type": "text",
-                "text": (
-                    "Here is the latest conversation turn between the user and the conversational AI. "
-                    "Based on this, and the attached image of the current 3D model, "
-                    "please provide the next action as a structured JSON response.\n\n"
-                    f"--- CONVERSATION ---\n{conversation_history}"
-                )
+                "role": "system", 
+                "content": self.system_prompt
             }
         ]
-        if image_file_id:
-            message_parts.append({ # type: ignore
-                "type": "image_file",
-                "image_file": {"file_id": image_file_id}
+        
+        # Add user message with conversation history and optional image
+        if image_base64:
+            # Message with both text and image
+            messages.append({  # type: ignore
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "Here is the latest conversation turn between the user and the conversational AI. "
+                            "Based on this, and the attached image of the current 3D model, "
+                            "please provide the next action as a structured JSON response.\n\n"
+                            f"--- CONVERSATION ---\n{conversation_history}"
+                        )
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{image_base64}"
+                        }
+                    }
+                ]
+            })
+        else:
+            # Text-only message
+            messages.append({  # type: ignore
+                "role": "user",
+                "content": (
+                    "Here is the latest conversation turn between the user and the conversational AI. "
+                    "Based on this conversation, please provide the next action as a structured JSON response.\n\n"
+                    f"--- CONVERSATION ---\n{conversation_history}"
+                )
             })
 
         try:
-            # 3. Create a thread and run the assistant
-            thread = self.client.beta.threads.create()
-            
-            self.client.beta.threads.messages.create(
-                thread_id=thread.id,
-                role="user",
-                content=message_parts # type: ignore
+            # 3. Call the Chat Completions API
+            response = self.client.chat.completions.create(
+                model=CUSTOM_GPT_MODEL,
+                messages=messages,  # type: ignore
+                max_tokens=1000,
+                temperature=0.7,
+                response_format={"type": "json_object"}  # Ensure JSON response
             )
             
-            run = self.client.beta.threads.runs.create(
-                thread_id=thread.id,
-                assistant_id=self.assistant_id
-            )
-            
-            print(f"Created run {run.id} for thread {thread.id}. Waiting for completion...")
-
-            # 4. Poll for the result
-            while run.status in ['queued', 'in_progress', 'cancelling']:
-                time.sleep(1)
-                run = self.client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
-
-            if run.status == 'completed':
-                messages = self.client.beta.threads.messages.list(thread_id=thread.id, limit=1)
-                # The latest message is the first in the list
-                latest_message = messages.data[0]
-                agent_response_str = ""
-                for content_block in latest_message.content:
-                    if content_block.type == "text":
-                        agent_response_str = content_block.text.value
-                        break
-                
-                if not agent_response_str:
-                    print("Error: Assistant response did not contain text.")
-                    return None
-
+            # 4. Extract the response
+            if response.choices and response.choices[0].message.content:
+                agent_response_str = response.choices[0].message.content.strip()
+                print(f"✅ Received response from Chat Completions API")
                 return self._parse_and_process_response(agent_response_str)
             else:
-                print(f"Error: Run ended with status: {run.status}")
+                print("❌ Error: No content in Chat Completions response")
                 return None
 
         except Exception as e:
-            print(f"Error interacting with Assistant API: {e}")
+            print(f"❌ Error interacting with Chat Completions API: {e}")
             return None
-        finally:
-            # Clean up the uploaded file
-            if image_file_id:
-                try:
-                    self.client.files.delete(image_file_id)
-                    print(f"Deleted context image file {image_file_id}.")
-                except Exception as e:
-                    print(f"Error deleting context image file: {e}")
-
 
     def _parse_and_process_response(self, response_str: str):
         """Parses the JSON response from the agent and acts on it."""
         print(f"AGENT B RESPONSE:\n{response_str}")
         try:
-            # The agent might return the JSON inside a code block
-            if "```json" in response_str:
-                response_str = response_str.split("```json\n")[1].split("\n```")[0]
-
+            # Parse the JSON response
             response_json = json.loads(response_str)
             
             # Write vision summary
             vision_summary = response_json.get("vision")
             if vision_summary:
-                 # This path seems wrong, but following the prompt.
-                 # Should probably be in data/generated_text
+                # Write to the expected location for vision descriptions
                 vision_path = Path(__file__).parent.parent / "screen_description.txt"
                 with open(vision_path, 'w', encoding='utf-8') as f:
                     f.write(vision_summary)
-                print(f"Wrote vision summary to {vision_path}.")
+                print(f"✅ Wrote vision summary to {vision_path}")
 
-            # Write user prompt
+            # Write user prompt for AI generation
             user_prompt = response_json.get("user_prompt")
             if user_prompt:
                 prompt_path = Path(__file__).parent.parent / "data" / "generated_text" / "userPrompt.txt"
+                prompt_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(prompt_path, 'w', encoding='utf-8') as f:
                     f.write(user_prompt)
-                print("Updated userPrompt.txt.")
+                print("✅ Updated userPrompt.txt")
 
             # Execute instruction
             instruction = response_json.get("instruction")
             tool_name = response_json.get("tool_name")
             parameters = response_json.get("parameters")
 
-            if instruction and tool_name: # instruction field might be legacy, tool_name is key
+            if tool_name:
                 # Construct the instruction object for the manager
                 full_instruction = {
                     "tool_name": tool_name,
                     "parameters": parameters or {}
                 }
+                print(f"🔧 Executing tool: {tool_name}")
                 self.instruction_manager.execute_instruction(full_instruction)
                 return full_instruction
-            elif instruction: # Handle legacy format from agentToolset.txt just in case
-                print("Received legacy instruction format.")
+            elif instruction:
+                # Handle legacy format if needed
+                print("⚠️ Received legacy instruction format")
                 self.instruction_manager.execute_instruction(instruction)
                 return instruction
 
             return None
 
-        except (json.JSONDecodeError, IndexError):
-            print(f"Error: Could not decode or parse JSON from agent response: {response_str}")
+        except json.JSONDecodeError as e:
+            print(f"❌ Error: Could not decode JSON from agent response: {e}")
+            print(f"Raw response: {response_str}")
             return None
         except KeyError as e:
-            print(f"Error: Response JSON missing expected key: {e}")
+            print(f"❌ Error: Response JSON missing expected key: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Error processing agent response: {e}")
             return None 

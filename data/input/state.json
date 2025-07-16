@@ -2,6 +2,9 @@
     "app_status": "stopped",
     "hand_tracker_status": "running",
     "blender_status": "running",
-    "command": "undo_last_action",
-    "primitive_type": null
+    "command": "request_segmentation",
+    "primitive_type": null,
+    "generation_request": "new",
+    "material_description": null,
+    "segment_id": null
 }
