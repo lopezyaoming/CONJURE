@@ -12,12 +12,24 @@ Communication: Communicate between Blender and ComfyUI. Operates event-based loo
 API Agent: Listen, and play by hosting an ElevenLabs API call with an agent. 
 Subprocess Control: Launches and monitors background processes for ComfyUI workflows and CGAL segmentation modules as needed.
 
-API Agent: The Agent is a conversational AI interface powered by ElevenLabs with support for the Modular Control Protocol (MCP). Its purpose is to guide, interpret, and respond to user intent in both dialogue and design actions.
-It performs the following:
-Voice Understanding: Listens continuously to user speech and determines high-level intent. At critical points (e.g., after a mesh is completed or inspected), the Agent may autonomously trigger actions.
-Prompt Generation: Converts spoken input and scene context into clear textual prompts, which are sent to ComfyUI to generate images, variations, or 3D models.
-Scene Interpretation (Planned): The Agent may eventually evaluate screenshots or live camera feed to augment its decision-making (e.g., identify a mesh part, reaction, or user gesture).
-Narrative and Material Framing (Phase IV): In the final phase, the Agent becomes narratively active. It uses MCP to access predefined PBR materials and reconfigures the object into a cohesive design story. For example, it may label a segment as "sensor array," assign it a metallic finish, and explain its use based on prior user cues.
+API Agent: The Agent is a sophisticated conversational AI system consisting of two coordinated components:
+
+**Agent A (ElevenLabs Conversational AI)**: The primary voice interface that conducts natural conversations with users. Powered by ElevenLabs' conversational AI platform with real-time speech synthesis and understanding.
+
+**Agent B (VIBE Backend)**: A specialized OpenAI Chat Completions API agent that processes conversation context and generates structured instructions. Integrated with comprehensive RAG knowledge from `agentToolset.txt` and `fluxGuide.txt` for expert FLUX.1 prompting and tool execution.
+
+**Bidirectional Architecture**:
+- **Voice Understanding**: Agent A listens continuously via WebSocket connection. Both user speech and agent responses are captured as base64 audio streams.
+- **Transcript Processing**: Custom Whisper API integration transcribes all audio (user ↔ agent) into text for backend coordination.
+- **Context Analysis**: Agent B analyzes conversation history with visual context from Blender screenshots to determine appropriate actions.
+- **Tool Execution**: Agent B generates structured JSON responses with proper instruction objects: `{"instruction": {"tool_name": "...", "parameters": {...}}}`
+
+**Core Functions**:
+1. **Voice Understanding**: Continuous bidirectional speech capture with silence detection and real-time processing.
+2. **Prompt Generation**: Advanced FLUX.1 prompt engineering with layered compositions, technical photography details, and contrasting aesthetics.
+3. **Scene Interpretation**: Visual analysis of 3D viewport context combined with conversation history for informed decision-making.
+4. **Tool Orchestration**: Context-aware selection and execution of modeling tools (spawn_primitive, generate_concepts, apply_material, etc.).
+5. **Narrative and Material Framing (Phase IV)**: Narratively-driven material assignment and design story development based on conversation context.
 
 Blender: Blender is the central modeling environment in CONJURE. All 3D operations—including deformation, segmentation, remeshing, and rendering—are handled using bpy without the need for custom add-ons.
 Blender is launched automatically when the CONJURE .exe is executed.
@@ -268,7 +280,9 @@ CONJURE/
 ├── launcher/
 │   ├── main.py                   # Main controller (.exe entry point)
 │   ├── gui.py                    # PyQt6 interface
-│   ├── agent_api.py              # ElevenLabs conversational agent
+│   ├── conversational_agent.py  # ElevenLabs Agent A + Whisper transcription
+│   ├── backend_agent.py          # VIBE Backend Agent B + tool execution
+│   ├── instruction_manager.py    # Tool command processing and state coordination
 │   ├── state_manager.py          # Event loop from state.json
 │   ├── subprocess_manager.py     # Launches Blender, CGAL, ComfyUI
 │   ├── config.py                 # Global constants and paths

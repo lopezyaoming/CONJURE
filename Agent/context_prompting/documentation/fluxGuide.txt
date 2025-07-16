@@ -1,0 +1,148 @@
+FLUX.1 Prompt Guide: Pro Tips and Common Mistakes to Avoid
+
+Creating with AI used to feel like a game of chance. You'd type in a prompt, cross your fingers, and hope for the best. FLUX.1 changes that. This AI understands nuance, handles complexity, and delivers results that'll make you do a double-take. But like any powerful tool, it works best when you know how to use it. Ready to level up your prompting skills?
+FLUX.1 prompt guide: best practices
+FLUX.1 works excellently with instructions written in natural language (meaning, you write as if you were communicating with a human); for most users, it will likely be the easiest way to prompt. 
+All of the typical prompt engineering tips (which you can find in detail in our general prompt guide) still apply to FLUX.1. That means that you should:
+be precise, detailed and direct
+describe not only the content of the image but also such details as tone, style, color palette, and point of view,  
+for photorealistic images, include the name of the device used (e.g., “shot on iPhone 16”), aperture, lens, and shot type.
+But that’s not all! Due to FLUX.1’s groundbreaking capabilities, particularly regarding prompt following and text integration, we have some advice that applies specifically to this model.
+Important:
+You can access the groundbreaking FLUX.1 [schnell], [dev], and [ultra] variants in our Image Generator's Essential mode! Simply click here, sign up, and start creating.
+Layered images
+With some older models, it was difficult to precisely control different “layers” of an image, i.e., the foreground, middle ground, and background. FLUX.1 lets you craft complex compositions and define the placement of every object and person in the image: all that is needed is a good prompt.
+Be clear about what you want to see in each layer and convey it to the AI in an organized, hierarchical manner.  If you describe something in the foreground, move on to defining the background, then remember that you would like to have one more thing in the front; don’t just tack it on at the end. Go back and add it to the first part. 
+Good prompt example:
+“In the foreground, a vintage car with a 'CLASSIC' plate is parked on a cobblestone street. Behind it, a bustling market scene with colorful awnings. In the background, the silhouette of an old castle on a hill, shrouded in mist”
+Contrasting colors and aesthetics
+Contrasts can make for a striking image, whether photorealistic or digital art. For example, the top part of the image could have sad and gloomy vibes, while the bottom is cheerful and bright. Or the left side can be neon pink, and the right cyber blue. 
+Remember to also describe the transition between the two concepts. You decide if the “border” is abrupt and clearly visible, or if you’d prefer that the two aesthetics softly blend together.
+Good prompt example:
+“A single tree standing in the middle of the image. The left half of the tree has bright, vibrant green leaves under a bright, sunny blue sky, while the right half has bare branches covered in frost, with a cold, dark, thunderous sky. On the left there's green, lush grass on the ground; on the right - thick snow. The split is sharp, with the transition happening right down the middle of the tree”
+Tip:
+Don't have time to write a detailed, complex prompt? Use the "AI Improve" feature by clicking a button below the prompt box!
+See-through materials and textures
+Objects or text visible behind glass, ice, plastic bags, and other transparent materials are often amazing visuals—but AI struggled to create those types of images. Thankfully, FLUX.1, especially [dev], brings significant improvements, provided you prompt it right.
+You need to consider how to place objects in your image to achieve the desired result. For example, explicitly state that object A should be in the front and object B should be behind it.  Or mention that something (like a beautiful landscape) is visible through something (e.g., a glass window).
+Good prompt example:
+"A hanging glass terrarium featuring a miniature rainforest scene with colorful orchids and tiny waterfalls. Just beyond the glass, a neon sign reads 'Rainforest Retreat.' The rain-soaked glass creates a beautiful distortion, adding a soft glow to the sign's vibrant colors"
+Incorporating text onto images
+Thanks to FLUX.1, gone are the days when AI could only produce images with gibberish instead of legible text. Suffice it to say, it’s an absolute pro in typography, especially if you come up with a good prompt. 
+We have a whole separate article about integrating text onto images that we recommend you take a look at, but the gist is:
+for results tailored to your needs, describe the font, style size, color, and placement of the text;
+experiment with text effects such as distortion, shadow, neon glow, transparent outline, and much more;
+you can include several instances of text in one image, e.g., some text at the bottom and some at the top, in the same or different styles.
+Good prompt example:
+“A vintage travel poster for Paris. The Eiffel Tower silhouette dominates the center, painted in warm sunset colors. At the top, 'PARIS' is written in large, elegant Art Deco font, golden color with a slight 3D effect. At the bottom, 'City of Lights' appears in smaller, cursive text that seems to glow with a soft neon effect”
+FLUX.1 prompts: what should you NOT do?
+FLUX.1 is not very demanding regarding prompting; it can produce great results even with simple descriptions written by beginners. Still, some techniques and phrases should be avoided to get the best possible results. Read on to avoid those common mistakes!
+Incorrect syntax
+Some features and syntax you might know from other models and tools are not necessarily present in FLUX.1. Regarding prompting, the main difference is prompt weights, which, in Stable Diffusion-based models, allow users to put more or less focus (“weight”) on certain parts of the prompt.
+For example, "colorful garden (with a single rose)++" would mean the user wants to emphasize the "with a single rose" part of the prompt.
+However, neither [dev] nor [schnell] support prompt weights in our Image Generator, so make sure you don’t include them by the force of habit. As an alternative, you could use phrases such as "with emphasis on" or "with a focus on" in your prompt to guide the AI in the right direction.
+"colorful garden with a single rose"
+"colorful garden with a strong emphasis on a single rose"
+“White background” in [dev]
+Are you getting fuzzy outputs from FLUX.1? If your prompt has a “white background,” it might be to blame. It’s worth noting that this issue only affects the [dev] variant; it doesn’t occur in [schnell].
+We discussed it in more detail in a separate blog post. Check it out to learn how to fix the FLUX.1 blurry images issue. There are several options to try, although the main one is simply not using the “white background” phrase in your prompt. 
+Bad prompt: "logo for 'Eco Harmony' showcasing a stylized leaf graphic with modern typography against a white background"
+Good prompt: "logo for 'Eco Harmony' showcasing a stylized leaf graphic with modern typography"
+Chaotic prompting
+Think of prompting FLUX.1 as if you were trying to explain your desired output to a human artist you’re commissioning. If you describe what you want in a disorganized manner, they might get confused and create precisely what you ordered… but not what you actually meant to say.
+For example, if you want just the text on the image to be green, don't write "beach at dawn, the sun, 'Welcome' sign, green, vibrant colors." Instead, put it like this: "beach at dawn, the sun, 'Welcome' sign with green text, vibrant colors."
+"beach at dawn, the sun, 'Welcome' sign, green, vibrant colors"
+"beach at dawn, the sun, 'Welcome' sign with green text, vibrant colors"
+So, the lesson is simple: don’t just spam the AI with keywords in a random order and make it guess. The description should be logical and self-explanatory. To avoid getting lost when writing a more complex prompt, it might be helpful to break it down into smaller chunks, i.e., shorter sentences focusing on one element at a time (subject, text, tone, style, etc.).
+Now that you've got the inside scoop on mastering this digital genie, there's only one thing left to do. Fire up FLUX.1 in our Image Generator, let your creativity run wild, and prepare to amaze yourself with what you can create. We can’t wait to see what you come up with!
+Introduction to FLUX.1
+FLUX.1 is a groundbreaking AI model for text-to-image synthesis, developed by Black Forest Labs. Launched in 2024, it represents a significant leap forward in the field of generative AI, offering unparalleled capabilities in creating highly detailed and diverse images from textual descriptions.
+What is FLUX.1?
+FLUX.1 is a suite of text-to-image models that push the boundaries of image generation. It uses a novel approach called “flow matching,” which is an advancement over traditional diffusion-based models. This technique allows FLUX.1 to create images with exceptional detail, accuracy, and creative interpretation.
+FLUX.1 Variants
+FLUX.1 is available in three main variants:
+FLUX.1 [Pro]: The flagship model, offering state-of-the-art performance in image generation. It excels in prompt following, visual quality, image detail, and output diversity. This version is ideal for professional use and high-end applications.
+FLUX.1 [Dev]: An open-weight, guidance-distilled model designed for non-commercial applications. It offers similar quality to the Pro version but with improved efficiency, making it suitable for developers and researchers.
+FLUX.1 [Schnell]: The fastest model in the suite, optimized for local development and personal use. It’s openly available under an Apache 2.0 license, making it accessible for a wide range of users.
+Key Features of FLUX.1
+High-Fidelity Image Generation: FLUX.1 can create incredibly detailed and realistic images across various subjects and styles.
+Exceptional Prompt Adherence: The model accurately interprets and follows complex textual prompts.
+Versatile Style Reproduction: From photorealism to abstract art, FLUX.1 can adapt to a wide range of artistic styles.
+Advanced Text Rendering: Superior ability to accurately render text within generated images.
+Diverse Output: Offers a wide range of creative interpretations for each prompt.
+Flexible Resolution and Aspect Ratios: Supports various image sizes and proportions.
+Technical Overview
+FLUX.1 is built on a hybrid architecture of multimodal and parallel diffusion transformer blocks, scaled to 12 billion parameters. It incorporates advanced techniques like flow matching, rotary positional embeddings, and parallel attention layers, contributing to its superior performance and efficiency.
+Prompt Structure and Components
+A well-crafted FLUX.1 prompt typically includes the following components:
+Subject: The main focus of the image.
+Style: The artistic approach or visual aesthetic.
+Composition: How elements are arranged within the frame.
+Lighting: The type and quality of light in the scene.
+Color Palette: The dominant colors or color scheme.
+Mood/Atmosphere: The emotional tone or ambiance of the image.
+Technical Details: Camera settings, perspective, or specific visual techniques.
+Additional Elements: Supporting details or background information.
+Prompt Crafting Techniques
+
+1. Be Specific and Descriptive
+FLUX.1 thrives on detailed information. Instead of vague descriptions, provide specific details about your subject and scene.
+Poor: “A portrait of a woman” Better: “A close-up portrait of a middle-aged woman with curly red hair, green eyes, and freckles, wearing a blue silk blouse”
+Example Prompt: A hyperrealistic portrait of a weathered sailor in his 60s, with deep-set blue eyes, a salt-and-pepper beard, and sun-weathered skin. He’s wearing a faded blue captain’s hat and a thick wool sweater. The background shows a misty harbor at dawn, with fishing boats barely visible in the distance.
+2. Use Artistic References
+Referencing specific artists, art movements, or styles can help guide FLUX.1’s output.
+Example Prompt: Create an image in the style of Vincent van Gogh’s “Starry Night,” but replace the village with a futuristic cityscape. Maintain the swirling, expressive brushstrokes and vibrant color palette of the original, emphasizing deep blues and bright yellows. The city should have tall, glowing skyscrapers that blend seamlessly with the swirling sky.
+3. Specify Technical Details
+Including camera settings, angles, and other technical aspects can significantly influence the final image.
+Example Prompt: Capture a street food vendor in Tokyo at night, shot with a wide-angle lens (24mm) at f/1.8. Use a shallow depth of field to focus on the vendor’s hands preparing takoyaki, with the glowing street signs and bustling crowd blurred in the background. High ISO setting to capture the ambient light, giving the image a slight grain for a cinematic feel.
+4. Blend Concepts
+FLUX.1 excels at combining different ideas or themes to create unique images.
+Example Prompt: Illustrate “The Last Supper” by Leonardo da Vinci, but reimagine it with robots in a futuristic setting. Maintain the composition and dramatic lighting of the original painting, but replace the apostles with various types of androids and cyborgs. The table should be a long, sleek metal surface with holographic displays. In place of bread and wine, have the robots interfacing with glowing data streams.
+5. Use Contrast and Juxtaposition
+Creating contrast within your prompt can lead to visually striking and thought-provoking images.
+Example Prompt: Create an image that juxtaposes the delicate beauty of nature with the harsh reality of urban decay. Show a vibrant cherry blossom tree in full bloom growing out of a cracked concrete sidewalk in a dilapidated city alley. The tree should be the focal point, with its pink petals contrasting against the gray, graffiti-covered walls of surrounding buildings. Include a small bird perched on one of the branches to emphasize the theme of resilience.
+6. Incorporate Mood and Atmosphere
+Describing the emotional tone or atmosphere can help FLUX.1 generate images with the desired feel.
+Example Prompt: Depict a cozy, warmly lit bookstore cafe on a rainy evening. The atmosphere should be inviting and nostalgic, with soft yellow lighting from vintage lamps illuminating rows of well-worn books. Show patrons reading in comfortable armchairs, steam rising from their coffee cups. The large front window should reveal a glistening wet street outside, with blurred lights from passing cars. Emphasize the contrast between the warm interior and the cool, rainy exterior.
+7. Experiment with Unusual Perspectives
+Challenging FLUX.1 with unique viewpoints can result in visually interesting images.
+Example Prompt: Illustrate a “bug’s-eye view” of a picnic in a lush garden. The perspective should be from ground level, looking up at towering blades of grass and wildflowers that frame the scene. In the distance, show the underside of a red and white checkered picnic blanket with the silhouettes of picnic foods and human figures visible through the semi-transparent fabric. Include a few ants in the foreground carrying crumbs, and a ladybug climbing a blade of grass. The lighting should be warm and dappled, as if filtering through leaves.
+Advanced Techniques
+1. Layered Prompts
+For complex scenes, consider breaking down your prompt into layers, focusing on different elements of the image.
+Example Prompt: Create a bustling marketplace in a fantastical floating city.
+Layer 1 (Background): Depict a city of interconnected floating islands suspended in a pastel sky. The islands should have a mix of whimsical architecture styles, from towering spires to quaint cottages. Show distant airships and flying creatures in the background.
+Layer 2 (Middle ground): Focus on the main marketplace area. Illustrate a wide plaza with colorful stalls and shops selling exotic goods. Include floating platforms that serve as walkways between different sections of the market.
+Layer 3 (Foreground): Populate the scene with a diverse array of fantasy creatures and humanoids. Show vendors calling out to customers, children chasing magical floating bubbles, and a street performer juggling balls of light. In the immediate foreground, depict a detailed stall selling glowing potions and mystical artifacts.
+Atmosphere: The overall mood should be vibrant and magical, with soft, ethereal lighting that emphasizes the fantastical nature of the scene.
+2. Style Fusion
+Combine multiple artistic styles to create unique visual experiences.
+Example Prompt: Create an image that fuses the precision of M.C. Escher’s impossible geometries with the bold colors and shapes of Wassily Kandinsky’s abstract compositions. The subject should be a surreal cityscape where buildings seamlessly transform into musical instruments. Use Escher’s techniques to create paradoxical perspectives and interconnected structures, but render them in Kandinsky’s vibrant, non-representational style. Incorporate musical notations and abstract shapes that flow through the scene, connecting the architectural elements. The color palette should be rich and varied, with particular emphasis on deep blues, vibrant reds, and golden yellows.
+3. Temporal Narratives
+Challenge FLUX.1 to convey a sense of time passing or a story unfolding within a single image.
+Example Prompt: Illustrate the life cycle of a monarch butterfly in a single, continuous image. Divide the canvas into four seamlessly blending sections, each representing a stage of the butterfly’s life.
+Start on the left with a milkweed plant where tiny eggs are visible on the underside of a leaf. As we move right, show the caterpillar stage with the larva feeding on milkweed leaves. In the third section, depict the chrysalis stage, with the green and gold-flecked pupa hanging from a branch.
+Finally, on the right side, show the fully formed adult butterfly emerging, with its wings gradually opening to reveal the iconic orange and black pattern. Use a soft, natural color palette dominated by greens and oranges. The background should subtly shift from spring to summer as we move from left to right, with changing foliage and lighting to indicate the passage of time.
+4. Emotional Gradients
+Direct FLUX.1 to create images that convey a progression of emotions or moods.
+Example Prompt: Create a panoramic image that depicts the progression of a person’s emotional journey from despair to hope. The scene should be a long, winding road that starts in a dark, stormy landscape and gradually transitions to a bright, sunlit meadow.
+On the left, begin with a lone figure hunched against the wind, surrounded by bare, twisted trees and ominous storm clouds. As we move right, show the gradual clearing of the sky, with the road passing through a misty forest where hints of light begin to break through.
+Continue the transition with the forest opening up to reveal distant mountains and a rainbow. The figure should become more upright and purposeful in their stride. Finally, on the far right, show the person standing tall in a sunlit meadow full of wildflowers, arms outstretched in a gesture of triumph or liberation.
+Use color and lighting to enhance the emotional journey: start with a dark, desaturated palette on the left, gradually introducing more color and brightness as we move right, ending in a vibrant, warm color scheme. The overall composition should create a powerful visual metaphor for overcoming adversity and finding hope.
+Tips for Optimal Results
+Experiment with Different Versions: FLUX.1 comes in different variants (Pro, Dev, and Schnell). Experiment with each to find the best fit for your needs.
+Iterate and Refine: Don’t be afraid to generate multiple images and refine your prompt based on the results.
+Balance Detail and Freedom: While specific details can guide FLUX.1, leaving some aspects open to interpretation can lead to surprising and creative results.
+Use Natural Language: FLUX.1 understands natural language, so write your prompts in a clear, descriptive manner rather than using keyword-heavy language.
+Explore Diverse Themes: FLUX.1 has a broad knowledge base, so don’t hesitate to explore various subjects, from historical scenes to futuristic concepts.
+Leverage Technical Terms: When appropriate, use photography, art, or design terminology to guide the image creation process.
+Consider Emotional Impact: Think about the feeling or message you want to convey and incorporate emotional cues into your prompt.
+Common Pitfalls to Avoid
+Overloading the Prompt: While FLUX.1 can handle complex prompts, overloading with too many conflicting ideas can lead to confused outputs.
+Neglecting Composition: Don’t forget to guide the overall composition of the image, not just individual elements.
+Ignoring Lighting and Atmosphere: These elements greatly influence the mood and realism of the generated image.
+Being Too Vague: Extremely general prompts may lead to generic or unpredictable results.
+Forgetting About Style: Unless specified, FLUX.1 may default to a realistic style. Always indicate if you want a particular artistic approach.
+Conclusion
+Mastering FLUX.1 prompt engineering is a journey of creativity and experimentation. This guide provides a solid foundation, but the true potential of FLUX.1 lies in your imagination. As you practice and refine your prompting skills, you’ll discover new ways to bring your ideas to life with unprecedented detail and accuracy.
+Remember, the key to success with FLUX.1 is balancing specificity with creative freedom. Provide enough detail to guide the model, but also leave room for FLUX.1 to surprise you with its interpretations. Happy creating!

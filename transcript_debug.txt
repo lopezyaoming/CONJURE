@@ -1,3 +1,8 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-USER (Whisper): Can you hear me alright?
-USER (Whisper): Um, I'm thinking about, uh, let's do a paper crane.
+USER (Whisper): Hey, uh, I want to start by creating a carrot.
+USER (Whisper): Um.... I want a... A cylinder actually!
+USER (Whisper): Hey, can you spawn the cylinder? Yeah, that's right, so this is spawned, ignore this message
+USER (Whisper): Sure, I'm happy with the shape of my carrot right now.
+USER (Whisper): Let's just go with the whole model.
+USER (Whisper): Okay, yes, this looks good now.
+USER (Whisper): I want a funny parrot, funny looking parrot, like a cartoon parrot

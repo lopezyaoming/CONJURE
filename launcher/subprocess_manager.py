@@ -51,13 +51,22 @@ class SubprocessManager:
         print("Stopping all subprocesses...")
         for name, process in self.processes.items():
             try:
-                if process.poll() is None: # Check if the process is still running
-                    process.terminate()
-                    process.wait(timeout=5)
-                    print(f"Terminated '{name}'.")
+                if process.poll() is None:  # Check if the process is still running
+                    if sys.platform == "win32" and name == 'blender':
+                        print(f"Attempting to terminate Blender process tree (PID: {process.pid})...")
+                        subprocess.run(f"taskkill /PID {process.pid} /F /T", check=True, capture_output=True, text=True)
+                        print(f"Successfully sent termination signal to Blender process tree.")
+                    else:
+                        process.terminate()
+                        process.wait(timeout=5)
+                        print(f"Terminated '{name}'.")
             except subprocess.TimeoutExpired:
+                print(f"Process '{name}' did not terminate gracefully, attempting to kill...")
                 process.kill()
-                print(f"Forcefully killed '{name}' as it did not terminate gracefully.")
+                process.wait(timeout=5) # Wait a bit after killing
+                print(f"Forcefully killed '{name}'.")
+            except subprocess.CalledProcessError as e:
+                print(f"Error forcefully terminating Blender with taskkill: {e.stderr}")
             except Exception as e:
                 print(f"Error while stopping '{name}': {e}")
         self.processes.clear()

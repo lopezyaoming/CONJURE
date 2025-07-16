@@ -5,6 +5,8 @@
     "command": "request_segmentation",
     "primitive_type": null,
     "generation_request": "new",
-    "material_description": null,
-    "segment_id": null
+    "material_description": "bright orange with a glossy finish, resembling a cartoon carrot",
+    "segment_id": null,
+    "selection_request": null,
+    "import_request": "new"
 }

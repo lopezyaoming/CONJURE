@@ -597,8 +597,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
             return # File not found or invalid JSON, nothing to do
 
         command = state_data.get("command")
-        if command:
-            print(f"DEBUG: Operator detected command '{command}' in state file.")
 
         if command == "spawn_primitive":
             primitive_type = state_data.get("primitive_type")
