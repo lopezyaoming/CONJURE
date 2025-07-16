@@ -1,0 +1,3 @@
+=== CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
+USER (Whisper): Hey, can you hear me?
+USER (Whisper): let's just start with the cube

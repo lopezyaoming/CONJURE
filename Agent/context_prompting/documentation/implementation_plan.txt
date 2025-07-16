@@ -1,0 +1,38 @@
+Of course. Here is a detailed action plan based on the requirements in conversation_prompt.md. I will not execute any of these steps.
+Project Analysis & Understanding
+1. Review Core Documentation:
+Read masterPrompt.txt to understand the high-level vision and goals of the project.
+Read the documentation files to understand the APIs for ElevenLabs and OpenAI.
+Agent/context_prompting/documentation/elevenlabs_api_doc.md
+Agent/context_prompting/documentation/openai_doc.md
+Agent/context_prompting/documentation/elevenlabs_conversational_ai_overview_doc.md
+Read Agent/devnotes/RAG/agentToolset.txt to get a list of available backend tools that Agent B can use.
+2. Analyze Existing Codebase:
+Examine the launcher directory (main.py, agent_api.py, instruction_manager.py, state_manager.py) to understand how the application is orchestrated and how agents are currently managed.
+Investigate the scripts/addons/conjure directory to understand how the main application communicates with Blender, specifically for triggering actions like rendering.
+Implementation Plan
+3. Implement Agent A (ElevenLabs) Client:
+Create or modify a module (likely launcher/agent_api.py) to handle all interactions with the ElevenLabs Conversational API.
+This client will need to manage the conversation flow, send user input, receive agent responses, and package the conversation transcript for Agent B.
+4. Implement Agent B (OpenAI) Client:
+Create or modify a module (likely launcher/agent_api.py) to communicate with the OpenAI Custom GPT.
+This client will be responsible for:
+Taking the conversation transcript and the latest gestureCamera.png as input.
+Sending this data to the OpenAI API.
+Receiving and parsing the structured JSON response.
+5. Develop the Main Orchestration Logic:
+Modify the primary control loop (likely in launcher/main.py) to implement the core workflow described in the prompt.
+This loop will sequence the following actions:
+Capture user input for Agent A.
+Get Agent A's response.
+Trigger a re-render of gestureCamera.png in Blender.
+Send the transcript and new image to Agent B.
+Receive and parse Agent B's JSON output.
+Dispatch the instructions from the JSON.
+6. Enhance the Instruction Manager:
+Update launcher/instruction_manager.py to handle the new JSON format from Agent B.
+It must be able to:
+Parse vision and write it to a file (screen_description.txt).
+Parse user_prompt and save it (e.g., to data/generated_text/userPrompt.txt).
+If instruction is not null, use tool_name and parameters to call the appropriate backend function.
+Let me know when you are ready to start implementing this plan.

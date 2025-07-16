@@ -1,5 +1,7 @@
 {
     "app_status": "stopped",
     "hand_tracker_status": "running",
-    "blender_status": "running"
+    "blender_status": "running",
+    "command": "undo_last_action",
+    "primitive_type": null
 }

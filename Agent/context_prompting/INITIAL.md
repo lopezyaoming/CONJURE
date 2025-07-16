@@ -1,6 +1,6 @@
 ## FEATURE:
 
-Agentic integration between 
+-An agentic 
 
 ## EXAMPLES:
 
