@@ -1,0 +1,589 @@
+# FastAPI Implementation Action Plan for CONJURE
+# Comprehensive surgical refactoring to introduce FastAPI as API intermediary
+# Target: Clean separation of concerns while preserving existing functionality
+
+## OVERVIEW
+This plan implements FastAPI as a centralized API intermediary for CONJURE, transforming
+direct inter-component communication into HTTP-based API calls. This approach will:
+- Decouple launcher components for easier testing and scaling
+- Create a unified API interface for all internal operations
+- Enable future addition of new generation APIs with minimal effort
+- Maintain all existing functionality without breaking changes
+
+## PHASE 1: SETUP & INFRASTRUCTURE
+
+### 1.1 Add FastAPI Dependencies
+**File**: requirements.txt
+**Action**: ADD these lines:
+```
+fastapi
+uvicorn[standard]
+httpx
+```
+
+### 1.2 Create API Server Foundation
+**File**: launcher/api_server.py (NEW FILE)
+**Action**: CREATE this new file with basic FastAPI setup:
+```python
+"""
+CONJURE FastAPI Server
+Central API server for coordinating all CONJURE components.
+Replaces direct function calls with HTTP API endpoints.
+"""
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Dict, Any, Optional, List
+import uvicorn
+import asyncio
+from pathlib import Path
+
+# Import existing managers (DO NOT MODIFY THESE)
+from state_manager import StateManager
+from instruction_manager import InstructionManager
+from backend_agent import BackendAgent
+
+app = FastAPI(
+    title="CONJURE API Server",
+    description="Internal API server for CONJURE 3D modeling system",
+    version="1.0.0"
+)
+
+# Add CORS middleware for local development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Global instances (to be initialized on startup)
+state_manager: Optional[StateManager] = None
+instruction_manager: Optional[InstructionManager] = None
+backend_agent: Optional[BackendAgent] = None
+
+# Pydantic models for request/response validation
+class ConversationRequest(BaseModel):
+    conversation_history: str
+    include_image: bool = True
+
+class InstructionRequest(BaseModel):
+    instruction: Dict[str, Any]
+
+class StateUpdateRequest(BaseModel):
+    updates: Dict[str, Any]
+
+class APIResponse(BaseModel):
+    success: bool
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
+# Startup/shutdown handlers
+@app.on_event("startup")
+async def startup_event():
+    global state_manager, instruction_manager, backend_agent
+    state_manager = StateManager()
+    instruction_manager = InstructionManager(state_manager)
+    backend_agent = BackendAgent(instruction_manager=instruction_manager)
+    print("✅ CONJURE API Server initialized")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("🛑 CONJURE API Server shutting down")
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "CONJURE API Server"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+```
+
+## PHASE 2: MIGRATE BACKEND AGENT FUNCTIONALITY
+
+### 2.1 Add Backend Agent Endpoint
+**File**: launcher/api_server.py
+**Action**: ADD this endpoint to the existing file:
+```python
+@app.post("/process_conversation", response_model=APIResponse)
+async def process_conversation(request: ConversationRequest):
+    """
+    Process conversation history through the backend agent.
+    Replaces direct backend_agent.get_response() calls.
+    """
+    global backend_agent
+    if not backend_agent:
+        raise HTTPException(status_code=500, detail="Backend agent not initialized")
+    
+    try:
+        # Call existing backend agent method (NO CHANGES to backend_agent.py)
+        result = backend_agent.get_response(request.conversation_history)
+        
+        return APIResponse(
+            success=True,
+            message="Conversation processed successfully",
+            data={"instruction": result} if result else None
+        )
+    except Exception as e:
+        print(f"Error processing conversation: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing conversation: {str(e)}")
+```
+
+### 2.2 Update Conversational Agent to Use API
+**File**: launcher/conversational_agent.py
+**Action**: REPLACE the direct backend agent call with HTTP request:
+
+**FIND this code** (around line 560):
+```python
+        # Now that a full turn has completed, trigger Agent B
+        conversation_turn = "\n".join(self.full_transcript)
+        print("--- Sending to Backend Agent ---")
+        print(conversation_turn)
+        self.backend_agent.get_response(conversation_turn)
+```
+
+**REPLACE with**:
+```python
+        # Now that a full turn has completed, trigger Agent B
+        conversation_turn = "\n".join(self.full_transcript)
+        print("--- Sending to Backend Agent ---")
+        print(conversation_turn)
+        self._send_to_backend_api(conversation_turn)
+```
+
+**ADD this new method** to the ConversationalAgent class:
+```python
+import httpx  # Add this import at the top
+
+def _send_to_backend_api(self, conversation_turn: str):
+    """
+    Send conversation to backend agent via API instead of direct call.
+    """
+    try:
+        with httpx.Client() as client:
+            response = client.post(
+                "http://127.0.0.1:8000/process_conversation",
+                json={
+                    "conversation_history": conversation_turn,
+                    "include_image": True
+                },
+                timeout=30.0
+            )
+            if response.status_code == 200:
+                print("✅ Successfully sent conversation to backend API")
+            else:
+                print(f"❌ Backend API error: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Error calling backend API: {e}")
+        # Fallback to direct call if API is unavailable
+        print("🔄 Falling back to direct backend agent call")
+        if hasattr(self, 'backend_agent') and self.backend_agent:
+            self.backend_agent.get_response(conversation_turn)
+```
+
+**ALSO REPLACE** other backend_agent.get_response calls in the same file:
+
+**FIND these lines** (around lines 150, 170, 190):
+```python
+self.backend_agent.get_response(f"Agent said: {agent_text}")
+self.backend_agent.get_response(f"User said: {transcript}")
+# etc.
+```
+
+**REPLACE each with**:
+```python
+self._send_to_backend_api(f"Agent said: {agent_text}")
+self._send_to_backend_api(f"User said: {transcript}")
+# etc.
+```
+
+## PHASE 3: MIGRATE INSTRUCTION MANAGEMENT
+
+### 3.1 Add Instruction Execution Endpoint
+**File**: launcher/api_server.py
+**Action**: ADD this endpoint:
+```python
+@app.post("/execute_instruction", response_model=APIResponse)
+async def execute_instruction(request: InstructionRequest):
+    """
+    Execute tool instructions through the instruction manager.
+    Replaces direct instruction_manager.execute_instruction() calls.
+    """
+    global instruction_manager
+    if not instruction_manager:
+        raise HTTPException(status_code=500, detail="Instruction manager not initialized")
+    
+    try:
+        # Call existing instruction manager method (NO CHANGES to instruction_manager.py)
+        instruction_manager.execute_instruction(request.instruction)
+        
+        return APIResponse(
+            success=True,
+            message="Instruction executed successfully",
+            data={"instruction": request.instruction}
+        )
+    except Exception as e:
+        print(f"Error executing instruction: {e}")
+        raise HTTPException(status_code=500, detail=f"Error executing instruction: {str(e)}")
+```
+
+### 3.2 Update Backend Agent to Use Instruction API
+**File**: launcher/backend_agent.py
+**Action**: REPLACE direct instruction manager calls with API calls:
+
+**FIND this code** (around line 250):
+```python
+                if tool_name:
+                    print(f"🔧 Executing tool: {tool_name}")
+                    self.instruction_manager.execute_instruction(instruction)
+                    return instruction
+```
+
+**REPLACE with**:
+```python
+                if tool_name:
+                    print(f"🔧 Executing tool: {tool_name}")
+                    self._execute_instruction_via_api(instruction)
+                    return instruction
+```
+
+**ADD this new method** to the BackendAgent class:
+```python
+import httpx  # Add this import at the top
+
+def _execute_instruction_via_api(self, instruction: dict):
+    """
+    Execute instruction via API instead of direct call.
+    """
+    try:
+        with httpx.Client() as client:
+            response = client.post(
+                "http://127.0.0.1:8000/execute_instruction",
+                json={"instruction": instruction},
+                timeout=30.0
+            )
+            if response.status_code == 200:
+                print("✅ Successfully executed instruction via API")
+            else:
+                print(f"❌ Instruction API error: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Error calling instruction API: {e}")
+        # Fallback to direct call if API is unavailable
+        print("🔄 Falling back to direct instruction manager call")
+        if hasattr(self, 'instruction_manager') and self.instruction_manager:
+            self.instruction_manager.execute_instruction(instruction)
+```
+
+## PHASE 4: MIGRATE STATE MANAGEMENT
+
+### 4.1 Add State Management Endpoints
+**File**: launcher/api_server.py
+**Action**: ADD these endpoints:
+```python
+@app.get("/state")
+async def get_state():
+    """Get current application state."""
+    global state_manager
+    if not state_manager:
+        raise HTTPException(status_code=500, detail="State manager not initialized")
+    
+    try:
+        state = state_manager.get_state()
+        return APIResponse(success=True, message="State retrieved", data=state)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting state: {str(e)}")
+
+@app.post("/state/update", response_model=APIResponse)
+async def update_state(request: StateUpdateRequest):
+    """Update application state."""
+    global state_manager
+    if not state_manager:
+        raise HTTPException(status_code=500, detail="State manager not initialized")
+    
+    try:
+        state_manager.update_state(request.updates)
+        return APIResponse(success=True, message="State updated successfully")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating state: {str(e)}")
+
+@app.post("/state/set/{key}")
+async def set_state_value(key: str, value: Any):
+    """Set a specific state value."""
+    global state_manager
+    if not state_manager:
+        raise HTTPException(status_code=500, detail="State manager not initialized")
+    
+    try:
+        state_manager.set_state(key, value)
+        return APIResponse(success=True, message=f"State key '{key}' set successfully")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error setting state: {str(e)}")
+```
+
+## PHASE 5: UPDATE MAIN APPLICATION
+
+### 5.1 Modify Main Application to Start API Server
+**File**: launcher/main.py
+**Action**: MODIFY the ConjureApp class to start the API server:
+
+**FIND the __init__ method** (around line 25):
+```python
+    def __init__(self):
+        print("Initializing CONJURE...")
+        self.state_manager = StateManager()
+        self.subprocess_manager = SubprocessManager()
+        self.instruction_manager = InstructionManager(self.state_manager)
+        self.backend_agent = BackendAgent(instruction_manager=self.instruction_manager)
+        self.conversational_agent = ConversationalAgent(backend_agent=self.backend_agent)
+        self.project_root = Path(__file__).parent.parent.resolve()
+        atexit.register(self.stop)
+        
+        print("CONJURE Agents are initialized.")
+```
+
+**REPLACE with**:
+```python
+    def __init__(self):
+        print("Initializing CONJURE...")
+        self.state_manager = StateManager()
+        self.subprocess_manager = SubprocessManager()
+        self.instruction_manager = InstructionManager(self.state_manager)
+        self.backend_agent = BackendAgent(instruction_manager=self.instruction_manager)
+        
+        # Note: ConversationalAgent no longer needs direct backend_agent reference
+        # It will communicate via API
+        self.conversational_agent = ConversationalAgent(backend_agent=None)
+        self.project_root = Path(__file__).parent.parent.resolve()
+        atexit.register(self.stop)
+        
+        print("CONJURE Agents are initialized.")
+```
+
+**FIND the start method** (around line 35):
+```python
+    def start(self):
+        """Starts all the necessary components of the application."""
+        print("CONJURE application starting...")
+        self.state_manager.set_state("app_status", "running")
+
+        self.subprocess_manager.start_hand_tracker()
+        self.state_manager.set_state("hand_tracker_status", "running")
+        
+        print("Waiting for hand tracker to initialize...")
+        time.sleep(3)
+
+        self.subprocess_manager.start_blender()
+        self.state_manager.set_state("blender_status", "running")
+
+        print("\nCONJURE is now running. Close the Blender window or press Ctrl+C here to exit.")
+
+        # Start the conversational agent in a separate thread
+        self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
+        self.agent_thread.start()
+        print("Conversational agent is now listening in a background thread...")
+```
+
+**REPLACE with**:
+```python
+    def start(self):
+        """Starts all the necessary components of the application."""
+        print("CONJURE application starting...")
+        self.state_manager.set_state("app_status", "running")
+
+        # Start API server first
+        self.subprocess_manager.start_api_server()
+        print("Waiting for API server to initialize...")
+        time.sleep(3)
+
+        self.subprocess_manager.start_hand_tracker()
+        self.state_manager.set_state("hand_tracker_status", "running")
+        
+        print("Waiting for hand tracker to initialize...")
+        time.sleep(3)
+
+        self.subprocess_manager.start_blender()
+        self.state_manager.set_state("blender_status", "running")
+
+        print("\nCONJURE is now running. Close the Blender window or press Ctrl+C here to exit.")
+
+        # Start the conversational agent in a separate thread
+        self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
+        self.agent_thread.start()
+        print("Conversational agent is now listening in a background thread...")
+```
+
+### 5.2 Update Subprocess Manager
+**File**: launcher/subprocess_manager.py
+**Action**: ADD API server management:
+
+**ADD this import** at the top:
+```python
+import uvicorn
+```
+
+**ADD this method** to the SubprocessManager class:
+```python
+    def start_api_server(self):
+        """Starts the FastAPI server in a separate process."""
+        print("Starting CONJURE API server...")
+        script_path = self.project_root / "launcher" / "api_server.py"
+        
+        # Start the API server using uvicorn
+        process = subprocess.Popen([
+            sys.executable, "-m", "uvicorn", 
+            "launcher.api_server:app",
+            "--host", "127.0.0.1",
+            "--port", "8000",
+            "--log-level", "info"
+        ], cwd=self.project_root)
+        
+        self.processes['api_server'] = process
+        print("API server process started on http://127.0.0.1:8000")
+```
+
+## PHASE 6: PRESERVE EXISTING WORKFLOW FUNCTIONALITY
+
+### 6.1 Add ComfyUI Workflow Endpoints
+**File**: launcher/api_server.py
+**Action**: ADD endpoints for existing workflow functionality:
+```python
+from comfyui.api_wrapper import load_workflow, run_workflow, modify_workflow_paths
+import uuid
+
+@app.post("/workflow/execute")
+async def execute_workflow(
+    workflow_path: str,
+    modifications: Optional[Dict[str, Dict[str, Any]]] = None
+):
+    """Execute a ComfyUI workflow with optional modifications."""
+    try:
+        # Load workflow
+        workflow = load_workflow(workflow_path)
+        if not workflow:
+            raise HTTPException(status_code=400, detail=f"Could not load workflow: {workflow_path}")
+        
+        # Apply modifications if provided
+        if modifications:
+            workflow = modify_workflow_paths(workflow, modifications)
+        
+        # Execute workflow
+        client_id = f"conjure_api_{uuid.uuid4()}"
+        success = run_workflow(workflow, client_id)
+        
+        return APIResponse(
+            success=success,
+            message="Workflow executed successfully" if success else "Workflow execution failed",
+            data={"client_id": client_id}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error executing workflow: {str(e)}")
+```
+
+## PHASE 7: GRADUAL MIGRATION STRATEGY
+
+### 7.1 Implementation Order
+1. **Phase 1-2**: Set up FastAPI server and migrate conversation processing
+2. **Phase 3**: Migrate instruction execution
+3. **Phase 4**: Migrate state management (optional, can be done later)
+4. **Phase 5**: Update main application to use API server
+5. **Phase 6**: Add workflow endpoints
+6. **Phase 7**: Test and validate all functionality
+
+### 7.2 Fallback Strategy
+Each API client method includes fallback to direct calls if the API server is unavailable:
+```python
+try:
+    # API call
+    response = client.post(...)
+except Exception as e:
+    print(f"API unavailable: {e}")
+    # Fall back to direct method call
+    self.direct_method_call(...)
+```
+
+### 7.3 Testing Approach
+1. **Before Migration**: Test current functionality to establish baseline
+2. **During Migration**: Test each phase independently
+3. **After Migration**: Comprehensive end-to-end testing
+4. **Validation**: Ensure all existing workflows still function
+
+## PHASE 8: FUTURE EXPANSION PREPARATION
+
+### 8.1 API Structure for New Generators
+The FastAPI structure makes it easy to add new generation APIs:
+```python
+@app.post("/generate/image")
+async def generate_image(prompt: str, style: str = "realistic"):
+    """New image generation endpoint - easy to add!"""
+    pass
+
+@app.post("/generate/texture")
+async def generate_texture(material_type: str, resolution: int = 1024):
+    """New texture generation endpoint - easy to add!"""
+    pass
+
+@app.post("/generate/model")
+async def generate_model_variant(base_model: str, modifications: Dict):
+    """New model variant generation - easy to add!"""
+    pass
+```
+
+### 8.2 Monitoring and Logging
+The FastAPI structure provides built-in monitoring capabilities:
+- Automatic API documentation at http://127.0.0.1:8000/docs
+- Request/response logging
+- Error tracking
+- Performance metrics
+
+## PHASE 9: VALIDATION & ROLLBACK PLAN
+
+### 9.1 Success Criteria
+- [ ] All existing CONJURE functionality works unchanged
+- [ ] ElevenLabs conversation processing works
+- [ ] Backend agent instruction execution works
+- [ ] ComfyUI workflow execution works
+- [ ] State management works
+- [ ] Blender integration works
+- [ ] Hand tracking works
+
+### 9.2 Rollback Plan
+If issues arise, rollback by:
+1. Restore original conversational_agent.py
+2. Restore original backend_agent.py
+3. Remove API server startup from main.py
+4. Remove fastapi dependencies from requirements.txt
+
+### 9.3 Gradual Activation
+Each component can be migrated individually by using feature flags:
+```python
+USE_API_FOR_CONVERSATIONS = True  # Set to False to use direct calls
+USE_API_FOR_INSTRUCTIONS = True   # Set to False to use direct calls
+```
+
+## IMPLEMENTATION NOTES
+
+### 9.4 Key Principles
+1. **SURGICAL CHANGES**: Modify only the communication layer, never the core logic
+2. **PRESERVE FUNCTIONALITY**: All existing features must work exactly as before
+3. **GRACEFUL DEGRADATION**: Include fallbacks to direct calls if API is unavailable
+4. **INCREMENTAL MIGRATION**: Implement phase by phase, testing each step
+5. **EASY ROLLBACK**: Always maintain ability to revert changes
+
+### 9.5 Files Modified Summary
+- **NEW**: launcher/api_server.py (FastAPI server)
+- **MODIFIED**: launcher/conversational_agent.py (API client methods)
+- **MODIFIED**: launcher/backend_agent.py (API client methods)
+- **MODIFIED**: launcher/main.py (startup sequence)
+- **MODIFIED**: launcher/subprocess_manager.py (API server management)
+- **MODIFIED**: requirements.txt (new dependencies)
+
+### 9.6 Files NOT Modified
+- instruction_manager.py (logic preserved)
+- state_manager.py (logic preserved)
+- comfyui/api_wrapper.py (unchanged)
+- All Blender scripts (unchanged)
+- All workflow JSON files (unchanged)
+
+This plan transforms CONJURE into a modern, scalable architecture while preserving 100% of existing functionality. The API-first approach will make future development significantly easier and more maintainable. 
