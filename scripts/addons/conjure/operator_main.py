@@ -713,11 +713,22 @@ class ConjureFingertipOperator(bpy.types.Operator):
                                 # DEFORMATION happens at the exact hit location.
                                 deformation_pos = loc
 
-                                # VISUAL MARKER is offset directly back towards the camera to prevent all z-fighting.
-                                visual_marker_pos = loc - (ray_direction * config.MARKER_SURFACE_OFFSET)
+                                # VISUAL MARKER is offset using surface normal for stability
+                                visual_marker_pos = loc + (normal * config.MARKER_SURFACE_OFFSET)
+                                
+                                # Update state tracking
+                                self.marker_states[i]['was_hitting_surface'] = True
+                                self.marker_states[i]['last_hit_normal'] = normal.copy()
                             else:
-                                # If we aren't hitting the mesh, reset the last known normal.
-                                pass # No special handling needed if not hitting
+                                # Smooth transition when raycast fails
+                                if self.marker_states[i]['was_hitting_surface']:
+                                    # Use last known surface normal for brief continuation
+                                    last_normal = self.marker_states[i]['last_hit_normal']
+                                    # Gradually transition back to raw position
+                                    surface_fallback = self.marker_states[i]['last_pos'] + (last_normal * config.MARKER_SURFACE_OFFSET * 0.5)
+                                    visual_marker_pos = surface_fallback.lerp(raw_pos_3d, 0.3)
+                                
+                                self.marker_states[i]['was_hitting_surface'] = False
                     
                     # The deformation list gets the precise, non-offset position.
                     finger_positions_3d.append(deformation_pos)
@@ -908,7 +919,9 @@ class ConjureFingertipOperator(bpy.types.Operator):
             initial_pos = marker_obj.location.copy() if marker_obj else mathutils.Vector((0,0,0))
             self.marker_states.append({
                 'last_pos': initial_pos,
-                'missing_frames': 0
+                'missing_frames': 0,
+                'was_hitting_surface': False,  # Track surface contact state
+                'last_hit_normal': mathutils.Vector((0,0,1))  # Fallback surface normal
             })
 
         # Reset the orbit delta tracker
