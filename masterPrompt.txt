@@ -5,12 +5,13 @@ CONJURE core purpose
 To make 3D modeling feel like intuitive expression
 
 Key components
-Overlay Executable: Is the main orchestrator between all the subcomponents and Blender. It is a python-based executable that coordinates Blender, ComfyUI and CGAL. It manages:
+Overlay Executable: Is the main orchestrator between all the subcomponents and Blender. It is a python-based executable that coordinates Blender, ComfyUI and CGAL through a FastAPI-based microservice architecture. It manages:
 GUI: Transparent UI that displays image options, information, and The AI chat boxes, and loading screens. (maybe managed through PyQt6+QtCSS)
 Mediapipe: Camera and mediapipe models that track hand movement and writes coordinates into fingertips.json
-Communication: Communicate between Blender and ComfyUI. Operates event-based loop, triggered up by updates from state.json. can write/read shared .json files. 
+FastAPI Server: Central API server (launcher/api_server.py) running on port 8000 with endpoints for conversation processing, instruction execution, and state management. Provides scalable inter-component communication with automatic fallback to direct function calls.
+Communication: Operates through HTTP API calls and event-based loops, triggered by updates from state.json. Maintains backward compatibility with shared .json files.
 API Agent: Listen, and play by hosting an ElevenLabs API call with an agent. 
-Subprocess Control: Launches and monitors background processes for ComfyUI workflows and CGAL segmentation modules as needed.
+Subprocess Control: Launches and monitors background processes including the FastAPI server, ComfyUI workflows, and CGAL segmentation modules as needed.
 
 API Agent: The Agent is a sophisticated conversational AI system consisting of two coordinated components:
 
@@ -279,12 +280,13 @@ Final renders, metadata, and the .glb model are exported for documentation or do
 CONJURE/
 ├── launcher/
 │   ├── main.py                   # Main controller (.exe entry point)
+│   ├── api_server.py             # FastAPI server for inter-component communication
 │   ├── gui.py                    # PyQt6 interface
 │   ├── conversational_agent.py  # ElevenLabs Agent A + Whisper transcription
 │   ├── backend_agent.py          # VIBE Backend Agent B + tool execution
 │   ├── instruction_manager.py    # Tool command processing and state coordination
 │   ├── state_manager.py          # Event loop from state.json
-│   ├── subprocess_manager.py     # Launches Blender, CGAL, ComfyUI
+│   ├── subprocess_manager.py     # Launches Blender, CGAL, ComfyUI, API server
 │   ├── config.py                 # Global constants and paths
 │   └── utils.py                  # Shared helper functions
 

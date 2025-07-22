@@ -14,7 +14,9 @@ import wave
 import io
 import tempfile
 import base64
+import httpx
 from collections import deque
+from typing import Optional
 from elevenlabs.client import ElevenLabs
 from elevenlabs.conversational_ai.conversation import Conversation
 from elevenlabs.conversational_ai.default_audio_interface import DefaultAudioInterface
@@ -37,7 +39,7 @@ INPUT_DEVICE = None  # Default microphone
 OUTPUT_DEVICE = None  # Default speakers (for system audio capture)
 
 class ConversationalAgent:
-    def __init__(self, backend_agent: BackendAgent):
+    def __init__(self, backend_agent: Optional[BackendAgent] = None):
         self.backend_agent = backend_agent
         
         # ElevenLabs setup
@@ -125,12 +127,11 @@ class ConversationalAgent:
                     agent_text = agent_event.get('agent_response', '')
                     if agent_text:
                         print(f"🤖 AGENT TRANSCRIPT: {agent_text}")
-                        if self.backend_agent:
-                            print("🤖 Sending agent response to Backend Agent...")
-                            try:
-                                self.backend_agent.get_response(f"Agent said: {agent_text}")
-                            except Exception as e:
-                                print(f"Error sending agent response to backend: {e}")
+                        print("🤖 Sending agent response to Backend Agent...")
+                        try:
+                            self._send_to_backend_api(f"Agent said: {agent_text}")
+                        except Exception as e:
+                            print(f"Error sending agent response to backend: {e}")
                 
                 elif message_type == 'user_transcript':
                     print("🎯 FOUND USER_TRANSCRIPT MESSAGE:")
@@ -138,12 +139,11 @@ class ConversationalAgent:
                     user_text = user_event.get('user_transcript', '')
                     if user_text:
                         print(f"📝 USER TRANSCRIPT (from SDK): {user_text}")
-                        if self.backend_agent:
-                            print("🤖 Sending SDK user transcript to Backend Agent...")
-                            try:
-                                self.backend_agent.get_response(user_text)
-                            except Exception as e:
-                                print(f"Error sending user transcript to backend: {e}")
+                        print("🤖 Sending SDK user transcript to Backend Agent...")
+                        try:
+                            self._send_to_backend_api(user_text)
+                        except Exception as e:
+                            print(f"Error sending user transcript to backend: {e}")
                 
                 # Check ALL messages for any text/response content
                 message_str = str(message)
@@ -169,10 +169,10 @@ class ConversationalAgent:
                         extracted_text = extract_text_from_message(message)
                         if extracted_text:
                             print(f"🎯 EXTRACTED TEXT: {extracted_text}")
-                            if self.backend_agent and len(extracted_text) > 10:
+                            if len(extracted_text) > 10:
                                 print("🤖 Sending extracted agent text to Backend Agent...")
                                 try:
-                                    self.backend_agent.get_response(f"Agent said: {extracted_text}")
+                                    self._send_to_backend_api(f"Agent said: {extracted_text}")
                                 except Exception as e:
                                     print(f"Error sending extracted text to backend: {e}")
                 
@@ -298,12 +298,11 @@ class ConversationalAgent:
                     print(f"🤖 AGENT TRANSCRIPT (Whisper): {agent_text}")
                     
                     # Send to backend agent
-                    if self.backend_agent:
-                        print("🤖 Sending agent transcript to Backend Agent...")
-                        try:
-                            self.backend_agent.get_response(f"Agent said: {agent_text}")
-                        except Exception as e:
-                            print(f"Error sending agent transcript to backend: {e}")
+                    print("🤖 Sending agent transcript to Backend Agent...")
+                    try:
+                        self._send_to_backend_api(f"Agent said: {agent_text}")
+                    except Exception as e:
+                        print(f"Error sending agent transcript to backend: {e}")
                 else:
                     print("⚠️ Agent audio transcription too short or empty")
                     
@@ -430,7 +429,7 @@ class ConversationalAgent:
                 
                 # Send to backend agent immediately
                 print("🤖 Sending transcript to Backend Agent...")
-                self.backend_agent.get_response(f"User said: {transcript}")
+                self._send_to_backend_api(f"User said: {transcript}")
                 
             else:
                 print("🤷 No clear speech detected in audio")
@@ -438,15 +437,53 @@ class ConversationalAgent:
         except Exception as e:
             print(f"Transcription processing error: {e}")
 
+    def _send_to_backend_api(self, conversation_turn: str):
+        """
+        Send conversation to backend agent via API instead of direct call.
+        """
+        try:
+            print(f"🚀 Sending to API: '{conversation_turn[:100]}...' (len: {len(conversation_turn)})")
+            
+            with httpx.Client() as client:
+                payload = {
+                    "conversation_history": conversation_turn,
+                    "include_image": True
+                }
+                print(f"📤 API request payload keys: {list(payload.keys())}")
+                
+                response = client.post(
+                    "http://127.0.0.1:8000/process_conversation",
+                    json=payload,
+                    timeout=30.0
+                )
+                
+                print(f"📥 API response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    print("✅ Successfully sent conversation to backend API")
+                    response_data = response.json()
+                    print(f"📊 API response data: {response_data}")
+                else:
+                    print(f"❌ Backend API error: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"❌ Error calling backend API: {e}")
+            import traceback
+            print(f"🔍 API call error traceback:\n{traceback.format_exc()}")
+            
+            # Fallback to direct call if API is unavailable
+            print("🔄 Falling back to direct backend agent call")
+            if hasattr(self, 'backend_agent') and self.backend_agent:
+                self.backend_agent.get_response(conversation_turn)
+
     def _on_user_transcript(self, transcript):
         """Callback for user transcript - should be called by ElevenLabs SDK."""
         print(f"🎯 SDK CALLBACK: USER TRANSCRIPT RECEIVED")
         print(f"📝 USER TRANSCRIPT (via callback): {transcript}")
         
-        if self.backend_agent and transcript and transcript.strip():
+        if transcript and transcript.strip():
             print("🤖 Sending SDK callback user transcript to Backend Agent...")
             try:
-                self.backend_agent.get_response(transcript)
+                self._send_to_backend_api(transcript)
             except Exception as e:
                 print(f"Error sending SDK user transcript to backend: {e}")
 
@@ -455,10 +492,10 @@ class ConversationalAgent:
         print(f"🎯 SDK CALLBACK: AGENT RESPONSE RECEIVED")
         print(f"🤖 AGENT RESPONSE (via callback): {response}")
         
-        if self.backend_agent and response and response.strip():
+        if response and response.strip():
             print("🤖 Sending SDK callback agent response to Backend Agent...")
             try:
-                self.backend_agent.get_response(f"Agent said: {response}")
+                self._send_to_backend_api(f"Agent said: {response}")
             except Exception as e:
                 print(f"Error sending SDK agent response to backend: {e}")
         
@@ -466,7 +503,7 @@ class ConversationalAgent:
         conversation_turn = "\n".join(self.full_transcript)
         print("--- Sending to Backend Agent ---")
         print(conversation_turn)
-        self.backend_agent.get_response(conversation_turn)
+        self._send_to_backend_api(conversation_turn)
         
         # Clear the transcript for the next turn
         self.full_transcript = []
@@ -503,7 +540,7 @@ class ConversationalAgent:
                         conversation_turn = f"User: {current_transcript}\nAgent A: {current_response}"
                         print("--- WEBSOCKET: Sending to Backend Agent ---")
                         print(conversation_turn)
-                        self.backend_agent.get_response(conversation_turn)
+                        self._send_to_backend_api(conversation_turn)
                         # Reset for next turn
                         current_transcript = ""
                         current_response = ""

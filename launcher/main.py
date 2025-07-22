@@ -44,7 +44,10 @@ class ConjureApp:
         self.subprocess_manager = SubprocessManager()
         self.instruction_manager = InstructionManager(self.state_manager)
         self.backend_agent = BackendAgent(instruction_manager=self.instruction_manager)
-        self.conversational_agent = ConversationalAgent(backend_agent=self.backend_agent)
+        
+        # Note: ConversationalAgent no longer needs direct backend_agent reference
+        # It will communicate via API
+        self.conversational_agent = ConversationalAgent(backend_agent=None)
         self.project_root = Path(__file__).parent.parent.resolve()
         atexit.register(self.stop)
         
@@ -54,6 +57,11 @@ class ConjureApp:
         """Starts all the necessary components of the application."""
         print("CONJURE application starting...")
         self.state_manager.set_state("app_status", "running")
+
+        # Start API server first
+        self.subprocess_manager.start_api_server()
+        print("Waiting for API server to initialize...")
+        time.sleep(3)
 
         self.subprocess_manager.start_hand_tracker()
         self.state_manager.set_state("hand_tracker_status", "running")

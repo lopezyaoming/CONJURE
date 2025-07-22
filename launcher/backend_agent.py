@@ -6,6 +6,7 @@ Now uses the custom ChatGPT "VIBE Backend" instead of Assistant API.
 import os
 import json
 import base64
+import httpx
 from openai import OpenAI
 from pathlib import Path
 from instruction_manager import InstructionManager
@@ -122,22 +123,22 @@ You are an expert in FLUX.1 prompt engineering. Apply these advanced techniques 
 Phase-by-Phase Behavior
 You should be very aware of the strict progression of design that every interaction must follow. you must have a high level of awareness of the current phase and the next phase. You must only act on your toolset when the conversational agent explicitly asks you to do so by calling the phase number.
 Phase I: Start the Model
-Step 1.1 – Primitive Selection  Prompt: “Welcome to CONJURE. What should we start with today?”  → Help the user choose a primitive shape (cube, sphere, cone, etc.)
-Step 1.2 – Gesture Sculpting  Prompt: “Use your hands to sculpt. Inform me when done.”  → Wait for gesture input and provide encouraging feedback.
-Step 1.3 – Segmentation Prompt  Prompt: “Would you like to refine the whole model or edit segments individually?”  → Ask clearly and acknowledge the user’s choice.
+Step 1.1 – Primitive Selection Prompt: “Welcome to CONJURE. What should we start with today?” → Help the user choose a primitive shape (cube, sphere, cone, etc.)
+Step 1.2 – Gesture Sculpting Prompt: “Use your hands to sculpt. Inform me when done.” → Wait for gesture input and provide encouraging feedback.
+Step 1.3 – Segmentation Prompt Prompt: “Would you like to refine the whole model or edit segments individually?” → Ask clearly and acknowledge the user’s choice.
 Phase II: Global Refinement
-Step 2.1 – Remeshing Announcements  Prompt: “Let’s begin the first stage of refinement.”
-Step 2.2 – Sculpt & Wait  Prompt: “Continue sculpting. Let me know when you’re ready.”
-Step 2.3 – Style Prompting  Prompt: “Please describe the style or material you’re imagining.”  → Ask for textures, visual mood, object character, references, etc.
-Step 2.4 – Concept Selection  Prompt: “Choose one of the options: one, two, or three.”  → Help the user make a confident choice.
-Step 2.5 – Model Generation  Prompt: “Generating your model now. This may take a moment…”
+Step 2.1 – Remeshing Announcements Prompt: “Let’s begin the first stage of refinement.”
+Step 2.2 – Sculpt & Wait Prompt: “Continue sculpting. Let me know when you’re ready.”
+Step 2.3 – Style Prompting Prompt: “Please describe the style or material you’re imagining.” → Ask for textures, visual mood, object character, references, etc.
+Step 2.4 – Concept Selection Prompt: “Choose one of the options: one, two, or three.” → Help the user make a confident choice.
+Step 2.5 – Model Generation Prompt: “Generating your model now. This may take a moment…”
  Phase III: Segment Refinement
-Step 3.1 – Segment Selection  Prompt: “Point to a segment you’d like to refine.”
-Step 3.2 – Isolate Segment  Prompt: “Segment isolated. Let’s refine this part.”  → After this, loop back through Phase II but focused on the selected part.
+Step 3.1 – Segment Selection Prompt: “Point to a segment you’d like to refine.”
+Step 3.2 – Isolate Segment Prompt: “Segment isolated. Let’s refine this part.” → After this, loop back through Phase II but focused on the selected part.
 Phase IV: Materials & Narrative
-Step 4.1 – Intro to Material Assignment  Prompt: “Time to give your model a story and a soul.”
-Step 4.2 – Material Description  Prompt: “Describe the material and meaning for this part.”  → Ask about symbolic meaning, surface texture, emotional tone, etc.
-Step 4.3 – Final Export  Prompt: “Your creation is ready. I’m exporting the final files now.”
+Step 4.1 – Intro to Material Assignment Prompt: “Time to give your model a story and a soul.”
+Step 4.2 – Material Description Prompt: “Describe the material and meaning for this part.” → Ask about symbolic meaning, surface texture, emotional tone, etc.
+Step 4.3 – Final Export Prompt: “Your creation is ready. I’m exporting the final files now.”
 Best Practices
 Always bring the user’s focus back to the object, not the environment.
 Encourage imaginative responses using references, metaphors, and analogies.
@@ -160,6 +161,28 @@ Focus on understanding user creative intent and translating it into actionable 3
         except Exception as e:
             print(f"Error encoding image: {e}")
             return None
+
+    def _execute_instruction_via_api(self, instruction: dict):
+        """
+        Execute instruction via API instead of direct call.
+        """
+        try:
+            with httpx.Client() as client:
+                response = client.post(
+                    "http://127.0.0.1:8000/execute_instruction",
+                    json={"instruction": instruction},
+                    timeout=30.0
+                )
+                if response.status_code == 200:
+                    print("✅ Successfully executed instruction via API")
+                else:
+                    print(f"❌ Instruction API error: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"❌ Error calling instruction API: {e}")
+            # Fallback to direct call if API is unavailable
+            print("🔄 Falling back to direct instruction manager call")
+            if hasattr(self, 'instruction_manager') and self.instruction_manager:
+                self.instruction_manager.execute_instruction(instruction)
 
     def get_response(self, conversation_history: str):
         """
@@ -279,7 +302,7 @@ Focus on understanding user creative intent and translating it into actionable 3
                 
                 if tool_name:
                     print(f"🔧 Executing tool: {tool_name}")
-                    self.instruction_manager.execute_instruction(instruction)
+                    self._execute_instruction_via_api(instruction)
                     return instruction
                 else:
                     print("⚠️ Error: instruction object missing tool_name")
