@@ -457,7 +457,12 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
         volume_ratio = current_volume / initial_volume
         if volume_ratio < config.VOLUME_LOWER_LIMIT or volume_ratio > config.VOLUME_UPPER_LIMIT:
             target_ratio = max(config.VOLUME_LOWER_LIMIT, min(volume_ratio, config.VOLUME_UPPER_LIMIT))
-            scale_factor = (target_ratio / volume_ratio)**(1/3)
+            # Prevent complex numbers from negative ratios
+            if target_ratio / volume_ratio > 0:
+                scale_factor = (target_ratio / volume_ratio)**(1/3)
+            else:
+                scale_factor = 1.0  # Fallback to no scaling
+                
             centroid = mathutils.Vector()
             for v in bm.verts:
                 centroid += v.co
@@ -568,6 +573,210 @@ class ConjureFingertipOperator(bpy.types.Operator):
         self._initial_volume = self.get_mesh_volume(new_obj)
         print(f"Set initial volume for new mesh: {self._initial_volume}")
 
+    def check_for_state_commands(self, context):
+        """
+        Check for state-based commands and execute them.
+        This handles communication between the launcher and Blender.
+        """
+        # Read the state file directly (same pattern as check_for_launcher_requests)
+        state_file_path = config.STATE_JSON_PATH
+        
+        try:
+            with open(state_file_path, 'r') as f:
+                state_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return  # File not found or invalid JSON, nothing to do
+        
+        command = state_data.get("command")
+        if command:
+            print(f"CONJURE: Detected command: {command}")
+            
+            if command == "spawn_primitive":
+                primitive_type = state_data.get("primitive_type", "Cube")
+                self.spawn_primitive(context, primitive_type)
+                # Clear the command (same pattern as existing code)
+                state_data["command"] = None
+                with open(state_file_path, 'w') as f:
+                    json.dump(state_data, f, indent=4)
+            
+            elif command == "render_gesture_camera":
+                # Trigger GestureCamera render for FLUX1.DEPTH
+                bpy.ops.conjure.render_gesture_camera()
+                # Clear the command
+                state_data["command"] = None
+                with open(state_file_path, 'w') as f:
+                    json.dump(state_data, f, indent=4)
+            
+            elif command == "generate_flux_mesh":
+                # Handle the FLUX1.DEPTH -> PartPacker pipeline
+                self.handle_flux_mesh_generation(context, state_data)
+                # Clear the command
+                state_data["command"] = None
+                with open(state_file_path, 'w') as f:
+                    json.dump(state_data, f, indent=4)
+            
+            elif command == "import_and_process_mesh":
+                # Import and process PartPacker results
+                bpy.ops.conjure.import_and_process_mesh()
+                # Clear the command
+                state_data["command"] = None
+                with open(state_file_path, 'w') as f:
+                    json.dump(state_data, f, indent=4)
+            
+            elif command == "fuse_mesh":
+                # Boolean union all segments
+                bpy.ops.conjure.fuse_mesh()
+                # Clear the command
+                state_data["command"] = None
+                with open(state_file_path, 'w') as f:
+                    json.dump(state_data, f, indent=4)
+            
+            elif command == "segment_selection":
+                # Check if segments exist before entering selection mode
+                segment_objects = [obj for obj in bpy.data.objects 
+                                  if obj.type == 'MESH' and obj.name.startswith('seg_')]
+                
+                # Debug: show all mesh objects in scene
+                all_mesh_objects = [obj.name for obj in bpy.data.objects if obj.type == 'MESH']
+                print(f"🔍 DEBUG: All mesh objects in scene: {all_mesh_objects}")
+                print(f"🔍 DEBUG: Found {len(segment_objects)} segments: {[obj.name for obj in segment_objects]}")
+                
+                if segment_objects:
+                    # Enable gesture-based segment selection
+                    bpy.ops.conjure.segment_selection()
+                    print("🎯 DEBUG: segment_selection command processed - selection mode should be active")
+                else:
+                    # No segments found - try to import mesh first
+                    print("⚠️ DEBUG: No segments found for selection - attempting to import mesh first")
+                    mesh_path = state_data.get("mesh_path")
+                    if mesh_path:
+                        print(f"📦 DEBUG: Found mesh path, importing: {mesh_path}")
+                        bpy.ops.conjure.import_and_process_mesh()
+                    else:
+                        print("❌ DEBUG: No mesh_path found in state - cannot import segments")
+                        # Clear the command to prevent repeated attempts
+                        state_data["command"] = None
+                        state_data["selection_mode"] = "inactive"
+                        with open(state_file_path, 'w') as f:
+                            json.dump(state_data, f, indent=4)
+        
+        # Check for import requests (existing functionality)
+        import_request = state_data.get("import_request")
+        if import_request == "new":
+            # Use the same pattern as check_for_launcher_requests
+            area = next((a for a in bpy.context.screen.areas if a.type == 'VIEW_3D'), None)
+            if area:
+                try:
+                    print("CONJURE: Executing bpy.ops.conjure.import_model() with context override.")
+                    with bpy.context.temp_override(area=area):
+                        bpy.ops.conjure.import_model('EXEC_DEFAULT')
+                    # Clear the import request
+                    state_data["import_request"] = "done"
+                    with open(state_file_path, 'w') as f:
+                        json.dump(state_data, f, indent=4)
+                except Exception as e:
+                    print(f"ERROR: Failed to execute conjure.import_model operator: {e}")
+            else:
+                print("ERROR: Could not find a 3D View area to run the import operator.")
+
+    def handle_flux_mesh_generation(self, context, state_data):
+        """
+        Handle the complete FLUX1.DEPTH -> PartPacker pipeline
+        """
+        prompt = state_data.get("prompt", "")
+        seed = state_data.get("seed", 0)
+        min_volume_threshold = state_data.get("min_volume_threshold", 0.001)
+        
+        print(f"🚀 Starting FLUX mesh generation pipeline...")
+        print(f"📝 Prompt: {prompt}")
+        print(f"🎲 Seed: {seed}")
+        
+        # Step 1: Render GestureCamera
+        print("📸 Step 1: Rendering GestureCamera...")
+        bpy.ops.conjure.render_gesture_camera()
+        
+        # Step 2: Save prompt to userPrompt.txt
+        print("📝 Step 2: Saving prompt...")
+        self.save_prompt_to_file(prompt)
+        
+        # Step 3: Set state to trigger the API pipeline
+        # The main launcher will detect this and handle the API calls
+        print("🔄 Step 3: Triggering API pipeline...")
+        # Update state file with flux pipeline request
+        try:
+            with open(config.STATE_JSON_PATH, 'r') as f:
+                current_state = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            current_state = {}
+        
+        current_state.update({
+            "flux_pipeline_request": "new",
+            "flux_prompt": prompt,
+            "flux_seed": seed,
+            "min_volume_threshold": min_volume_threshold
+        })
+        
+        with open(config.STATE_JSON_PATH, 'w') as f:
+            json.dump(current_state, f, indent=4)
+    
+    def save_prompt_to_file(self, prompt):
+        """Save the prompt to userPrompt.txt for the generation pipeline"""
+        prompt_dir = config.DATA_DIR / "generated_text"
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        
+        prompt_file = prompt_dir / "userPrompt.txt"
+        with open(prompt_file, 'w') as f:
+            f.write(prompt)
+        
+        print(f"✅ Prompt saved to: {prompt_file}")
+
+    def spawn_primitive(self, context, primitive_type):
+        """
+        Spawn a primitive object and replace the current Mesh.
+        """
+        print(f"Spawning primitive: {primitive_type}")
+        
+        # Remove existing mesh if it exists
+        existing_mesh = bpy.data.objects.get("Mesh")
+        if existing_mesh:
+            bpy.data.objects.remove(existing_mesh, do_unlink=True)
+        
+        # Create the new primitive
+        if primitive_type == "Sphere":
+            bpy.ops.mesh.primitive_uv_sphere_add(location=(0, 0, 0))
+        elif primitive_type == "Cube":
+            bpy.ops.mesh.primitive_cube_add(location=(0, 0, 0))
+        elif primitive_type == "Cone":
+            bpy.ops.mesh.primitive_cone_add(location=(0, 0, 0))
+        elif primitive_type == "Cylinder":
+            bpy.ops.mesh.primitive_cylinder_add(location=(0, 0, 0))
+        elif primitive_type == "Disk":
+            bpy.ops.mesh.primitive_circle_add(location=(0, 0, 0), fill_type='NGON')
+        elif primitive_type == "Torus":
+            bpy.ops.mesh.primitive_torus_add(location=(0, 0, 0))
+        elif primitive_type == "Head":
+            # Create a rough head shape using a sphere with some deformation
+            bpy.ops.mesh.primitive_uv_sphere_add(location=(0, 0, 0))
+            head_obj = context.active_object
+            head_obj.scale = (0.8, 1.0, 1.2)  # Make it more head-like
+        elif primitive_type == "Body":
+            # Create a rough body shape using a cylinder
+            bpy.ops.mesh.primitive_cylinder_add(location=(0, 0, 0))
+            body_obj = context.active_object
+            body_obj.scale = (1.2, 0.8, 2.0)  # Make it more body-like
+        else:
+            # Default to cube if unknown type
+            bpy.ops.mesh.primitive_cube_add(location=(0, 0, 0))
+        
+        # Rename the new object to "Mesh"
+        new_obj = context.active_object
+        new_obj.name = "Mesh"
+        
+        print(f"✅ Spawned {primitive_type} as 'Mesh'")
+        
+        # Clear the history since we have a new starting point
+        self.mesh_history.clear()
+        self.add_to_history()
 
     def draw_ui_text(self, context):
         """Draws the current brush name on the viewport."""
@@ -586,6 +795,192 @@ class ConjureFingertipOperator(bpy.types.Operator):
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
         active_radius = config.RADIUS_LEVELS[self._current_radius_index]['name'].upper()
         blf.draw(font_id, f"Radius: {active_radius}")
+    
+    def handle_segment_selection(self, context, finger_positions_3d, region, rv3d, depsgraph):
+        """Handle segment selection with touch detection and material feedback"""
+        # Initialize selection state if not exists
+        if not hasattr(self, '_selection_state'):
+            self._selection_state = {
+                'highlighted_segment': None,
+                'last_highlighted': None,
+                'touch_detected': False
+            }
+            print("🎯 Initialized segment selection state")
+        
+        # Get segment objects
+        segment_objects = [obj for obj in bpy.data.objects 
+                          if obj.type == 'MESH' and obj.name.startswith('seg_')]
+        
+        if not segment_objects:
+            return
+        
+        # Get materials
+        default_mat = bpy.data.materials.get("default_material")
+        selected_mat = bpy.data.materials.get("selected_material")
+        
+        if not default_mat:
+            print("❌ default_material not found in scene")
+            return
+        if not selected_mat:
+            print("❌ selected_material not found in scene")
+            return
+        
+        print(f"✅ Materials ready: default_material='{default_mat.name}', selected_material='{selected_mat.name}'")
+        print(f"🎯 DEBUG: Monitoring {len(segment_objects)} segments for finger pointing: {[obj.name for obj in segment_objects]}")
+        
+        # Check if we have right hand index finger (finger 6)
+        if len(finger_positions_3d) <= 6 or not finger_positions_3d[6]:
+            # No index finger detected - reset all to default
+            if self._selection_state['highlighted_segment']:
+                print("👋 DEBUG: Index finger lost - resetting highlights")
+                self.reset_segment_materials(segment_objects, default_mat)
+                self._selection_state['highlighted_segment'] = None
+            return
+        
+        index_finger_pos = finger_positions_3d[6]
+        
+        # Cast ray from index finger to detect segment
+        highlighted_segment = self.detect_segment_under_finger(
+            index_finger_pos, segment_objects, context, region, rv3d, depsgraph
+        )
+        
+        # Update highlighting
+        if highlighted_segment != self._selection_state['highlighted_segment']:
+            # Reset previous highlight
+            if self._selection_state['highlighted_segment']:
+                print(f"🔄 DEBUG: Removing highlight from {self._selection_state['highlighted_segment'].name}")
+                self.apply_material_to_segment(self._selection_state['highlighted_segment'], default_mat)
+            
+            # Apply new highlight
+            if highlighted_segment:
+                print(f"🎯 DEBUG: NOW POINTING AT → {highlighted_segment.name} (applying green highlight)")
+                self.apply_material_to_segment(highlighted_segment, selected_mat)
+            else:
+                print("🌌 DEBUG: NOW POINTING AT → EMPTY SPACE (no highlight)")
+            
+            self._selection_state['highlighted_segment'] = highlighted_segment
+        
+        # Check for thumb+index touch for final selection
+        if highlighted_segment and len(finger_positions_3d) > 5 and finger_positions_3d[5]:
+            thumb_pos = finger_positions_3d[5]
+            index_pos = finger_positions_3d[6]
+            
+            touch_distance = (thumb_pos - index_pos).length
+            touch_threshold = 0.05  # 5cm threshold for touch detection
+            
+            # Debug touch distance every few frames to avoid spam
+            if not hasattr(self, '_debug_counter'):
+                self._debug_counter = 0
+            self._debug_counter += 1
+            
+            if self._debug_counter % 30 == 0:  # Every 30 frames (~1 second)
+                print(f"🤏 DEBUG: Thumb-Index distance: {touch_distance:.3f}m (threshold: {touch_threshold:.3f}m)")
+            
+            if touch_distance < touch_threshold:
+                if not self._selection_state['touch_detected']:
+                    # New touch detected - select this segment
+                    print(f"✅ DEBUG: TOUCH DETECTED! Selecting {highlighted_segment.name}")
+                    self.select_segment(highlighted_segment)
+                    self._selection_state['touch_detected'] = True
+            else:
+                if self._selection_state['touch_detected']:
+                    print("👋 DEBUG: Touch released")
+                self._selection_state['touch_detected'] = False
+    
+    def detect_segment_under_finger(self, finger_pos, segment_objects, context, region, rv3d, depsgraph):
+        """Cast ray from finger position to detect which segment is being touched"""
+        if not region or not rv3d:
+            return None
+        
+        # Convert 3D finger position to 2D screen coordinates
+        finger_2d = location_3d_to_region_2d(region, rv3d, finger_pos)
+        if not finger_2d:
+            return None
+        
+        # Cast ray from camera through finger position
+        ray_origin = region_2d_to_origin_3d(region, rv3d, finger_2d)
+        ray_direction = region_2d_to_vector_3d(region, rv3d, finger_2d)
+        
+        # Single raycast to find what's under the finger
+        hit, loc, normal, _, hit_obj, _ = context.scene.ray_cast(
+            depsgraph, ray_origin, ray_direction
+        )
+        
+        # Return the hit segment (debug output handled in main loop to avoid spam)
+        if hit and hit_obj in segment_objects:
+            return hit_obj
+        
+        return None
+    
+    def reset_segment_materials(self, segment_objects, default_mat):
+        """Reset all segments to default material"""
+        for segment in segment_objects:
+            self.apply_material_to_segment(segment, default_mat)
+    
+    def apply_material_to_segment(self, segment, material):
+        """Apply material to a segment object"""
+        if not segment or not material:
+            print(f"⚠️ Cannot apply material: segment={segment}, material={material}")
+            return
+        
+        try:
+            # Clear existing materials first
+            segment.data.materials.clear()
+            # Add the new material
+            segment.data.materials.append(material)
+            # Force viewport update
+            segment.data.update()
+            print(f"✅ Applied {material.name} to {segment.name}")
+        except Exception as e:
+            print(f"❌ Error applying material to {segment.name}: {e}")
+    
+    def select_segment(self, segment):
+        """Finalize segment selection - replace placeholder 'Mesh' with selected segment"""
+        print(f"🎯 Selected segment: {segment.name}")
+        
+        # Get the placeholder Mesh object
+        placeholder = bpy.data.objects.get("Mesh")
+        if placeholder:
+            # Remove the placeholder
+            bpy.data.objects.remove(placeholder, do_unlink=True)
+            print("🗑️ Removed placeholder Mesh")
+        
+        # Rename the selected segment to "Mesh"
+        segment.name = "Mesh"
+        
+        # Reset all other segments to default material
+        default_mat = bpy.data.materials.get("default_material")
+        segment_objects = [obj for obj in bpy.data.objects 
+                          if obj.type == 'MESH' and obj.name.startswith('seg_')]
+        
+        if default_mat:
+            self.reset_segment_materials(segment_objects, default_mat)
+        
+        # Exit selection mode
+        try:
+            with open(config.STATE_JSON_PATH, 'r') as f:
+                state_data = json.load(f)
+            
+            state_data.update({
+                "selection_mode": "completed",
+                "command": None,  # Clear selection command to re-enable deform
+                "selected_segment": segment.name
+            })
+            
+            with open(config.STATE_JSON_PATH, 'w') as f:
+                json.dump(state_data, f, indent=2)
+            
+            print("✅ Segment selection completed - deform mode re-enabled")
+            
+        except Exception as e:
+            print(f"❌ Error updating state after selection: {e}")
+        
+        # Reset selection state
+        self._selection_state = {
+            'highlighted_segment': None,
+            'last_highlighted': None,
+            'touch_detected': False
+        }
 
     def check_for_launcher_requests(self):
         """Checks state.json for commands from the launcher/agent."""
@@ -647,6 +1042,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
         if event.type == 'TIMER':
             # Check for commands from the launcher (e.g., spawn primitive)
             self.check_for_launcher_requests()
+            self.check_for_state_commands(context) # Check for new state-based commands
 
             # --- Robustly find the 3D view context, regardless of mouse position ---
             area = next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
@@ -674,6 +1070,14 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
             command = live_data.get("command", "none")
             mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
+            
+            # Debug current command every few frames to avoid spam
+            if not hasattr(self, '_command_debug_counter'):
+                self._command_debug_counter = 0
+            self._command_debug_counter += 1
+            
+            if self._command_debug_counter % 60 == 0:  # Every 60 frames (~2 seconds)
+                print(f"🔍 DEBUG: Current command from fingertips.json: '{command}'")
 
             # --- Process Fingertips for Visualization ---
             right_hand_data = live_data.get("right_hand")
@@ -767,7 +1171,25 @@ class ConjureFingertipOperator(bpy.types.Operator):
             # Update last hand center for the next frame
             self._last_hand_center = current_hand_center
 
-            if command == "deform":
+            # Check if we're in segment selection mode from state.json - this overrides deform
+            try:
+                with open(config.STATE_JSON_PATH, 'r') as f:
+                    state_data = json.load(f)
+                selection_mode = state_data.get("selection_mode", "inactive")
+                state_command = state_data.get("command")
+            except:
+                selection_mode = "inactive"
+                state_command = None
+            
+            if selection_mode == "active" or state_command == "segment_selection":
+                print("🎯 DEBUG: segment_selection mode ACTIVE - calling handler")
+                self.handle_segment_selection(context, finger_positions_3d, region, rv3d, depsgraph)
+            elif command == "deform":
+                # Safety check: ensure mesh object has valid mesh data
+                if not mesh_obj or not mesh_obj.data or not hasattr(mesh_obj.data, 'vertices'):
+                    print(f"⚠️ Cannot deform: invalid mesh object (mesh_obj={mesh_obj})")
+                    return {'PASS_THROUGH'}
+                
                 # The deform points are the thumb and index of the right hand (indices 5 and 6)
                 if len(finger_positions_3d) > 6 and finger_positions_3d[5] and finger_positions_3d[6]:
                     deform_points = [finger_positions_3d[5], finger_positions_3d[6]]

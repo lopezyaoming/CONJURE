@@ -17,6 +17,11 @@ class InstructionManager:
             "export_final_model": self.export_final_model,
             "undo_last_action": self.undo_last_action,
             "import_last_model": self.import_last_model,
+            # New Phase 1 tools
+            "generate_flux_mesh": self.generate_flux_mesh,
+            "fuse_mesh": self.fuse_mesh,
+            "segment_selection": self.segment_selection,
+            "mesh_import": self.mesh_import,
         }
 
     def execute_instruction(self, instruction: dict):
@@ -110,5 +115,62 @@ class InstructionManager:
 
     def import_last_model(self, params: dict):
         """Handles the 'import_last_model' instruction."""
-        print("INFO: Setting command for 'import_last_model'")
-        self.state_manager.set_state("command", "import_last_model") 
+        print("INFO: Setting state for 'import_last_model'")
+        self.state_manager.set_state("import_request", "new")
+
+    # --- New Phase 1 Tools ---
+
+    def generate_flux_mesh(self, params: dict):
+        """
+        Handles the 'generate_flux_mesh' instruction. This triggers the 
+        FLUX1.DEPTH -> PartPacker pipeline to generate a 3D mesh.
+        """
+        prompt = params.get("prompt")
+        if not prompt:
+            print("Error: generate_flux_mesh called without 'prompt' parameter.")
+            return
+        
+        print(f"INFO: Starting FLUX mesh generation with prompt: {prompt[:100]}...")
+        
+        # Set state to trigger the FLUX mesh generation pipeline
+        command_data = {
+            "command": "generate_flux_mesh",
+            "prompt": prompt,
+            "seed": params.get("seed", 0),
+            "min_volume_threshold": params.get("min_volume_threshold", 0.001)
+        }
+        self.state_manager.update_state(command_data)
+
+    def fuse_mesh(self, params: dict):
+        """
+        Handles the 'fuse_mesh' instruction. Boolean union all mesh segments
+        from largest to smallest into a single 'Mesh' object.
+        """
+        print("INFO: Setting command for 'fuse_mesh'")
+        self.state_manager.set_state("command", "fuse_mesh")
+
+    def segment_selection(self, params: dict):
+        """
+        Handles the 'segment_selection' instruction. Enables gesture-based
+        segment selection mode where user can pick segments with index finger.
+        """
+        print("INFO: Setting command for 'segment_selection'")
+        self.state_manager.set_state("command", "segment_selection")
+
+    def mesh_import(self, params: dict):
+        """
+        Handles the 'mesh_import' instruction. Import and process a mesh file,
+        typically from PartPacker results.
+        """
+        mesh_path = params.get("mesh_path")
+        if not mesh_path:
+            print("Error: mesh_import called without 'mesh_path' parameter.")
+            return
+        
+        print(f"INFO: Setting command for mesh import: {mesh_path}")
+        command_data = {
+            "command": "import_and_process_mesh", 
+            "mesh_path": mesh_path,
+            "min_volume_threshold": params.get("min_volume_threshold", 0.001)
+        }
+        self.state_manager.update_state(command_data) 

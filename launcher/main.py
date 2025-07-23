@@ -89,6 +89,24 @@ class ConjureApp:
         command = state_data.get("command")
         generation_mode = state_data.get("generation_mode", "standard")
 
+        # Only show debug info when there are actual requests
+        has_requests = (
+            state_data.get("flux_pipeline_request") == "new" or
+            state_data.get("generation_request") == "new" or
+            state_data.get("selection_request") or
+            command
+        )
+        
+        if has_requests:
+            print("🔍 DEBUG: Active requests detected!")
+            print(f"   📋 Available commands: {list(state_data.keys())}")
+        
+        # Check for FLUX pipeline request first (highest priority)
+        if state_data.get("flux_pipeline_request") == "new":
+            print("🚀 DEBUG: FLUX pipeline request detected!")
+            self.handle_flux_pipeline_request(state_data)
+            self.state_manager.clear_specific_requests(["flux_pipeline_request"])
+        
         # This part of the logic is now handled by the new agent system.
         # The old agent was triggered by Blender UI, the new one is voice-driven.
         # We'll keep the generation/selection logic as it's triggered by Blender/gestures.
@@ -99,10 +117,12 @@ class ConjureApp:
         #     # Now, get the agent's response. The agent may issue a new command
         #     # to Blender by updating the state file itself.
         #     self.agent.get_response(state_data.get('text'))
-        if state_data.get("generation_request") == "new":
+        elif state_data.get("generation_request") == "new":
+            print("🎨 DEBUG: Generation request detected!")
             self.handle_generation_request()
             self.state_manager.clear_specific_requests(["generation_request"])
         elif state_data.get("selection_request"):
+            print("🎯 DEBUG: Selection request detected!")
             self.handle_selection_request(state_data, generation_mode)
             self.state_manager.clear_specific_requests(["selection_request", "selection_status"])
 
@@ -292,6 +312,207 @@ class ConjureApp:
             print(f"--- ERROR: {workflow_name} workflow failed. ---")
             self.reset_state_file({"3d_generation_request": "failed"})
 
+    def handle_flux_pipeline_request(self, state_data):
+        """
+        Handle the complete FLUX1.DEPTH -> PartPacker -> Import pipeline
+        """
+        prompt = state_data.get("flux_prompt", "")
+        seed = state_data.get("flux_seed", 0)
+        min_volume_threshold = state_data.get("min_volume_threshold", 0.001)
+        
+        print("🚀 --- Starting FLUX Pipeline ---")
+        print(f"📝 Prompt: {prompt}")
+        print(f"🎲 Seed: {seed}")
+        print(f"🔍 Min volume threshold: {min_volume_threshold}")
+        
+        try:
+            # Step 1: Generate FLUX1.DEPTH image
+            print("🎨 Step 1: Generating FLUX1.DEPTH image...")
+            print("📡 DEBUG: About to call FLUX1.DEPTH API...")
+            flux_result = self.call_flux_depth_api(prompt, seed)
+            if not flux_result:
+                print("❌ FLUX1.DEPTH generation failed")
+                self.reset_state_file({"flux_pipeline_status": "failed"})
+                return
+            
+            flux_image_path = flux_result["image_path"]
+            print(f"✅ FLUX1.DEPTH completed: {flux_image_path}")
+            
+            # Step 2: Generate 3D model with PartPacker
+            print("🏗️ Step 2: Generating 3D model with PartPacker...")
+            print("📡 DEBUG: About to call PartPacker API...")
+            partpacker_result = self.call_partpacker_api(flux_image_path, seed)
+            if not partpacker_result:
+                print("❌ PartPacker generation failed")
+                self.reset_state_file({"flux_pipeline_status": "failed"})
+                return
+            
+            model_path = partpacker_result["model_path"]
+            print(f"✅ PartPacker completed: {model_path}")
+            
+            # Step 3: Import mesh into Blender
+            print("📦 Step 3: Importing mesh into Blender...")
+            print("📡 DEBUG: About to call mesh import API...")
+            import_result = self.call_mesh_import_api(model_path, min_volume_threshold)
+            if not import_result:
+                print("❌ Mesh import failed")
+                self.reset_state_file({"flux_pipeline_status": "failed"})
+                return
+            
+            print("✅ Mesh import completed")
+            print("🎉 --- FLUX Pipeline Completed Successfully ---")
+            self.reset_state_file({"flux_pipeline_status": "completed"})
+            
+        except Exception as e:
+            print(f"❌ Error in FLUX pipeline: {e}")
+            import traceback
+            print(f"🔍 Full error traceback:\n{traceback.format_exc()}")
+            self.reset_state_file({"flux_pipeline_status": "failed"})
+    
+    def call_flux_depth_api(self, prompt, seed):
+        """Call the FLUX1.DEPTH API via our FastAPI server"""
+        print("📡 DEBUG: FLUX1.DEPTH API call starting...")
+        try:
+            import httpx
+            
+            # Path to the GestureCamera render
+            render_path = self.project_root / "data" / "generated_images" / "gestureCamera" / "render.png"
+            print(f"🖼️ DEBUG: Using control image: {render_path}")
+            
+            if not render_path.exists():
+                print(f"❌ GestureCamera render not found: {render_path}")
+                return None
+            
+            # Prepare request data
+            request_data = {
+                "control_image_path": str(render_path),
+                "prompt": prompt,
+                "seed": seed,
+                "randomize_seed": False,  # Use fixed seed
+                "width": 1024,
+                "height": 1024,
+                "guidance_scale": 10,
+                "num_inference_steps": 28
+            }
+            
+            print(f"📝 DEBUG: Request data prepared: {request_data}")
+            
+            # Call our FastAPI server
+            print("🌐 DEBUG: Making HTTP request to FastAPI server...")
+            with httpx.Client(timeout=300.0) as client:  # 5-minute timeout for generation
+                response = client.post("http://127.0.0.1:8000/flux/depth", json=request_data)
+                print(f"📶 DEBUG: HTTP response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"📄 DEBUG: Response data: {result}")
+                    if result["success"]:
+                        print("✅ DEBUG: FLUX1.DEPTH API call successful!")
+                        # The image is now saved as data/generated_images/flux/flux.png
+                        return {
+                            "image_path": str(self.project_root / "data" / "generated_images" / "flux" / "flux.png"),
+                            "seed_used": result["data"]["seed_used"]
+                        }
+                    else:
+                        print(f"❌ FLUX1.DEPTH API error: {result['message']}")
+                        return None
+                else:
+                    print(f"❌ HTTP error {response.status_code}: {response.text}")
+                    return None
+                    
+        except Exception as e:
+            print(f"❌ Error calling FLUX1.DEPTH API: {e}")
+            import traceback
+            print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+            return None
+    
+    def call_partpacker_api(self, image_path, seed):
+        """Call the PartPacker API via our FastAPI server"""
+        print("📡 DEBUG: PartPacker API call starting...")
+        try:
+            import httpx
+            
+            print(f"🖼️ DEBUG: Using input image: {image_path}")
+            
+            # Prepare request data
+            request_data = {
+                "image_path": image_path,
+                "num_steps": 50,
+                "cfg_scale": 7,
+                "grid_res": 384,
+                "seed": seed,
+                "simplify_mesh": False,
+                "target_num_faces": 100000
+            }
+            
+            print(f"📝 DEBUG: Request data prepared: {request_data}")
+            
+            # Call our FastAPI server
+            print("🌐 DEBUG: Making HTTP request to FastAPI server...")
+            with httpx.Client(timeout=600.0) as client:  # 10-minute timeout for 3D generation
+                response = client.post("http://127.0.0.1:8000/partpacker/generate_3d", json=request_data)
+                print(f"📶 DEBUG: HTTP response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"📄 DEBUG: Response data: {result}")
+                    if result["success"]:
+                        print("✅ DEBUG: PartPacker API call successful!")
+                        return result["data"]
+                    else:
+                        print(f"❌ PartPacker API error: {result['message']}")
+                        return None
+                else:
+                    print(f"❌ HTTP error {response.status_code}: {response.text}")
+                    return None
+                    
+        except Exception as e:
+            print(f"❌ Error calling PartPacker API: {e}")
+            import traceback
+            print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+            return None
+    
+    def call_mesh_import_api(self, mesh_path, min_volume_threshold):
+        """Call the mesh import API via our FastAPI server"""
+        print("📡 DEBUG: Mesh import API call starting...")
+        try:
+            import httpx
+            
+            print(f"📦 DEBUG: Using mesh file: {mesh_path}")
+            
+            # Prepare request data
+            request_data = {
+                "mesh_path": mesh_path,
+                "min_volume_threshold": min_volume_threshold
+            }
+            
+            print(f"📝 DEBUG: Request data prepared: {request_data}")
+            
+            # Call our FastAPI server
+            print("🌐 DEBUG: Making HTTP request to FastAPI server...")
+            with httpx.Client(timeout=60.0) as client:  # 1-minute timeout for import
+                response = client.post("http://127.0.0.1:8000/blender/import_mesh", json=request_data)
+                print(f"📶 DEBUG: HTTP response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"📄 DEBUG: Response data: {result}")
+                    if result["success"]:
+                        print("✅ DEBUG: Mesh import API call successful!")
+                        return result["data"]
+                    else:
+                        print(f"❌ Mesh import API error: {result['message']}")
+                        return None
+                else:
+                    print(f"❌ HTTP error {response.status_code}: {response.text}")
+                    return None
+                    
+        except Exception as e:
+            print(f"❌ Error calling mesh import API: {e}")
+            import traceback
+            print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+            return None
+
     def reset_state_file(self, data_to_update: dict):
         """
         Updates the state file with the given data, preserving existing keys.
@@ -302,9 +523,20 @@ class ConjureApp:
     def run(self):
         """Main application loop."""
         self.start()
+        
+        # Add a debug counter to avoid spam
+        debug_counter = 0
+        
         try:
+            print("🔄 Main application loop started - checking for requests every second")
             while self.state_manager.get_state().get("app_status") == "running":
+                # Add periodic debug info (every 30 seconds)
+                if debug_counter % 30 == 0:
+                    print("💓 Main loop heartbeat - application running normally")
+                
                 self.check_for_requests()
+                
+                debug_counter += 1
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\nKeyboardInterrupt detected. Shutting down CONJURE.")

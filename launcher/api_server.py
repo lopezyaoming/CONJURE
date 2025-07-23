@@ -9,7 +9,11 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 import uvicorn
 import asyncio
+import os
+import tempfile
+import shutil
 from pathlib import Path
+from gradio_client import Client, handle_file
 
 # Import existing managers (DO NOT MODIFY THESE)
 from state_manager import StateManager
@@ -54,6 +58,39 @@ class APIResponse(BaseModel):
     success: bool
     message: str
     data: Optional[Dict[str, Any]] = None
+
+# New models for FLUX and PartPacker APIs
+class FluxRequest(BaseModel):
+    prompt: str
+    seed: int = 0
+    randomize_seed: bool = True
+    width: int = 1024
+    height: int = 1024
+    guidance_scale: float = 3.5
+    num_inference_steps: int = 28
+
+class FluxDepthRequest(BaseModel):
+    control_image_path: str  # Path to the GestureCamera render
+    prompt: str
+    seed: int = 0
+    randomize_seed: bool = True
+    width: int = 1024
+    height: int = 1024
+    guidance_scale: float = 10
+    num_inference_steps: int = 28
+
+class PartPackerRequest(BaseModel):
+    image_path: str  # Path to FLUX result image
+    num_steps: int = 50
+    cfg_scale: float = 7
+    grid_res: int = 384
+    seed: int = 0
+    simplify_mesh: bool = False
+    target_num_faces: int = 100000
+
+class MeshImportRequest(BaseModel):
+    mesh_path: str
+    min_volume_threshold: float = 0.001  # Minimum volume before culling
 
 # Startup/shutdown handlers
 @app.on_event("startup")
@@ -181,6 +218,322 @@ async def set_state_value(key: str, request: StateSetRequest):
     except Exception as e:
         print(f"❌ Error setting state: {e}")
         raise HTTPException(status_code=500, detail=f"Error setting state: {str(e)}")
+
+# New FLUX and PartPacker API endpoints
+# Add this near the top imports
+import os
+
+# Get HuggingFace token at module level
+HF_TOKEN = os.getenv("HUGGINGFACE_HUB_ACCESS_TOKEN")
+if not HF_TOKEN:
+    print("⚠️  WARNING: HUGGINGFACE_HUB_ACCESS_TOKEN not set - API calls will use anonymous quota")
+
+@app.post("/flux/generate", response_model=APIResponse)
+async def generate_flux_image(request: FluxRequest):
+    """Generate image using FLUX.1-dev API."""
+    try:
+        print(f"🎨 Generating FLUX image with prompt: {request.prompt[:100]}...")
+        
+        # Initialize client with token
+        client = Client("black-forest-labs/FLUX.1-dev", hf_token=HF_TOKEN)
+        result = client.predict(
+            prompt=request.prompt,
+            seed=request.seed,
+            randomize_seed=request.randomize_seed,
+            width=request.width,
+            height=request.height,
+            num_inference_steps=request.num_inference_steps,
+            api_name="/infer"
+        )
+        
+        # Handle result (similar to depth implementation)
+        output_dir = Path("data/generated_images/flux_results")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Process result to get image path
+        if isinstance(result, tuple) and len(result) >= 1:
+            image_data = result[0]
+            seed_used = result[1] if len(result) > 1 else request.seed
+        else:
+            image_data = result
+            seed_used = request.seed
+        
+        # Extract image path and save
+        image_path = None
+        if hasattr(image_data, 'path'):
+            image_path = image_data.path
+        elif isinstance(image_data, dict) and 'path' in image_data:
+            image_path = image_data['path']
+        elif isinstance(image_data, str):
+            image_path = image_data
+        
+        if image_path and Path(image_path).exists():
+            dest_path = output_dir / f"flux_result_{seed_used}.png"
+            shutil.copy(image_path, dest_path)
+            
+            print(f"✅ FLUX image generated successfully: {dest_path}")
+            return APIResponse(
+                success=True,
+                message="FLUX image generated successfully",
+                data={
+                    "image_path": str(dest_path),
+                    "seed_used": seed_used
+                }
+            )
+        else:
+            raise Exception("Could not extract image path from FLUX result")
+            
+    except Exception as e:
+        print(f"❌ Error generating FLUX image: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating FLUX image: {str(e)}")
+
+@app.post("/flux/depth", response_model=APIResponse)
+async def generate_flux_depth_image(request: FluxDepthRequest):
+    """Generate depth-controlled image using FLUX.1-Depth-dev API."""
+    try:
+        print(f"🎨 FLUX DEPTH API: Request received")
+        print(f"   📝 Prompt: {request.prompt[:100]}...")
+        print(f"   🖼️ Control image: {request.control_image_path}")
+        print(f"   🎲 Seed: {request.seed}")
+        print(f"   🔑 Using HF Token: {'Yes' if HF_TOKEN else 'No (Anonymous)'}")
+        
+        # Verify control image exists
+        if not Path(request.control_image_path).exists():
+            error_msg = f"Control image not found: {request.control_image_path}"
+            print(f"❌ FLUX DEPTH API: {error_msg}")
+            raise FileNotFoundError(error_msg)
+        
+        print(f"✅ FLUX DEPTH API: Control image verified, starting generation...")
+        
+        # Initialize client with token
+        client = Client("black-forest-labs/FLUX.1-Depth-dev", hf_token=HF_TOKEN)
+        print(f"🔧 FLUX DEPTH API: Gradio client initialized, calling predict...")
+        
+        result = client.predict(
+            control_image=handle_file(request.control_image_path),
+            prompt=request.prompt,
+            seed=request.seed,
+            randomize_seed=request.randomize_seed,
+            width=request.width,
+            height=request.height,
+            guidance_scale=request.guidance_scale,
+            num_inference_steps=request.num_inference_steps,
+            api_name="/infer"
+        )
+        
+        print(f"🎨 FLUX DEPTH API: Generation completed, processing result...")
+        
+        # CRITICAL DEBUG: Always show raw result first, even if parsing fails
+        try:
+            print(f"🔍 DEBUG: Raw result type: {type(result)}")
+            print(f"🔍 DEBUG: Raw result length: {len(result) if hasattr(result, '__len__') else 'N/A'}")
+            print(f"🔍 DEBUG: Raw result content: {str(result)[:500]}...")  # Truncate for readability
+        except Exception as debug_e:
+            print(f"🔍 DEBUG: Could not display result - {debug_e}")
+            print(f"🔍 DEBUG: Result repr: {repr(result)}")
+
+        # Handle the FLUX result format: (file_path_string, seed_int)
+        try:
+            if isinstance(result, tuple) and len(result) >= 2:
+                # FLUX returns: (file_path_string, seed_int)
+                temp_file_path, seed_used = result[0], result[1]
+                print(f"🔍 DEBUG: Tuple format - temp_file_path: {temp_file_path}")
+                print(f"🔍 DEBUG: Tuple format - seed_used: {seed_used}")
+                
+                # Verify the temporary file exists
+                if isinstance(temp_file_path, str) and Path(temp_file_path).exists():
+                    print(f"✅ Temporary file verified: {temp_file_path}")
+                    
+                    # Create our target directory and file path
+                    output_dir = Path("data/generated_images/flux")
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    dest_path = output_dir / "flux.png"
+                    
+                    # Copy and convert the file
+                    try:
+                        if temp_file_path.lower().endswith('.webp'):
+                            # Convert webp to png using PIL
+                            from PIL import Image
+                            print(f"🔄 Converting .webp to .png...")
+                            with Image.open(temp_file_path) as img:
+                                # Convert to RGB if needed (webp might have transparency)
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                img.save(dest_path, 'PNG')
+                            print(f"✅ Converted and saved: {dest_path}")
+                        else:
+                            # Direct copy for other formats
+                            shutil.copy(temp_file_path, dest_path)
+                            print(f"✅ Copied: {dest_path}")
+                            
+                        print(f"✅ FLUX DEPTH API: Image saved successfully to {dest_path}")
+                        return APIResponse(
+                            success=True,
+                            message="FLUX Depth image generated successfully",
+                            data={
+                                "image_path": str(dest_path),
+                                "seed_used": seed_used
+                            }
+                        )
+                    except Exception as save_e:
+                        print(f"❌ Error saving file: {save_e}")
+                        raise Exception(f"Could not save image: {save_e}")
+                else:
+                    print(f"❌ Temporary file not found or invalid: {temp_file_path}")
+                    raise Exception(f"Temporary file not accessible: {temp_file_path}")
+            else:
+                print(f"❌ Unexpected result format: {type(result)} with length {len(result) if hasattr(result, '__len__') else 'unknown'}")
+                raise Exception(f"Unexpected result format: {type(result)}")
+                
+        except Exception as parse_e:
+            print(f"❌ DEBUG: Exception during result parsing: {parse_e}")
+            import traceback
+            print(f"🔍 Full parsing traceback:\n{traceback.format_exc()}")
+            raise Exception(f"Could not process FLUX result: {parse_e}")
+            
+    except Exception as e:
+        print(f"❌ FLUX DEPTH API ERROR: {e}")
+        import traceback
+        print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error generating FLUX Depth image: {str(e)}")
+
+@app.post("/partpacker/generate_3d", response_model=APIResponse)
+async def generate_3d_with_partpacker(request: PartPackerRequest):
+    """Generate 3D model using PartPacker API."""
+    try:
+        print(f"🏗️ PARTPACKER API: Request received")
+        print(f"   🖼️ Input image: {request.image_path}")
+        print(f"   🎲 Seed: {request.seed}")
+        print(f"   ⚙️ Steps: {request.num_steps}, CFG: {request.cfg_scale}, Grid: {request.grid_res}")
+        print(f"   🔑 Using HF Token: {'Yes' if HF_TOKEN else 'No (Anonymous)'}")
+        
+        # Verify input image exists
+        if not Path(request.image_path).exists():
+            error_msg = f"Input image not found: {request.image_path}"
+            print(f"❌ PARTPACKER API: {error_msg}")
+            raise FileNotFoundError(error_msg)
+        
+        print(f"✅ PARTPACKER API: Input image verified, starting 3D generation...")
+        
+        # Initialize client with token
+        client = Client("nvidia/PartPacker", hf_token=HF_TOKEN)
+        result = client.predict(
+            input_image=handle_file(request.image_path),
+            num_steps=request.num_steps,
+            cfg_scale=request.cfg_scale,
+            grid_res=request.grid_res,
+            seed=request.seed,
+            simplify_mesh=request.simplify_mesh,
+            target_num_faces=request.target_num_faces,
+            api_name="/process_3d"
+        )
+        
+        print(f"🏗️ PARTPACKER API: Generation completed, processing result...")
+        
+        # Result should be a file path to the generated 3D model
+        if result:
+            # Create output directory
+            output_dir = Path("data/generated_models/partpacker_results")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Copy the result to our data directory
+            dest_path = output_dir / f"partpacker_result_{request.seed}.glb"
+            shutil.copy(result, dest_path)
+            
+            print(f"✅ PARTPACKER API: 3D model saved successfully to {dest_path}")
+            return APIResponse(
+                success=True,
+                message="3D model generated successfully with PartPacker",
+                data={
+                    "model_path": str(dest_path),
+                    "seed_used": request.seed
+                }
+            )
+        else:
+            error_msg = "No model file returned from PartPacker API"
+            print(f"❌ PARTPACKER API: {error_msg}")
+            raise Exception(error_msg)
+            
+    except Exception as e:
+        print(f"❌ PARTPACKER API ERROR: {e}")
+        import traceback
+        print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error generating 3D model: {str(e)}")
+
+@app.post("/blender/render_gesture_camera", response_model=APIResponse)
+async def render_gesture_camera():
+    """Trigger Blender to render GestureCamera for FLUX.1-Depth input."""
+    try:
+        print(f"📸 Triggering GestureCamera render for FLUX.1-Depth...")
+        
+        # Set state to trigger Blender operator
+        global state_manager
+        if not state_manager:
+            raise HTTPException(status_code=500, detail="State manager not initialized")
+        
+        state_manager.set_state("command", "render_gesture_camera")
+        
+        # Wait a moment for Blender to process
+        await asyncio.sleep(0.5)
+        
+        # Check if render file exists
+        render_path = Path("data/generated_images/gestureCamera/render.png")
+        if render_path.exists():
+            print(f"✅ GestureCamera render completed: {render_path}")
+            return APIResponse(
+                success=True,
+                message="GestureCamera render completed",
+                data={"render_path": str(render_path)}
+            )
+        else:
+            raise Exception("Render file not found after triggering render")
+            
+    except Exception as e:
+        print(f"❌ Error rendering GestureCamera: {e}")
+        raise HTTPException(status_code=500, detail=f"Error rendering GestureCamera: {str(e)}")
+
+@app.post("/blender/import_mesh", response_model=APIResponse)
+async def import_mesh(request: MeshImportRequest):
+    """Import and process mesh from PartPacker results."""
+    try:
+        print(f"📦 MESH IMPORT API: Request received")
+        print(f"   📁 Mesh path: {request.mesh_path}")
+        print(f"   🔍 Min volume threshold: {request.min_volume_threshold}")
+        
+        # Verify mesh file exists
+        if not Path(request.mesh_path).exists():
+            error_msg = f"Mesh file not found: {request.mesh_path}"
+            print(f"❌ MESH IMPORT API: {error_msg}")
+            raise FileNotFoundError(error_msg)
+        
+        print(f"✅ MESH IMPORT API: Mesh file verified, sending command to Blender...")
+        
+        # Set state to trigger Blender import operator
+        global state_manager
+        if not state_manager:
+            raise HTTPException(status_code=500, detail="State manager not initialized")
+        
+        state_manager.update_state({
+            "command": "import_and_process_mesh",
+            "mesh_path": request.mesh_path,
+            "min_volume_threshold": request.min_volume_threshold
+        })
+        
+        print(f"✅ MESH IMPORT API: Command sent to Blender successfully")
+        return APIResponse(
+            success=True,
+            message="Mesh import command sent to Blender",
+            data={
+                "mesh_path": request.mesh_path,
+                "min_volume_threshold": request.min_volume_threshold
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ MESH IMPORT API ERROR: {e}")
+        import traceback
+        print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error importing mesh: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info") 

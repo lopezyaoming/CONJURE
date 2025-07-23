@@ -180,6 +180,72 @@ class CONJURE_OT_select_concept(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class CONJURE_OT_select_concept_1(bpy.types.Operator):
+    """Select concept option 1"""
+    bl_idname = "conjure.select_concept_1"
+    bl_label = "Select Option 1"
+
+    def execute(self, context):
+        if not render_multiview():
+            self.report({'ERROR'}, f"Failed to render multi-view for option 1.")
+            return {'CANCELLED'}
+        
+        state_update = {
+            "selection_request": 1,
+            "generation_mode": getattr(context.scene, 'generation_mode', 'standard')
+        }
+        if not update_state_file(state_update):
+            self.report({'ERROR'}, "Failed to write to state file.")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Option 1 selected. Multi-view rendered and state updated.")
+        return {'FINISHED'}
+
+
+class CONJURE_OT_select_concept_2(bpy.types.Operator):
+    """Select concept option 2"""
+    bl_idname = "conjure.select_concept_2"
+    bl_label = "Select Option 2"
+
+    def execute(self, context):
+        if not render_multiview():
+            self.report({'ERROR'}, f"Failed to render multi-view for option 2.")
+            return {'CANCELLED'}
+        
+        state_update = {
+            "selection_request": 2,
+            "generation_mode": getattr(context.scene, 'generation_mode', 'standard')
+        }
+        if not update_state_file(state_update):
+            self.report({'ERROR'}, "Failed to write to state file.")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Option 2 selected. Multi-view rendered and state updated.")
+        return {'FINISHED'}
+
+
+class CONJURE_OT_select_concept_3(bpy.types.Operator):
+    """Select concept option 3"""
+    bl_idname = "conjure.select_concept_3"
+    bl_label = "Select Option 3"
+
+    def execute(self, context):
+        if not render_multiview():
+            self.report({'ERROR'}, f"Failed to render multi-view for option 3.")
+            return {'CANCELLED'}
+        
+        state_update = {
+            "selection_request": 3,
+            "generation_mode": getattr(context.scene, 'generation_mode', 'standard')
+        }
+        if not update_state_file(state_update):
+            self.report({'ERROR'}, "Failed to write to state file.")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Option 3 selected. Multi-view rendered and state updated.")
+        return {'FINISHED'}
+
+
 class CONJURE_OT_import_model(bpy.types.Operator):
     """
     Manually triggers the import of the last generated .glb model from the
@@ -240,3 +306,22 @@ class CONJURE_OT_import_model(bpy.types.Operator):
             self.report({'WARNING'}, "Could not reset state file after import.")
 
         return {'FINISHED'} 
+
+
+# Registration
+classes = [
+    CONJURE_OT_generate_concepts,
+    CONJURE_OT_select_concept,
+    CONJURE_OT_select_concept_1,
+    CONJURE_OT_select_concept_2,
+    CONJURE_OT_select_concept_3,
+    CONJURE_OT_import_model,
+]
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+def unregister():
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls) 
