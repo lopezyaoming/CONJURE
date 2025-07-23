@@ -803,9 +803,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
             self._selection_state = {
                 'highlighted_segment': None,
                 'last_highlighted': None,
-                'touch_detected': False
+                'touch_detected': False,
+                'stability_counter': 0,
+                'stability_threshold': 15,  # Frames to wait before changing highlight
+                'candidate_segment': None,
+                'confirmed_segment': None
             }
             print("🎯 Initialized segment selection state")
+        
+        # No automatic timer - selection is persistent until manually changed
         
         # Get segment objects
         segment_objects = [obj for obj in bpy.data.objects 
@@ -830,35 +836,73 @@ class ConjureFingertipOperator(bpy.types.Operator):
         
         # Check if we have right hand index finger (finger 6)
         if len(finger_positions_3d) <= 6 or not finger_positions_3d[6]:
-            # No index finger detected - reset all to default
+            # No index finger detected - reset highlights but preserve confirmed selection
             if self._selection_state['highlighted_segment']:
-                print("👋 DEBUG: Index finger lost - resetting highlights")
-                self.reset_segment_materials(segment_objects, default_mat)
+                print("👋 DEBUG: Index finger lost - resetting highlights (preserving confirmed selection)")
+                # Reset all segments to default, except the confirmed one
+                for obj in segment_objects:
+                    if obj != self._selection_state['confirmed_segment']:
+                        self.apply_material_to_segment(obj, default_mat)
                 self._selection_state['highlighted_segment'] = None
             return
         
         index_finger_pos = finger_positions_3d[6]
         
         # Cast ray from index finger to detect segment
-        highlighted_segment = self.detect_segment_under_finger(
+        detected_segment = self.detect_segment_under_finger(
             index_finger_pos, segment_objects, context, region, rv3d, depsgraph
         )
         
-        # Update highlighting
-        if highlighted_segment != self._selection_state['highlighted_segment']:
-            # Reset previous highlight
-            if self._selection_state['highlighted_segment']:
+        # Stability system: only change highlight after consistent detection
+        if detected_segment == self._selection_state['candidate_segment']:
+            # Same segment detected - increment stability counter
+            self._selection_state['stability_counter'] += 1
+            # Debug: show stability progress for significant changes
+            if self._selection_state['stability_counter'] in [5, 10, 15] and detected_segment:
+                segment_name = detected_segment.name if detected_segment else "EMPTY_SPACE"
+                progress = self._selection_state['stability_counter']
+                threshold = self._selection_state['stability_threshold']
+                print(f"⏳ DEBUG: Stabilizing on {segment_name} ({progress}/{threshold})")
+        else:
+            # Different segment detected - reset counter
+            if self._selection_state['candidate_segment'] != detected_segment:
+                old_name = self._selection_state['candidate_segment'].name if self._selection_state['candidate_segment'] else "EMPTY_SPACE"
+                new_name = detected_segment.name if detected_segment else "EMPTY_SPACE"
+                print(f"🔄 DEBUG: Finger moved from {old_name} to {new_name} - resetting stability")
+            self._selection_state['candidate_segment'] = detected_segment
+            self._selection_state['stability_counter'] = 0
+        
+        # Only update highlight if we've had stable detection
+        if (self._selection_state['stability_counter'] >= self._selection_state['stability_threshold'] and 
+            self._selection_state['candidate_segment'] != self._selection_state['highlighted_segment']):
+            
+            # Reset previous highlight (only if it's not the confirmed segment)
+            if (self._selection_state['highlighted_segment'] and 
+                self._selection_state['highlighted_segment'] != self._selection_state['confirmed_segment']):
                 print(f"🔄 DEBUG: Removing highlight from {self._selection_state['highlighted_segment'].name}")
                 self.apply_material_to_segment(self._selection_state['highlighted_segment'], default_mat)
             
-            # Apply new highlight
-            if highlighted_segment:
-                print(f"🎯 DEBUG: NOW POINTING AT → {highlighted_segment.name} (applying green highlight)")
+            # Apply new highlight (only if it's not already the confirmed segment)
+            highlighted_segment = self._selection_state['candidate_segment']
+            if highlighted_segment and highlighted_segment != self._selection_state['confirmed_segment']:
+                print(f"🎯 DEBUG: STABLE SELECTION → {highlighted_segment.name} (applying green highlight)")
                 self.apply_material_to_segment(highlighted_segment, selected_mat)
+            elif highlighted_segment and highlighted_segment == self._selection_state['confirmed_segment']:
+                print(f"🎯 DEBUG: Pointing at CONFIRMED segment {highlighted_segment.name} (keeping selection material)")
             else:
-                print("🌌 DEBUG: NOW POINTING AT → EMPTY SPACE (no highlight)")
+                print("🌌 DEBUG: STABLE SELECTION → EMPTY SPACE (no highlight)")
             
             self._selection_state['highlighted_segment'] = highlighted_segment
+        
+        # Use the current highlighted segment for touch detection
+        highlighted_segment = self._selection_state['highlighted_segment']
+        
+        # Ensure confirmed segment always has selection material
+        if self._selection_state['confirmed_segment']:
+            selected_mat = bpy.data.materials.get("selected_material")
+            if selected_mat:
+                # Make sure confirmed segment always stays green
+                self.apply_material_to_segment(self._selection_state['confirmed_segment'], selected_mat)
         
         # Check for thumb+index touch for final selection
         if highlighted_segment and len(finger_positions_3d) > 5 and finger_positions_3d[5]:
@@ -866,7 +910,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
             index_pos = finger_positions_3d[6]
             
             touch_distance = (thumb_pos - index_pos).length
-            touch_threshold = 0.05  # 5cm threshold for touch detection
+            touch_threshold = 0.03  # 3cm threshold for touch detection (reduced for more confident selection)
             
             # Debug touch distance every few frames to avoid spam
             if not hasattr(self, '_debug_counter'):
@@ -874,12 +918,17 @@ class ConjureFingertipOperator(bpy.types.Operator):
             self._debug_counter += 1
             
             if self._debug_counter % 30 == 0:  # Every 30 frames (~1 second)
-                print(f"🤏 DEBUG: Thumb-Index distance: {touch_distance:.3f}m (threshold: {touch_threshold:.3f}m)")
+                status = "READY TO SELECT" if touch_distance < touch_threshold else "TOO FAR"
+                current_sel = self._selection_state['confirmed_segment'].name if self._selection_state['confirmed_segment'] else "None"
+                print(f"🤏 DEBUG: Distance: {touch_distance:.3f}m ({status}) | Current selection: {current_sel}")
             
             if touch_distance < touch_threshold:
                 if not self._selection_state['touch_detected']:
                     # New touch detected - select this segment
-                    print(f"✅ DEBUG: TOUCH DETECTED! Selecting {highlighted_segment.name}")
+                    if self._selection_state['confirmed_segment']:
+                        print(f"🔄 CHANGING SELECTION from {self._selection_state['confirmed_segment'].name} to {highlighted_segment.name}")
+                    else:
+                        print(f"✅ DEBUG: TOUCH DETECTED! Selecting {highlighted_segment.name}")
                     self.select_segment(highlighted_segment)
                     self._selection_state['touch_detected'] = True
             else:
@@ -935,52 +984,31 @@ class ConjureFingertipOperator(bpy.types.Operator):
             print(f"❌ Error applying material to {segment.name}: {e}")
     
     def select_segment(self, segment):
-        """Finalize segment selection - replace placeholder 'Mesh' with selected segment"""
+        """Select a segment and make it persistently highlighted"""
         print(f"🎯 Selected segment: {segment.name}")
         
-        # Get the placeholder Mesh object
-        placeholder = bpy.data.objects.get("Mesh")
-        if placeholder:
-            # Remove the placeholder
-            bpy.data.objects.remove(placeholder, do_unlink=True)
-            print("🗑️ Removed placeholder Mesh")
+        # Reset previous selection to default material
+        if self._selection_state['confirmed_segment']:
+            default_mat = bpy.data.materials.get("default_material")
+            if default_mat:
+                print(f"🔄 Removing selection from {self._selection_state['confirmed_segment'].name}")
+                self.apply_material_to_segment(self._selection_state['confirmed_segment'], default_mat)
         
-        # Rename the selected segment to "Mesh"
-        segment.name = "Mesh"
+        # Apply selection material to new segment
+        selected_mat = bpy.data.materials.get("selected_material")
+        if selected_mat:
+            self.apply_material_to_segment(segment, selected_mat)
         
-        # Reset all other segments to default material
-        default_mat = bpy.data.materials.get("default_material")
-        segment_objects = [obj for obj in bpy.data.objects 
-                          if obj.type == 'MESH' and obj.name.startswith('seg_')]
+        # Mark this selection as confirmed and persistent
+        self._selection_state['confirmed_segment'] = segment
+        self._selection_state['touch_detected'] = True  # Prevent repeated selections
         
-        if default_mat:
-            self.reset_segment_materials(segment_objects, default_mat)
+        print(f"✅ SEGMENT PERSISTENTLY SELECTED: {segment.name}")
+        print("🔄 Touch another segment to change selection, or use 'Exit Selection Mode' to finalize")
         
-        # Exit selection mode
-        try:
-            with open(config.STATE_JSON_PATH, 'r') as f:
-                state_data = json.load(f)
-            
-            state_data.update({
-                "selection_mode": "completed",
-                "command": None,  # Clear selection command to re-enable deform
-                "selected_segment": segment.name
-            })
-            
-            with open(config.STATE_JSON_PATH, 'w') as f:
-                json.dump(state_data, f, indent=2)
-            
-            print("✅ Segment selection completed - deform mode re-enabled")
-            
-        except Exception as e:
-            print(f"❌ Error updating state after selection: {e}")
-        
-        # Reset selection state
-        self._selection_state = {
-            'highlighted_segment': None,
-            'last_highlighted': None,
-            'touch_detected': False
-        }
+        # Selection stays until user selects another segment or exits manually
+    
+
 
     def check_for_launcher_requests(self):
         """Checks state.json for commands from the launcher/agent."""
@@ -1171,36 +1199,8 @@ class ConjureFingertipOperator(bpy.types.Operator):
             # Update last hand center for the next frame
             self._last_hand_center = current_hand_center
 
-            # Check if we're in segment selection mode from state.json - this overrides deform
-            try:
-                with open(config.STATE_JSON_PATH, 'r') as f:
-                    state_data = json.load(f)
-                selection_mode = state_data.get("selection_mode", "inactive")
-                state_command = state_data.get("command")
-            except:
-                selection_mode = "inactive"
-                state_command = None
-            
-            if selection_mode == "active" or state_command == "segment_selection":
-                print("🎯 DEBUG: segment_selection mode ACTIVE - calling handler")
-                self.handle_segment_selection(context, finger_positions_3d, region, rv3d, depsgraph)
-            elif command == "deform":
-                # Safety check: ensure mesh object has valid mesh data
-                if not mesh_obj or not mesh_obj.data or not hasattr(mesh_obj.data, 'vertices'):
-                    print(f"⚠️ Cannot deform: invalid mesh object (mesh_obj={mesh_obj})")
-                    return {'PASS_THROUGH'}
-                
-                # The deform points are the thumb and index of the right hand (indices 5 and 6)
-                if len(finger_positions_3d) > 6 and finger_positions_3d[5] and finger_positions_3d[6]:
-                    deform_points = [finger_positions_3d[5], finger_positions_3d[6]]
-                    
-                    if config.USE_VELOCITY_FORCES:
-                        active_brush = config.BRUSH_TYPES[self._current_brush_index]
-                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, self, active_brush, hand_move_vector)
-                    else:
-                        deform_mesh(mesh_obj, deform_points, self._initial_volume)
-
-            elif command == "orbit":
+            # Handle orbit first (works in any mode including selection)
+            if command == "orbit":
                 camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
                 orbit_delta = live_data.get("orbit_delta", {"x": 0.0, "y": 0.0})
 
@@ -1234,6 +1234,35 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
                         camera.location = new_location
                         camera.rotation_euler = rot_quat.to_euler()
+
+            # Check if we're in segment selection mode from state.json 
+            try:
+                with open(config.STATE_JSON_PATH, 'r') as f:
+                    state_data = json.load(f)
+                selection_mode = state_data.get("selection_mode", "inactive")
+                state_command = state_data.get("command")
+            except:
+                selection_mode = "inactive"
+                state_command = None
+            
+            if selection_mode == "active" or state_command == "segment_selection":
+                print("🎯 DEBUG: segment_selection mode ACTIVE - calling handler")
+                self.handle_segment_selection(context, finger_positions_3d, region, rv3d, depsgraph)
+            elif command == "deform":
+                # Safety check: ensure mesh object has valid mesh data
+                if not mesh_obj or not mesh_obj.data or not hasattr(mesh_obj.data, 'vertices'):
+                    print(f"⚠️ Cannot deform: invalid mesh object (mesh_obj={mesh_obj})")
+                    return {'PASS_THROUGH'}
+                
+                # The deform points are the thumb and index of the right hand (indices 5 and 6)
+                if len(finger_positions_3d) > 6 and finger_positions_3d[5] and finger_positions_3d[6]:
+                    deform_points = [finger_positions_3d[5], finger_positions_3d[6]]
+                    
+                    if config.USE_VELOCITY_FORCES:
+                        active_brush = config.BRUSH_TYPES[self._current_brush_index]
+                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, self, active_brush, hand_move_vector)
+                    else:
+                        deform_mesh(mesh_obj, deform_points, self._initial_volume)
 
             elif command == "reset_rotation":
                 # Also reset velocities when resetting camera for a clean stop

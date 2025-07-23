@@ -56,7 +56,25 @@ class CONJURE_PT_ui_panel(bpy.types.Panel):
             # Show exit button when in selection mode
             box.label(text="🎯 SELECTION MODE ACTIVE", icon='INFO')
             box.label(text="👆 Point at segment, 🤏 pinch to select")
-            box.operator("conjure.exit_selection_mode", text="Exit Selection Mode", icon='CANCEL')
+            
+            # Show currently selected segment
+            segment_objects = [obj for obj in bpy.data.objects 
+                              if obj.type == 'MESH' and obj.name.startswith('seg_')]
+            
+            selected_mat = bpy.data.materials.get("selected_material")
+            current_selection = "None"
+            
+            for obj in segment_objects:
+                if obj.data.materials and obj.data.materials[0] == selected_mat:
+                    current_selection = obj.name
+                    break
+            
+            if current_selection != "None":
+                box.label(text=f"✅ Selected: {current_selection}", icon='CHECKMARK')
+            else:
+                box.label(text="⚪ No segment selected yet")
+                
+            box.operator("conjure.exit_selection_mode", text="Finalize Selection & Exit", icon='EXPORT')
         else:
             # Show normal controls when not in selection mode
             row = box.row()

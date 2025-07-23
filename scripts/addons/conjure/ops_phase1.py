@@ -467,17 +467,53 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
     def execute(self, context):
         print("🚪 Exiting segment selection mode...")
         
-        # Reset all segments to default material
-        segment_objects = [obj for obj in bpy.data.objects 
-                          if obj.type == 'MESH' and obj.name.startswith('seg_')]
-        
-        default_mat = bpy.data.materials.get("default_material")
-        if default_mat:
+        # Check if there's a confirmed selection to finalize
+        try:
+            with open(config.STATE_JSON_PATH, 'r') as f:
+                state_data = json.load(f)
+            
+            # Look for any segment with selected_material as the confirmed choice
+            segment_objects = [obj for obj in bpy.data.objects 
+                              if obj.type == 'MESH' and obj.name.startswith('seg_')]
+            
+            selected_mat = bpy.data.materials.get("selected_material")
+            confirmed_segment = None
+            
             for obj in segment_objects:
-                if obj.data.materials:
-                    obj.data.materials[0] = default_mat
-                else:
-                    obj.data.materials.append(default_mat)
+                if obj.data.materials and obj.data.materials[0] == selected_mat:
+                    confirmed_segment = obj
+                    break
+            
+            if confirmed_segment:
+                print(f"🏁 Finalizing selection: {confirmed_segment.name} will become 'Mesh'")
+                
+                # Get the placeholder Mesh object
+                placeholder = bpy.data.objects.get("Mesh")
+                if placeholder:
+                    bpy.data.objects.remove(placeholder, do_unlink=True)
+                    print("🗑️ Removed placeholder Mesh")
+                
+                # Rename the selected segment to "Mesh"
+                confirmed_segment.name = "Mesh"
+                
+                # Reset all other segments to default material
+                default_mat = bpy.data.materials.get("default_material")
+                remaining_segments = [obj for obj in bpy.data.objects 
+                                    if obj.type == 'MESH' and obj.name.startswith('seg_')]
+                
+                if default_mat:
+                    for obj in remaining_segments:
+                        if obj.data.materials:
+                            obj.data.materials[0] = default_mat
+                        else:
+                            obj.data.materials.append(default_mat)
+                
+                print(f"✅ {confirmed_segment.name} is now the active mesh for deformation")
+            else:
+                print("ℹ️ No segment was selected - exiting without changes")
+                
+        except Exception as e:
+            print(f"❌ Error during finalization: {e}")
         
         # Update state to exit selection mode
         self.update_state({
