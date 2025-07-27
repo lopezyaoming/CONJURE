@@ -1,1 +1,6 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
+USER (Whisper): Hey, can you hear me alright?
+USER (Whisper): Yes, I'm still here. Let me finish holding.
+USER (Whisper): Yes, wait, wait, wait a moment, don't end our session yet.
+USER (Whisper): I'm still waiting.
+USER (Whisper): You

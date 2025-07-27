@@ -1,0 +1,59 @@
+CONJURE Agent Toolset
+
+1. Introduction & Agent Output Structure
+
+This document defines the complete set of tools available to the CONJURE conversational agent. These tools are the bridge between the agent's understanding and the CONJURE application's backend logic.
+
+As specified in `masterPrompt.txt`, the agent's response for every turn must be a JSON object with a specific structure. The backend (`launcher/agent_api.py`) will parse this object to extract the spoken response, the user prompt for generation, and the instruction to execute.
+
+**Agent Output JSON Structure:**
+```json
+{
+  "instruction": {
+    "tool_name": "name_of_the_tool_to_call",
+    "parameters": {
+      "param1": "value1",
+      "param2": "value2"
+    }
+  },
+  "user_prompt": "An SDXL-optimized text prompt, constantly updated based on the conversation."
+}
+```
+-   `instruction`: The structured command for the backend. If no command is needed for a specific conversational turn, this can be `null`.
+-   `user_prompt`: The generative prompt for ComfyUI, which the agent refines throughout the conversation.
+
+The `launcher` will execute the function associated with `tool_name`, passing the `parameters` object to it.
+
+---
+
+2. Toolset Definition
+
+spawn_primitive [OPTIONAL]
+- Description: Creates a new primitive mesh object in Blender, replacing existing mesh
+- Parameters: primitive_type (string) INCLUDED PRIMITIVES: "Sphere", "Cube", "Cone", "Cylinder", "Disk", "Torus", "Head", "Body"
+
+generate_flux_mesh
+- Description: Triggers API generative pipeline that results in a mesh, that get’s imported
+- Parameters: prompt (string, required. this is same as [“user_prompt”]), seed (integer, optional, default=1337), min_volume_threshold (float, optional, default=0.01)
+[EITHER]
+fuse_mesh [EITHER this or segment_selection]
+- Description: Boolean union all mesh segments from largest to smallest into single 'Mesh' object
+- Parameters: None (operates on current segments in scene)
+[EITHER]
+segment_selection
+- Description: Enables gesture-based segment selection mode where user can point and select mesh segments
+- Parameters: None (enters interactive selection mode)
+ 3.
+select_concept
+- Description: User chooses concept option, triggers multi-view rendering and mv2mv/mv23D workflows
+- Parameters: option_id (integer) - 1, 2, or 3
+
+Tool: `spawn_primitive`
+-   **Description:** Creates a new primitive mesh object in the Blender scene, replacing any existing mesh. This is the starting point for a new creation.
+-   **Parameters:**
+    -   `primitive_type` (string): The type of primitive to spawn.
+        -   *Allowed Values:* "Sphere", "Cube", "Cone", "Cylinder", "Disk", "Torus", "Head", "Body".
+
+Tool: `generate_concepts`
+-   **Description:** Initiates the first stage of the generative pipeline. This instructs Blender to render the current view from the `GestureCamera` and tells the `launcher` to execute the `promptMaker.json` workflow in ComfyUI using the current `user_prompt.txt`.
+-   **Parameters:** None. (The agent is expected to have updated `user_prompt.txt` before calling this tool).

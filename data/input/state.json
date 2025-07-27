@@ -2,13 +2,14 @@
     "app_status": "stopped",
     "hand_tracker_status": "running",
     "blender_status": "running",
-    "flux_pipeline_request": null,
+    "flux_pipeline_request": "new",
     "flux_prompt": "A futuristic robotic sculpture with smooth curves and metallic surfaces, rendered in a clean studio lighting setup",
     "flux_seed": 42,
     "min_volume_threshold": 0.001,
-    "command": "segment_selection",
+    "command": "spawn_primitive",
     "mesh_path": "data\\generated_models\\partpacker_results\\partpacker_result_42.glb",
     "flux_pipeline_status": "completed",
-    "selection_mode": "active",
-    "selected_segment": null
+    "selection_mode": "inactive",
+    "selected_segment": null,
+    "primitive_type": "Sphere"
 }

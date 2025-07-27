@@ -406,18 +406,24 @@ class CONJURE_OT_segment_selection(bpy.types.Operator):
                 self.report({'ERROR'}, f"No segments found and could not read state: {e}")
                 return {'CANCELLED'}
         
-        # Apply default material to all segments
+        # Apply default material only to segments that don't have selected material
         default_mat = bpy.data.materials.get("default_material")
+        selected_mat = bpy.data.materials.get("selected_material")
+        
         for obj in segment_objects:
-            obj.data.materials.clear()
-            if default_mat:
-                obj.data.materials.append(default_mat)
+            # Only reset material if it doesn't have the selected material
+            current_mat = obj.data.materials[0] if obj.data.materials else None
+            if current_mat != selected_mat:
+                obj.data.materials.clear()
+                if default_mat:
+                    obj.data.materials.append(default_mat)
         
         # Update state to indicate we're in selection mode
+        # Don't clear existing selection when re-entering selection mode
         self.update_state({
             "selection_mode": "active",
-            "command": "segment_selection",  # This disables deform mode
-            "selected_segment": None
+            "command": "segment_selection"  # This disables deform mode
+            # Note: We don't reset selected_segment here to preserve existing selections
         })
         
         print(f"✅ Segment selection mode active for {len(segment_objects)} segments")
@@ -464,8 +470,11 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
     bl_idname = "conjure.exit_selection_mode" 
     bl_label = "Exit Selection Mode"
     
+    # Target bounding box size for the final mesh
+    target_bounding_box_size = 2.0  # 2x2x2 unit cube
+    
     def execute(self, context):
-        print("🚪 Exiting segment selection mode...")
+        # print("🚪 Exiting segment selection mode...")
         
         # Check if there's a confirmed selection to finalize
         try:
@@ -487,28 +496,39 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
             if confirmed_segment:
                 print(f"🏁 Finalizing selection: {confirmed_segment.name} will become 'Mesh'")
                 
-                # Get the placeholder Mesh object
+                # Get remaining segments (excluding the confirmed one)
+                remaining_segments = [obj for obj in segment_objects if obj != confirmed_segment]
+                
+                # Step 1: Parent all other segments to the confirmed segment
+                if remaining_segments:
+                    print(f"👨‍👩‍👧‍👦 Parenting {len(remaining_segments)} segments to {confirmed_segment.name}")
+                    for segment in remaining_segments:
+                        segment.parent = confirmed_segment
+                        segment.parent_type = 'OBJECT'
+                
+                # Step 2: Move confirmed segment to origin (0,0,0)
+                print(f"📍 Moving {confirmed_segment.name} to origin")
+                confirmed_segment.location = (0, 0, 0)
+                
+                # Step 3: Scale the confirmed segment to fit target bounding box
+                self.scale_to_target_bounding_box(confirmed_segment)
+                
+                # Step 4: Remove placeholder Mesh object if it exists
                 placeholder = bpy.data.objects.get("Mesh")
                 if placeholder:
                     bpy.data.objects.remove(placeholder, do_unlink=True)
                     print("🗑️ Removed placeholder Mesh")
                 
-                # Rename the selected segment to "Mesh"
+                # Step 5: Rename the confirmed segment to "Mesh"
+                old_name = confirmed_segment.name
                 confirmed_segment.name = "Mesh"
+                print(f"🏷️ Renamed {old_name} to 'Mesh'")
                 
-                # Reset all other segments to default material
-                default_mat = bpy.data.materials.get("default_material")
-                remaining_segments = [obj for obj in bpy.data.objects 
-                                    if obj.type == 'MESH' and obj.name.startswith('seg_')]
+                # Step 6: Keep the selected material on the main mesh
+                # (It already has selected_material, so we keep it)
+                print("✨ Selected segment remains highlighted for further editing")
                 
-                if default_mat:
-                    for obj in remaining_segments:
-                        if obj.data.materials:
-                            obj.data.materials[0] = default_mat
-                        else:
-                            obj.data.materials.append(default_mat)
-                
-                print(f"✅ {confirmed_segment.name} is now the active mesh for deformation")
+                print(f"✅ Workflow complete! 'Mesh' is ready for deformation with {len(remaining_segments)} parented segments")
             else:
                 print("ℹ️ No segment was selected - exiting without changes")
                 
@@ -524,6 +544,30 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
         
         print("✅ Selection mode exited - deform mode re-enabled")
         return {'FINISHED'}
+    
+    def scale_to_target_bounding_box(self, obj):
+        """Scale object so its bounding box fits within the target size"""
+        # Calculate current bounding box
+        bbox_corners = [obj.matrix_world @ mathutils.Vector(corner) for corner in obj.bound_box]
+        
+        # Find min/max coordinates
+        min_coords = [min(corner[i] for corner in bbox_corners) for i in range(3)]
+        max_coords = [max(corner[i] for corner in bbox_corners) for i in range(3)]
+        
+        # Calculate current dimensions
+        current_dimensions = [max_coords[i] - min_coords[i] for i in range(3)]
+        max_current_dimension = max(current_dimensions)
+        
+        if max_current_dimension > 0:
+            # Calculate scale factor to fit within target bounding box
+            scale_factor = self.target_bounding_box_size / max_current_dimension
+            
+            # Apply uniform scaling
+            obj.scale = (scale_factor, scale_factor, scale_factor)
+            
+            print(f"📏 Scaled {obj.name} by factor {scale_factor:.3f} to fit {self.target_bounding_box_size}x{self.target_bounding_box_size}x{self.target_bounding_box_size} bounding box")
+        else:
+            print("⚠️ Object has zero dimensions, skipping scaling")
     
     def update_state(self, data):
         """Update state.json with new data"""

@@ -88,6 +88,24 @@ Your response for every turn MUST be a JSON object with this exact structure:
 - Description: Imports most recent generated 3D model from genMesh.glb
 - Parameters: None
 
+=== PHASE 1 - VIBE MODELING TOOLS ===
+
+**generate_flux_mesh**
+- Description: Triggers complete FLUX1.DEPTH -> PartPacker pipeline to generate 3D mesh from text prompt
+- Parameters: prompt (string, required), seed (integer, optional, default=0), min_volume_threshold (float, optional, default=0.001)
+
+**segment_selection**
+- Description: Enables gesture-based segment selection mode where user can point and select mesh segments
+- Parameters: None (enters interactive selection mode)
+
+**fuse_mesh**
+- Description: Boolean union all mesh segments from largest to smallest into single 'Mesh' object
+- Parameters: None (operates on current segments in scene)
+
+**mesh_import**
+- Description: Import and process mesh file, typically from PartPacker or external sources
+- Parameters: mesh_path (string, required), min_volume_threshold (float, optional, default=0.001)
+
 === FLUX.1 PROMPT ENGINEERING EXPERTISE ===
 
 You are an expert in FLUX.1 prompt engineering. Apply these advanced techniques when creating user_prompt:
@@ -151,7 +169,28 @@ Encourage naming 2 artists/designers for every object (“in the style of…”)
 
 
 
-Focus on understanding user creative intent and translating it into actionable 3D modeling steps with professional-grade FLUX.1 prompts."""
+Focus on understanding user creative intent and translating it into actionable 3D modeling steps with professional-grade FLUX.1 prompts.
+
+=== FLUX PIPELINE WORKFLOW ===
+For the new VIBE modeling approach using FLUX1.DEPTH + PartPacker:
+
+**Creative Input Phase:**
+1. Gather user's creative vision through conversation
+2. Craft optimal FLUX.1 prompt incorporating visual details, style, materials  
+3. Use generate_flux_mesh tool with refined prompt and appropriate seed
+
+**Segment Selection Phase:**
+1. Generated mesh arrives pre-segmented from PartPacker
+2. Use segment_selection tool to enter interactive selection mode
+3. Guide user to point at preferred segment and confirm with gesture
+4. System automatically finalizes selection (parents segments, scales, positions)
+
+**Refinement Phase:**
+1. Continue with traditional Phase II workflow on selected segment
+2. User can return to segment_selection for different parts
+3. Use fuse_mesh for boolean operations when needed
+
+This workflow enables rapid creative iteration from text-to-3D with precise user control."""
 
     def _encode_image_to_base64(self, image_path):
         """Encode image to base64 for Chat Completions API."""
