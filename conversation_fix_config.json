@@ -1,0 +1,11 @@
+{
+    "transcript_sources": {
+        "whisper": false,
+        "sdk_callbacks": true,
+        "websocket": false,
+        "message_hooks": false
+    },
+    "agent_message_timeout": 5.0,
+    "turn_timeout": 60.0,
+    "debug_mode": true
+}

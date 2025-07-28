@@ -20,7 +20,10 @@ from typing import Optional
 from elevenlabs.client import ElevenLabs
 from elevenlabs.conversational_ai.conversation import Conversation
 from elevenlabs.conversational_ai.default_audio_interface import DefaultAudioInterface
-from backend_agent import BackendAgent
+try:
+    from backend_agent import BackendAgent
+except ImportError:
+    from launcher.backend_agent import BackendAgent
 from openai import OpenAI
 
 # TODO: Get Agent ID from a config file or environment variable
@@ -77,6 +80,31 @@ class ConversationalAgent:
         self._output_stream = None
         self._system_audio_thread = None
         
+        # 🎯 STRUCTURED CONVERSATION TURN TRACKING
+        self.current_turn = {
+            "user_message": None,
+            "agent_message": None,
+            "turn_complete": False
+        }
+        self.conversation_history = []  # Store complete turns
+        self._turn_timeout = 30.0  # seconds to wait for complete turn
+        self._turn_start_time = None
+        
+        # 🐛 DEBUGGING AND SOURCE MANAGEMENT
+        self.debug_mode = True  # Enable detailed debugging
+        self.transcript_sources = {
+            "whisper": True,      # PyAudio + Whisper transcription
+            "sdk_callbacks": True, # ElevenLabs SDK callbacks  
+            "websocket": True,    # WebSocket events
+            "message_hooks": True # Message handler hooks
+        }
+        self._agent_message_buffer = []  # Buffer fragmented agent messages
+        self._agent_message_timeout = 3.0  # seconds to wait for complete agent message
+        self._last_agent_fragment_time = None
+        
+        # Load fix configuration if it exists
+        self._load_fix_configuration()
+        
         self.conversation = self._setup_conversation()
         self.full_transcript = []
         self._logged_conv_id = False
@@ -84,6 +112,266 @@ class ConversationalAgent:
         # Initialize debug file
         with open("transcript_debug.txt", "w") as f:
             f.write("=== CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===\n")
+
+    def _load_fix_configuration(self):
+        """Load fix configuration from conversation_fix_config.json if it exists."""
+        try:
+            import json
+            with open("conversation_fix_config.json", "r") as f:
+                fix_config = json.load(f)
+            
+            print("🔧 Loading conversation fix configuration...")
+            
+            # Apply transcript source settings
+            if "transcript_sources" in fix_config:
+                for source, enabled in fix_config["transcript_sources"].items():
+                    if source in self.transcript_sources:
+                        old_value = self.transcript_sources[source]
+                        self.transcript_sources[source] = enabled
+                        status = "🟢 ENABLED" if enabled else "🔴 DISABLED"
+                        print(f"   {source}: {status}")
+            
+            # Apply timeout settings
+            if "agent_message_timeout" in fix_config:
+                self._agent_message_timeout = fix_config["agent_message_timeout"]
+                print(f"   Agent message timeout: {self._agent_message_timeout}s")
+            
+            if "turn_timeout" in fix_config:
+                self._turn_timeout = fix_config["turn_timeout"]
+                print(f"   Turn timeout: {self._turn_timeout}s")
+            
+            if "debug_mode" in fix_config:
+                self.debug_mode = fix_config["debug_mode"]
+                print(f"   Debug mode: {'🟢 ON' if self.debug_mode else '🔴 OFF'}")
+            
+            print("✅ Fix configuration applied successfully")
+            
+        except FileNotFoundError:
+            print("ℹ️ No fix configuration found - using defaults")
+        except Exception as e:
+            print(f"⚠️ Error loading fix configuration: {e}")
+    
+    # 🎯 STRUCTURED CONVERSATION TURN MANAGEMENT
+    
+    def _add_user_message(self, message: str):
+        """Add user message and immediately send to backend (simplified approach)."""
+        self._debug_log("USER_TURN", "MESSAGE", message)
+        
+        user_msg = message.strip()
+        print(f"📝 USER REQUEST: {user_msg}")
+        
+        # NEW SIMPLIFIED APPROACH: Send only user speech directly to backend
+        # No more complex conversation turns - just immediate user requests
+        self._send_user_request_to_backend(user_msg)
+    
+    def _add_agent_message(self, message: str):
+        """Log agent message but don't send to backend (simplified approach)."""
+        self._debug_log("AGENT_TURN", "MESSAGE", message)
+        
+        # SIMPLIFIED: Agent messages are just logged, not sent to backend
+        # The conversational agent handles conversation flow independently
+        agent_msg = message.strip()
+        print(f"🤖 AGENT RESPONSE: {agent_msg}")
+        
+        # No complex turn management - agent responses stay with conversational agent
+    
+    def _check_turn_completion(self):
+        """Check if current turn is complete (has both user and agent messages)."""
+        if (self.current_turn["user_message"] is not None and 
+            self.current_turn["agent_message"] is not None and 
+            not self.current_turn["turn_complete"]):
+            
+            print("✅ CONVERSATION TURN COMPLETE - Sending to Backend Agent")
+            self._send_complete_turn_to_backend()
+            self.current_turn["turn_complete"] = True
+    
+    def _send_complete_turn_to_backend(self):
+        """Send complete conversation turn to backend agent."""
+        user_msg = self.current_turn["user_message"]
+        agent_msg = self.current_turn["agent_message"]
+        
+        if not user_msg or not agent_msg:
+            print("⚠️ Cannot send incomplete turn to backend agent")
+            return
+        
+        # Format the complete conversation turn
+        conversation_turn = f"User: {user_msg}\nAgent: {agent_msg}"
+        
+        print("\n" + "="*60)
+        print("🎯 SENDING COMPLETE TURN TO BACKEND AGENT")
+        print("="*60)
+        print(conversation_turn)
+        print("="*60 + "\n")
+        
+        # Store in conversation history
+        self.conversation_history.append({
+            "user": user_msg,
+            "agent": agent_msg,
+            "timestamp": time.time()
+        })
+        
+        # Send to backend agent via API
+        try:
+            self._send_to_backend_api(conversation_turn)
+        except Exception as e:
+            print(f"❌ Error sending complete turn to backend: {e}")
+        
+        # Reset for next turn after a short delay to prevent immediate new turns
+        threading.Timer(2.0, self._reset_current_turn).start()
+    
+    def _force_turn_completion(self):
+        """Force completion of current turn after fragment timeout."""
+        if (self.current_turn["user_message"] is not None and 
+            self.current_turn["agent_message"] is not None and 
+            not self.current_turn["turn_complete"]):
+            
+            print(f"⏰ Fragment timeout - forcing turn completion")
+            print(f"   Final agent message: '{self.current_turn['agent_message']}'")
+            self._send_complete_turn_to_backend()
+            self.current_turn["turn_complete"] = True
+    
+    def _reset_current_turn(self):
+        """Reset current turn for next conversation."""
+        print("🔄 Resetting conversation turn for next interaction")
+        
+        # Cancel any pending fragment timer
+        if hasattr(self, '_fragment_timer'):
+            self._fragment_timer.cancel()
+            
+        self.current_turn = {
+            "user_message": None,
+            "agent_message": None,
+            "turn_complete": False
+        }
+        self._turn_start_time = None
+    
+    def _check_turn_timeout(self):
+        """Check if current turn has timed out and reset if needed."""
+        if (self._turn_start_time and 
+            time.time() - self._turn_start_time > self._turn_timeout and
+            not self.current_turn["turn_complete"]):
+            
+            print(f"⏰ Turn timeout ({self._turn_timeout}s) - resetting incomplete turn")
+            self._reset_current_turn()
+
+    def get_conversation_status(self):
+        """Get current conversation turn status for debugging."""
+        return {
+            "current_turn": self.current_turn.copy(),
+            "turn_start_time": self._turn_start_time,
+            "conversation_history_length": len(self.conversation_history),
+            "is_running": self._running
+        }
+    
+    def check_current_turn_debug(self):
+        """Debug method to check current turn status."""
+        print("\n🔍 TURN DEBUG STATUS:")
+        print(f"   User message present: {self.current_turn['user_message'] is not None}")
+        print(f"   Agent message present: {self.current_turn['agent_message'] is not None}")
+        print(f"   Turn complete: {self.current_turn['turn_complete']}")
+        if self.current_turn['user_message']:
+            print(f"   User: {self.current_turn['user_message'][:100]}...")
+        if self.current_turn['agent_message']:
+            print(f"   Agent: {self.current_turn['agent_message'][:100]}...")
+        print()
+
+    # 🐛 COMPREHENSIVE DEBUGGING METHODS
+    
+    def print_debug_status(self):
+        """Print comprehensive debugging information."""
+        print("\n" + "🐛" + "="*70)
+        print("🐛 CONVERSATIONAL AGENT DEBUG STATUS")
+        print("🐛" + "="*70)
+        
+        # Current turn status
+        print(f"📝 Current Turn Status:")
+        print(f"   User Message: {self.current_turn['user_message']}")
+        print(f"   Agent Message: {self.current_turn['agent_message']}")
+        print(f"   Turn Complete: {self.current_turn['turn_complete']}")
+        
+        # Agent message buffer
+        if self._agent_message_buffer:
+            print(f"🤖 Agent Message Buffer ({len(self._agent_message_buffer)} fragments):")
+            for i, fragment in enumerate(self._agent_message_buffer):
+                print(f"   [{i}]: {fragment[:50]}...")
+        
+        # Timing information
+        if self._turn_start_time:
+            elapsed = time.time() - self._turn_start_time
+            print(f"⏱️ Turn Elapsed Time: {elapsed:.1f}s (timeout: {self._turn_timeout}s)")
+        
+        if self._last_agent_fragment_time:
+            fragment_elapsed = time.time() - self._last_agent_fragment_time
+            print(f"⏱️ Last Agent Fragment: {fragment_elapsed:.1f}s ago (timeout: {self._agent_message_timeout}s)")
+        
+        # Active sources
+        active_sources = [k for k, v in self.transcript_sources.items() if v]
+        print(f"📡 Active Sources: {', '.join(active_sources)}")
+        
+        # Conversation history
+        print(f"📚 Conversation History: {len(self.conversation_history)} complete turns")
+        
+        print("🐛" + "="*70 + "\n")
+    
+    def disable_transcript_source(self, source_name: str):
+        """Disable a specific transcript source to reduce conflicts."""
+        if source_name in self.transcript_sources:
+            self.transcript_sources[source_name] = False
+            print(f"🔇 DISABLED transcript source: {source_name}")
+        else:
+            print(f"❌ Unknown transcript source: {source_name}")
+    
+    def _debug_log(self, source: str, message_type: str, content: str):
+        """Centralized debug logging."""
+        if self.debug_mode:
+            timestamp = time.strftime("%H:%M:%S")
+            print(f"🐛 [{timestamp}] [{source}] {message_type}: {content[:100]}...")
+            
+            # Also log to debug file with more detail
+            with open("transcript_debug.txt", "a") as f:
+                f.write(f"[{timestamp}] [{source}] {message_type}: {content}\n")
+
+    def _add_agent_message_fragment(self, fragment: str):
+        """Add agent message fragment and check if message is complete."""
+        if not self.transcript_sources.get("message_hooks", True):
+            return
+            
+        self._debug_log("AGENT_BUFFER", "FRAGMENT", fragment)
+        
+        # Add fragment to buffer
+        self._agent_message_buffer.append(fragment.strip())
+        self._last_agent_fragment_time = time.time()
+        
+        # Check if this looks like a complete message (ends with punctuation)
+        if fragment.strip().endswith(('.', '!', '?')) and len(' '.join(self._agent_message_buffer)) > 20:
+            self._process_complete_agent_message()
+        
+        # Start timer to process buffered message
+        threading.Timer(self._agent_message_timeout, self._check_agent_buffer_timeout).start()
+    
+    def _process_complete_agent_message(self):
+        """Process the complete agent message from buffer."""
+        if not self._agent_message_buffer:
+            return
+            
+        complete_message = ' '.join(self._agent_message_buffer).strip()
+        self._debug_log("AGENT_COMPLETE", "MESSAGE", complete_message)
+        
+        # Clear buffer
+        self._agent_message_buffer = []
+        self._last_agent_fragment_time = None
+        
+        # Add to conversation turn
+        self._add_agent_message(complete_message)
+    
+    def _check_agent_buffer_timeout(self):
+        """Check if agent message buffer has timed out."""
+        if (self._last_agent_fragment_time and 
+            time.time() - self._last_agent_fragment_time >= self._agent_message_timeout and
+            self._agent_message_buffer):
+            
+            print(f"⏰ Agent message buffer timeout - processing {len(self._agent_message_buffer)} fragments")
+            self._process_complete_agent_message()
 
     def _setup_conversation(self):
         print("--- SETTING UP CONVERSATION WITH CALLBACKS ---")
@@ -127,11 +415,14 @@ class ConversationalAgent:
                     agent_text = agent_event.get('agent_response', '')
                     if agent_text:
                         print(f"🤖 AGENT TRANSCRIPT: {agent_text}")
-                        print("🤖 Sending agent response to Backend Agent...")
-                        try:
-                            self._send_to_backend_api(f"Agent said: {agent_text}")
-                        except Exception as e:
-                            print(f"Error sending agent response to backend: {e}")
+                        if self.transcript_sources.get("message_hooks", True):
+                            print("🤖 Adding agent response fragment to buffer...")
+                            try:
+                                self._add_agent_message_fragment(agent_text)
+                            except Exception as e:
+                                print(f"Error adding agent response fragment: {e}")
+                        else:
+                            print("🔇 Message hooks disabled - skipping")
                 
                 elif message_type == 'user_transcript':
                     print("🎯 FOUND USER_TRANSCRIPT MESSAGE:")
@@ -139,9 +430,9 @@ class ConversationalAgent:
                     user_text = user_event.get('user_transcript', '')
                     if user_text:
                         print(f"📝 USER TRANSCRIPT (from SDK): {user_text}")
-                        print("🤖 Sending SDK user transcript to Backend Agent...")
+                        print("📝 Adding SDK user transcript to conversation turn...")
                         try:
-                            self._send_to_backend_api(user_text)
+                            self._add_user_message(user_text)
                         except Exception as e:
                             print(f"Error sending user transcript to backend: {e}")
                 
@@ -170,11 +461,11 @@ class ConversationalAgent:
                         if extracted_text:
                             print(f"🎯 EXTRACTED TEXT: {extracted_text}")
                             if len(extracted_text) > 10:
-                                print("🤖 Sending extracted agent text to Backend Agent...")
+                                print("🤖 Adding extracted agent text to conversation turn...")
                                 try:
-                                    self._send_to_backend_api(f"Agent said: {extracted_text}")
+                                    self._add_agent_message(extracted_text)
                                 except Exception as e:
-                                    print(f"Error sending extracted text to backend: {e}")
+                                    print(f"Error adding extracted text to turn: {e}")
                 
             except Exception as e:
                 print(f"Error in message handler: {e}")
@@ -297,12 +588,12 @@ class ConversationalAgent:
                 if agent_text and len(agent_text) > 3:  # Filter out very short transcripts
                     print(f"🤖 AGENT TRANSCRIPT (Whisper): {agent_text}")
                     
-                    # Send to backend agent
-                    print("🤖 Sending agent transcript to Backend Agent...")
+                    # Add to conversation turn
+                    print("🤖 Adding agent transcript to conversation turn...")
                     try:
-                        self._send_to_backend_api(f"Agent said: {agent_text}")
+                        self._add_agent_message(agent_text)
                     except Exception as e:
-                        print(f"Error sending agent transcript to backend: {e}")
+                        print(f"Error adding agent transcript to turn: {e}")
                 else:
                     print("⚠️ Agent audio transcription too short or empty")
                     
@@ -427,15 +718,66 @@ class ConversationalAgent:
                 with open("transcript_debug.txt", "a") as f:
                     f.write(f"USER (Whisper): {transcript}\n")
                 
-                # Send to backend agent immediately
-                print("🤖 Sending transcript to Backend Agent...")
-                self._send_to_backend_api(f"User said: {transcript}")
+                # Add to structured conversation turn (NO immediate sending)
+                # ALWAYS add user messages to turn regardless of transcript source
+                print("📝 Adding user transcript to conversation turn...")
+                self._add_user_message(transcript)
+                
+                # Only skip the Whisper-specific processing if disabled
+                if not self.transcript_sources.get("whisper", True):
+                    print("🔇 Whisper source disabled (but message still added to turn)")
                 
             else:
                 print("🤷 No clear speech detected in audio")
                 
         except Exception as e:
             print(f"Transcription processing error: {e}")
+
+    def _send_user_request_to_backend(self, user_message: str):
+        """
+        SIMPLIFIED APPROACH: Send only user request directly to backend agent.
+        No complex conversation turns - just user speech to backend.
+        """
+        print(f"\n{'='*60}")
+        print(f"🎯 SENDING USER REQUEST TO BACKEND AGENT")
+        print(f"{'='*60}")
+        print(f"User Request: {user_message}")
+        print(f"{'='*60}\n")
+        
+        try:
+            # Format as simple user request (not complex conversation)
+            request_text = f"User Request: {user_message}"
+            
+            print(f"🚀 Sending user request to API: '{user_message}'")
+            
+            with httpx.Client() as client:
+                payload = {
+                    "conversation_history": request_text,
+                    "include_image": True
+                }
+                
+                response = client.post(
+                    "http://127.0.0.1:8000/process_conversation",
+                    json=payload,
+                    timeout=30.0
+                )
+                
+                print(f"📥 API response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    print("✅ Successfully sent user request to backend API")
+                    response_data = response.json()
+                    print(f"📊 API response data: {response_data}")
+                else:
+                    print(f"❌ Backend API error: {response.status_code} - {response.text}")
+                    
+        except Exception as e:
+            print(f"❌ Error sending user request to backend: {e}")
+            
+            # Fallback to direct call if API is unavailable
+            print("🔄 Falling back to direct backend agent call")
+            if hasattr(self, 'backend_agent') and self.backend_agent:
+                self.backend_agent.get_response(f"User Request: {user_message}")
 
     def _send_to_backend_api(self, conversation_turn: str):
         """
@@ -481,11 +823,16 @@ class ConversationalAgent:
         print(f"📝 USER TRANSCRIPT (via callback): {transcript}")
         
         if transcript and transcript.strip():
-            print("🤖 Sending SDK callback user transcript to Backend Agent...")
+            # ALWAYS add user messages to turn regardless of transcript source
+            print("📝 Adding SDK user transcript to conversation turn...")
             try:
-                self._send_to_backend_api(transcript)
+                self._add_user_message(transcript)
             except Exception as e:
-                print(f"Error sending SDK user transcript to backend: {e}")
+                print(f"Error adding SDK user transcript to turn: {e}")
+            
+            # Only log if SDK callbacks are disabled
+            if not self.transcript_sources.get("sdk_callbacks", True):
+                print("🔇 SDK callbacks disabled (but message still added to turn)")
 
     def _on_agent_response(self, response):
         """Callback for agent response - should be called by ElevenLabs SDK."""
@@ -493,20 +840,16 @@ class ConversationalAgent:
         print(f"🤖 AGENT RESPONSE (via callback): {response}")
         
         if response and response.strip():
-            print("🤖 Sending SDK callback agent response to Backend Agent...")
-            try:
-                self._send_to_backend_api(f"Agent said: {response}")
-            except Exception as e:
-                print(f"Error sending SDK agent response to backend: {e}")
+            if self.transcript_sources.get("sdk_callbacks", True):
+                print("🤖 Adding SDK agent response fragment to buffer...")
+                try:
+                    self._add_agent_message_fragment(response)
+                except Exception as e:
+                    print(f"Error adding SDK agent response fragment: {e}")
+            else:
+                print("🔇 SDK callbacks disabled - skipping agent response")
         
-        # Now that a full turn has completed, trigger Agent B
-        conversation_turn = "\n".join(self.full_transcript)
-        print("--- Sending to Backend Agent ---")
-        print(conversation_turn)
-        self._send_to_backend_api(conversation_turn)
-        
-        # Clear the transcript for the next turn
-        self.full_transcript = []
+        # Note: Removed immediate backend sending - now handled by structured turns
 
     def _setup_websocket(self):
         """Set up WebSocket connection to monitor real-time events."""
@@ -530,20 +873,16 @@ class ConversationalAgent:
                 elif message_type == "user_transcript":
                     current_transcript = data.get("user_transcription_event", {}).get("user_transcript", "")
                     print(f"USER (WEBSOCKET): {current_transcript}")
+                    if current_transcript.strip():
+                        self._add_user_message(current_transcript)
                     
                 elif message_type == "agent_response":
                     current_response = data.get("agent_response_event", {}).get("agent_response", "")
                     print(f"AGENT A (WEBSOCKET): {current_response}")
+                    if current_response.strip():
+                        self._add_agent_message(current_response)
                     
-                    # Send to backend agent in real-time when we have both user and agent message
-                    if current_transcript and current_response:
-                        conversation_turn = f"User: {current_transcript}\nAgent A: {current_response}"
-                        print("--- WEBSOCKET: Sending to Backend Agent ---")
-                        print(conversation_turn)
-                        self._send_to_backend_api(conversation_turn)
-                        # Reset for next turn
-                        current_transcript = ""
-                        current_response = ""
+                    # Note: Structured turn handling now manages complete conversations
                         
             except Exception as e:
                 print(f"--- WEBSOCKET ERROR: {e} ---")
@@ -587,7 +926,7 @@ class ConversationalAgent:
         self._audio_thread = threading.Thread(target=self._audio_capture_thread, daemon=True)
         self._audio_thread.start()
         
-        # Simplified polling - just to keep track of state
+        # Simplified polling - just to keep track of state and check timeouts
         def poll_conversation():
             while self._running:
                 try:
@@ -596,6 +935,9 @@ class ConversationalAgent:
                         if not hasattr(self, '_logged_conv_id'):
                             print(f"--- SDK CONVERSATION ID: {self.conversation._conversation_id} ---")
                             self._logged_conv_id = True
+                    
+                    # Check for conversation turn timeouts
+                    self._check_turn_timeout()
                     
                 except Exception as e:
                     print(f"--- POLLING ERROR: {e} ---")

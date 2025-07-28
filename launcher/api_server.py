@@ -133,6 +133,46 @@ async def process_conversation(request: ConversationRequest):
         print(f"✅ Backend agent processed conversation successfully")
         print(f"📊 Result type: {type(result)}, Content preview: {str(result)[:200]}...")
         
+        # 🎯 ENHANCED DEBUGGING: Detailed Backend Agent Response Analysis
+        print("\n" + "="*80)
+        print("🧠 BACKEND AGENT RESPONSE ANALYSIS")
+        print("="*80)
+        
+        if result:
+            print(f"📋 Response Type: {type(result)}")
+            print(f"📄 Full Response: {result}")
+            
+            if isinstance(result, dict):
+                print(f"🔧 Tool Name: {result.get('tool_name', 'None')}")
+                print(f"⚙️ Parameters: {result.get('parameters', 'None')}")
+                
+                # Check if files were written by backend agent
+                try:
+                    # Check for vision summary
+                    vision_path = Path(__file__).parent.parent / "screen_description.txt"
+                    if vision_path.exists():
+                        with open(vision_path, 'r', encoding='utf-8') as f:
+                            vision_content = f.read()
+                        print(f"👁️ Vision Summary: {vision_content[:200]}...")
+                    
+                    # Check for user prompt
+                    prompt_path = Path(__file__).parent.parent / "data" / "generated_text" / "userPrompt.txt"
+                    if prompt_path.exists():
+                        with open(prompt_path, 'r', encoding='utf-8') as f:
+                            prompt_content = f.read()
+                        print(f"🎨 Generated FLUX Prompt: {prompt_content[:200]}...")
+                        
+                except Exception as e:
+                    print(f"⚠️ Error reading backend agent output files: {e}")
+            else:
+                print(f"📝 Raw Result: {result}")
+        else:
+            print("❌ No result returned from backend agent")
+            
+        print("="*80)
+        print("🔚 END BACKEND AGENT RESPONSE ANALYSIS")
+        print("="*80 + "\n")
+        
         return APIResponse(
             success=True,
             message="Conversation processed successfully",

@@ -52,4 +52,79 @@ class StateManager:
             if key in state:
                 state[key] = None
         with open(self.state_file_path, 'w') as f:
-            json.dump(state, f, indent=4) 
+            json.dump(state, f, indent=4)
+
+    def clear_all_requests(self):
+        """
+        Clears all request-related keys to prevent processing leftover requests
+        from previous runs. Called on startup and shutdown.
+        """
+        print("🧹 STATE MANAGER: Clearing all pending requests...")
+        
+        # Define all request-related keys that should be cleared
+        request_keys_to_clear = [
+            "flux_pipeline_request",
+            "generation_request", 
+            "selection_request",
+            "import_request",
+            "command",
+            "text",
+            "selection_mode",
+            "selected_segment",
+            "flux_pipeline_status",
+            "mesh_path",
+            "primitive_type"
+        ]
+        
+        state = self.get_state()
+        cleared_keys = []
+        
+        for key in request_keys_to_clear:
+            if key in state and state[key] is not None:
+                cleared_keys.append(f"{key}: {state[key]}")
+                state[key] = None
+        
+        # Keep essential status keys but reset them to safe values
+        state["app_status"] = "initializing"
+        state["hand_tracker_status"] = "stopped"
+        state["blender_status"] = "stopped"
+        
+        with open(self.state_file_path, 'w') as f:
+            json.dump(state, f, indent=4)
+            
+        if cleared_keys:
+            print(f"✅ Cleared leftover requests: {', '.join(cleared_keys)}")
+        else:
+            print("✅ No leftover requests found - state is clean")
+
+    def reset_to_clean_state(self):
+        """
+        Resets state to a completely clean initial state.
+        Used for startup initialization.
+        """
+        print("🔄 STATE MANAGER: Resetting to clean initial state...")
+        
+        clean_state = {
+            "app_status": "initializing",
+            "hand_tracker_status": "stopped", 
+            "blender_status": "stopped",
+            "flux_pipeline_request": None,
+            "generation_request": None,
+            "selection_request": None,
+            "import_request": None,
+            "command": None,
+            "text": None,
+            "selection_mode": "inactive",
+            "selected_segment": None,
+            "flux_pipeline_status": None,
+            "mesh_path": None,
+            "primitive_type": None,
+            "flux_prompt": None,
+            "flux_seed": None,
+            "min_volume_threshold": None
+        }
+        
+        with open(self.state_file_path, 'w') as f:
+            json.dump(clean_state, f, indent=4)
+            
+        print("✅ State reset to clean initial values") 

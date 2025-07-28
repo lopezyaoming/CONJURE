@@ -9,19 +9,19 @@ class InstructionManager:
         self.state_manager = state_manager
         self.tool_map = {
             "spawn_primitive": self.spawn_primitive,
-            "generate_concepts": self.generate_concepts,
+            # "generate_concepts": self.generate_concepts,  # COMMENTED OUT - Advanced operation not used
             "select_concept": self.select_concept,
-            "request_segmentation": self.request_segmentation,
-            "isolate_segment": self.isolate_segment,
-            "apply_material": self.apply_material,
-            "export_final_model": self.export_final_model,
-            "undo_last_action": self.undo_last_action,
-            "import_last_model": self.import_last_model,
-            # New Phase 1 tools
+            # "request_segmentation": self.request_segmentation,  # COMMENTED OUT - Advanced operation not used
+            # "isolate_segment": self.isolate_segment,  # COMMENTED OUT - Advanced operation not used
+            # "apply_material": self.apply_material,  # COMMENTED OUT - Advanced operation not used
+            # "export_final_model": self.export_final_model,  # COMMENTED OUT - Advanced operation not used
+            # "undo_last_action": self.undo_last_action,  # COMMENTED OUT - Advanced operation not used
+            # "import_last_model": self.import_last_model,  # COMMENTED OUT - Advanced operation not used
+            # New Phase 1 tools (ACTIVE)
             "generate_flux_mesh": self.generate_flux_mesh,
             "fuse_mesh": self.fuse_mesh,
             "segment_selection": self.segment_selection,
-            "mesh_import": self.mesh_import,
+            # "mesh_import": self.mesh_import,  # COMMENTED OUT - Advanced operation not used
         }
 
     def execute_instruction(self, instruction: dict):
@@ -42,7 +42,7 @@ class InstructionManager:
         else:
             print(f"Warning: Unknown tool '{tool_name}' requested by agent.")
 
-    # --- Tool Implementations ---
+    # --- Tool Implementations (ACTIVE TOOLS) ---
 
     def spawn_primitive(self, params: dict):
         """
@@ -61,12 +61,12 @@ class InstructionManager:
         }
         self.state_manager.update_state(command_data) 
 
-    def generate_concepts(self, params: dict):
+     def generate_concepts(self, params: dict):
         """
-        Handles the 'generate_concepts' instruction by setting the
-        'generation_request' state for the main loop.
-        """
-        # The main loop in launcher/main.py will detect this state change.
+         Handles the 'generate_concepts' instruction by setting the
+         'generation_request' state for the main loop.
+         """
+         # The main loop in launcher/main.py will detect this state change.
         print("INFO: Setting state for concept generation request.")
         self.state_manager.set_state("generation_request", "new")
 
@@ -83,42 +83,62 @@ class InstructionManager:
         print(f"INFO: Setting state for concept selection: {option_id}")
         self.state_manager.set_state("selection_request", option_id)
 
-    def request_segmentation(self, params: dict):
-        """Handles the 'request_segmentation' instruction."""
-        print("INFO: Setting command for 'request_segmentation'")
-        self.state_manager.set_state("command", "request_segmentation")
+    # --- ADVANCED OPERATIONS (COMMENTED OUT - NOT CURRENTLY USED) ---
 
-    def isolate_segment(self, params: dict):
-        """Handles the 'isolate_segment' instruction."""
-        print("INFO: Setting command for 'isolate_segment'")
-        self.state_manager.set_state("command", "isolate_segment")
+    # def request_segmentation(self, params: dict):
+    #     """Handles the 'request_segmentation' instruction."""
+    #     print("INFO: Setting command for 'request_segmentation'")
+    #     self.state_manager.set_state("command", "request_segmentation")
 
-    def apply_material(self, params: dict):
-        """Handles the 'apply_material' instruction."""
-        print("INFO: Setting command for 'apply_material'")
-        command_data = {
-            "command": "apply_material",
-            "material_description": params.get("material_description"),
-            "segment_id": params.get("segment_id") # Can be None
-        }
-        self.state_manager.update_state(command_data)
+    # def isolate_segment(self, params: dict):
+    #     """Handles the 'isolate_segment' instruction."""
+    #     print("INFO: Setting command for 'isolate_segment'")
+    #     self.state_manager.set_state("command", "isolate_segment")
 
-    def export_final_model(self, params: dict):
-        """Handles the 'export_final_model' instruction."""
-        print("INFO: Setting command for 'export_final_model'")
-        self.state_manager.set_state("command", "export_final_model")
+    # def apply_material(self, params: dict):
+    #     """Handles the 'apply_material' instruction."""
+    #     print("INFO: Setting command for 'apply_material'")
+    #     command_data = {
+    #         "command": "apply_material",
+    #         "material_description": params.get("material_description"),
+    #         "segment_id": params.get("segment_id") # Can be None
+    #     }
+    #     self.state_manager.update_state(command_data)
 
-    def undo_last_action(self, params: dict):
-        """Handles the 'undo_last_action' instruction."""
-        print("INFO: Setting command for 'undo_last_action'")
-        self.state_manager.set_state("command", "undo_last_action")
+    # def export_final_model(self, params: dict):
+    #     """Handles the 'export_final_model' instruction."""
+    #     print("INFO: Setting command for 'export_final_model'")
+    #     self.state_manager.set_state("command", "export_final_model")
 
-    def import_last_model(self, params: dict):
-        """Handles the 'import_last_model' instruction."""
-        print("INFO: Setting state for 'import_last_model'")
-        self.state_manager.set_state("import_request", "new")
+    # def undo_last_action(self, params: dict):
+    #     """Handles the 'undo_last_action' instruction."""
+    #     print("INFO: Setting command for 'undo_last_action'")
+    #     self.state_manager.set_state("command", "undo_last_action")
 
-    # --- New Phase 1 Tools ---
+    # def import_last_model(self, params: dict):
+    #     """Handles the 'import_last_model' instruction."""
+    #     print("INFO: Setting state for 'import_last_model'")
+    #     self.state_manager.set_state("import_request", "new")
+
+    # def mesh_import(self, params: dict):
+    #     """
+    #     Handles the 'mesh_import' instruction. Import and process a mesh file,
+    #     typically from PartPacker results.
+    #     """
+    #     mesh_path = params.get("mesh_path")
+    #     if not mesh_path:
+    #         print("Error: mesh_import called without 'mesh_path' parameter.")
+    #         return
+        
+    #     print(f"INFO: Setting command for mesh import: {mesh_path}")
+    #     command_data = {
+    #         "command": "import_and_process_mesh", 
+    #         "mesh_path": mesh_path,
+    #         "min_volume_threshold": params.get("min_volume_threshold", 0.001)
+    #     }
+    #     self.state_manager.update_state(command_data) 
+
+    # --- New Phase 1 Tools (ACTIVE) ---
 
     def generate_flux_mesh(self, params: dict):
         """
@@ -155,22 +175,4 @@ class InstructionManager:
         segment selection mode where user can pick segments with index finger.
         """
         print("INFO: Setting command for 'segment_selection'")
-        self.state_manager.set_state("command", "segment_selection")
-
-    def mesh_import(self, params: dict):
-        """
-        Handles the 'mesh_import' instruction. Import and process a mesh file,
-        typically from PartPacker results.
-        """
-        mesh_path = params.get("mesh_path")
-        if not mesh_path:
-            print("Error: mesh_import called without 'mesh_path' parameter.")
-            return
-        
-        print(f"INFO: Setting command for mesh import: {mesh_path}")
-        command_data = {
-            "command": "import_and_process_mesh", 
-            "mesh_path": mesh_path,
-            "min_volume_threshold": params.get("min_volume_threshold", 0.001)
-        }
-        self.state_manager.update_state(command_data) 
+        self.state_manager.set_state("command", "segment_selection") 

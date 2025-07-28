@@ -41,6 +41,10 @@ class ConjureApp:
     def __init__(self):
         print("Initializing CONJURE...")
         self.state_manager = StateManager()
+        
+        # 🧹 STARTUP CLEANUP: Clear any leftover requests from previous runs
+        self.state_manager.reset_to_clean_state()
+        
         self.subprocess_manager = SubprocessManager()
         self.instruction_manager = InstructionManager(self.state_manager)
         self.backend_agent = BackendAgent(instruction_manager=self.instruction_manager)
@@ -49,6 +53,12 @@ class ConjureApp:
         # It will communicate via API
         self.conversational_agent = ConversationalAgent(backend_agent=None)
         self.project_root = Path(__file__).parent.parent.resolve()
+        
+        # 🚦 Initialization tracking
+        self.startup_time = time.time()
+        self.initialization_complete = False
+        self.startup_grace_period = 10  # seconds
+        
         atexit.register(self.stop)
         
         print("CONJURE Agents are initialized.")
@@ -78,10 +88,24 @@ class ConjureApp:
         self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
         self.agent_thread.start()
         print("Conversational agent is now listening in a background thread...")
-
+        
+        # 🚦 Mark initialization as complete
+        self.initialization_complete = True
+        print("✅ CONJURE initialization complete - ready to process requests")
 
     def check_for_requests(self):
         """Checks the state file for requests from Blender and triggers workflows."""
+        # 🚦 STARTUP PROTECTION: Don't process requests during startup grace period
+        if not self.initialization_complete:
+            return
+            
+        time_since_startup = time.time() - self.startup_time
+        if time_since_startup < self.startup_grace_period:
+            if int(time_since_startup) % 2 == 0:  # Print every 2 seconds
+                remaining = self.startup_grace_period - time_since_startup
+                print(f"⏳ Startup grace period: {remaining:.1f}s remaining before processing requests")
+            return
+        
         state_data = self.state_manager.get_state()
         if not state_data:
             return
@@ -100,6 +124,9 @@ class ConjureApp:
         if has_requests:
             print("🔍 DEBUG: Active requests detected!")
             print(f"   📋 Available commands: {list(state_data.keys())}")
+            
+            # 🎯 ENHANCED DEBUGGING: Backend Agent State Monitoring
+            self._monitor_backend_agent_activity(state_data)
         
         # Check for FLUX pipeline request first (highest priority)
         if state_data.get("flux_pipeline_request") == "new":
@@ -125,6 +152,47 @@ class ConjureApp:
             print("🎯 DEBUG: Selection request detected!")
             self.handle_selection_request(state_data, generation_mode)
             self.state_manager.clear_specific_requests(["selection_request", "selection_status"])
+
+    def _monitor_backend_agent_activity(self, state_data):
+        """Monitor and report backend agent activity and outputs."""
+        print("\n" + "-"*60)
+        print("🧠 MAIN.PY: BACKEND AGENT ACTIVITY MONITOR")
+        print("-"*60)
+        
+        # Check for backend agent generated files
+        try:
+            # Check for vision description
+            vision_path = self.project_root / "screen_description.txt"
+            if vision_path.exists():
+                with open(vision_path, 'r', encoding='utf-8') as f:
+                    vision_content = f.read()
+                print(f"👁️ Current Vision: {vision_content[:150]}...")
+            
+            # Check for generated FLUX prompt  
+            prompt_path = self.project_root / "data" / "generated_text" / "userPrompt.txt"
+            if prompt_path.exists():
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    prompt_content = f.read()
+                print(f"🎨 Current FLUX Prompt: {prompt_content[:150]}...")
+                
+            # Analyze state for backend agent commands
+            backend_commands = []
+            for key, value in state_data.items():
+                if key in ["command", "generation_request", "selection_request", "flux_pipeline_request"]:
+                    if value and value != "null":
+                        backend_commands.append(f"{key}: {value}")
+            
+            if backend_commands:
+                print(f"⚙️ Active Backend Commands: {', '.join(backend_commands)}")
+            else:
+                print("💤 No active backend commands")
+                
+        except Exception as e:
+            print(f"⚠️ Error monitoring backend agent activity: {e}")
+            
+        print("-"*60)
+        print("🔚 END BACKEND AGENT ACTIVITY MONITOR")
+        print("-"*60 + "\n")
 
     def handle_generation_request(self):
         """Handles the request to generate initial concept options."""
@@ -526,34 +594,62 @@ class ConjureApp:
         
         # Add a debug counter to avoid spam
         debug_counter = 0
+        grace_period_announced = False
         
         try:
             print("🔄 Main application loop started - checking for requests every second")
             while self.state_manager.get_state().get("app_status") == "running":
-                # Add periodic debug info (every 30 seconds)
-                if debug_counter % 30 == 0:
-                    print("💓 Main loop heartbeat - application running normally")
+                # Handle grace period messaging
+                time_since_startup = time.time() - self.startup_time
+                if not self.initialization_complete or time_since_startup < self.startup_grace_period:
+                    if not grace_period_announced:
+                        print(f"⏳ Startup grace period active - {self.startup_grace_period}s delay before processing requests")
+                        grace_period_announced = True
+                    # Show remaining time every 2 seconds during grace period
+                    if int(time_since_startup) % 2 == 0:
+                        remaining = max(0, self.startup_grace_period - time_since_startup)
+                        if remaining > 0:
+                            print(f"⏳ Grace period: {remaining:.1f}s remaining...")
+                        elif not hasattr(self, '_grace_complete_announced'):
+                            print("✅ Startup grace period complete - now monitoring for requests")
+                            self._grace_complete_announced = True
+                else:
+                    # Normal operation - periodic heartbeat (every 30 seconds)
+                    if debug_counter % 30 == 0:
+                        print("💓 Main loop heartbeat - application running normally")
                 
                 self.check_for_requests()
-                
-                debug_counter += 1
                 time.sleep(1)
+                debug_counter += 1
+                
         except KeyboardInterrupt:
-            print("\nKeyboardInterrupt detected. Shutting down CONJURE.")
+            print("\n⚠️ Keyboard interrupt received - shutting down CONJURE...")
+        except Exception as e:
+            print(f"\n❌ Unexpected error in main loop: {e}")
+            import traceback
+            print(f"🔍 Full traceback:\n{traceback.format_exc()}")
         finally:
             self.stop()
 
     def stop(self):
-        """Stops all application components."""
-        print("Stopping CONJURE application components...")
-        self.state_manager.set_state("app_status", "stopped")
+        """Stops all components and cleans up resources."""
+        print("\n🛑 CONJURE is shutting down...")
         
-        # Stop the conversational agent
-        self.conversational_agent.stop()
-        # No need to join the agent_thread if it's a daemon
-
-        self.subprocess_manager.stop_all()
-        print("All subprocesses terminated.")
+        # 🧹 SHUTDOWN CLEANUP: Clear all pending requests to prevent issues on next startup
+        print("🧹 Cleaning up state before shutdown...")
+        self.state_manager.clear_all_requests()
+        
+        # Stop all subprocesses
+        if hasattr(self, 'subprocess_manager'):
+            print("🔌 Stopping all subprocesses...")
+            self.subprocess_manager.stop_all()
+        
+        # Stop conversational agent
+        if hasattr(self, 'conversational_agent'):
+            print("🎤 Stopping conversational agent...")
+            self.conversational_agent.stop()
+        
+        print("✅ CONJURE shutdown complete")
 
 if __name__ == "__main__":
     app = ConjureApp()

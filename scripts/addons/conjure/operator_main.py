@@ -46,6 +46,20 @@ class CONJURE_PT_control_panel(bpy.types.Panel):
         else:
             # The 'conjure.fingertip_operator' is the main operator defined below
             layout.operator("conjure.fingertip_operator", text="Initiate CONJURE", icon='PLAY')
+        
+        # Add separator
+        layout.separator()
+        
+        # Auto-refresh controls
+        box = layout.box()
+        box.label(text="Backend Agent Context", icon='CAMERA_DATA')
+        
+        if hasattr(wm, 'conjure_auto_refresh_running') and wm.conjure_auto_refresh_running:
+            box.operator("conjure.stop_auto_refresh", text="Stop Auto-Refresh", icon='PAUSE')
+            box.label(text="📸 Rendering every 3s", icon='INFO')
+        else:
+            box.operator("conjure.auto_refresh_render", text="Start Auto-Refresh", icon='PLAY')
+            box.label(text="Click to enable automatic rendering", icon='INFO')
 
 class CONJURE_OT_stop_operator(bpy.types.Operator):
     """A simple operator that sets a flag to signal the modal operator to stop."""
@@ -1344,6 +1358,18 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
         self._timer = context.window_manager.event_timer_add(config.REFRESH_RATE_SECONDS, window=context.window)
         context.window_manager.modal_handler_add(self)
+        
+        # Auto-start the backend agent context refresh
+        print("🎬 Auto-starting backend agent context refresh...")
+        if not CONJURE_OT_auto_refresh_render.is_auto_refresh_running():
+            try:
+                bpy.app.timers.register(CONJURE_OT_auto_refresh_render.auto_render_timer, first_interval=2.0, persistent=True)
+                context.window_manager.conjure_auto_refresh_running = True
+                print("✅ Backend agent auto-refresh started (every 3 seconds)")
+            except Exception as e:
+                print(f"❌ Failed to start auto-refresh: {e}")
+        else:
+            print("ℹ️ Auto-refresh already running")
         print("Conjure Fingertip Operator is now running.")
 
         # Add the draw handler for the UI text
@@ -1356,6 +1382,12 @@ class ConjureFingertipOperator(bpy.types.Operator):
         context.window_manager.conjure_is_running = False
         context.window_manager.conjure_should_stop = False
 
+        # Stop auto-refresh when main operator stops
+        if hasattr(context.window_manager, 'conjure_auto_refresh_running') and \
+           context.window_manager.conjure_auto_refresh_running:
+            context.window_manager.conjure_auto_refresh_running = False
+            print("🛑 Auto-stopped backend agent context refresh")
+
         # Remove the draw handler
         if self._draw_handler:
             bpy.types.SpaceView3D.draw_handler_remove(self._draw_handler, 'WINDOW')
@@ -1367,9 +1399,126 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
 
 # --- REGISTRATION ---
+class CONJURE_OT_auto_refresh_render(bpy.types.Operator):
+    """Automatically refresh GestureCamera render every 3 seconds for backend agent context"""
+    bl_idname = "conjure.auto_refresh_render"
+    bl_label = "Auto Refresh Render"
+    bl_description = "Start automatic rendering of GestureCamera every 3 seconds"
+    
+    def execute(self, context):
+        if self.is_auto_refresh_running():
+            self.report({'INFO'}, "Auto-refresh is already running")
+            return {'CANCELLED'}
+        
+        print("🎬 Starting automatic GestureCamera refresh (every 3 seconds)...")
+        
+        # Register the timer for periodic rendering
+        bpy.app.timers.register(self.auto_render_timer, first_interval=1.0, persistent=True)
+        
+        # Set a flag to track that auto-refresh is running
+        context.window_manager.conjure_auto_refresh_running = True
+        
+        self.report({'INFO'}, "Auto-refresh started - GestureCamera will render every 3 seconds")
+        return {'FINISHED'}
+    
+    @staticmethod
+    def auto_render_timer():
+        """Timer function that renders GestureCamera every 3 seconds"""
+        try:
+            context = bpy.context
+            
+            # Check if we should stop (if addon is being unregistered or user stopped it)
+            if not hasattr(context.window_manager, 'conjure_auto_refresh_running') or \
+               not context.window_manager.conjure_auto_refresh_running:
+                print("🛑 Auto-refresh timer stopped")
+                return None  # This stops the timer
+            
+            # Perform the render using the same logic as the manual render
+            CONJURE_OT_auto_refresh_render.render_gesture_camera(context)
+            
+            # Return 3.0 to schedule the next call in 3 seconds
+            return 3.0
+            
+        except Exception as e:
+            print(f"❌ Error in auto-refresh timer: {e}")
+            # Stop the timer on error
+            if hasattr(bpy.context.window_manager, 'conjure_auto_refresh_running'):
+                bpy.context.window_manager.conjure_auto_refresh_running = False
+            return None
+    
+    @staticmethod
+    def render_gesture_camera(context):
+        """Render the GestureCamera to update backend agent context"""
+        # Ensure the output directory exists
+        output_dir = config.DATA_DIR / "generated_images" / "gestureCamera"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Set the active camera to GestureCamera
+        gesture_camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
+        if not gesture_camera:
+            print(f"⚠️ GestureCamera '{config.GESTURE_CAMERA_NAME}' not found - skipping render")
+            return
+        
+        # Store original settings
+        original_camera = context.scene.camera
+        original_filepath = context.scene.render.filepath
+        original_resolution_x = context.scene.render.resolution_x
+        original_resolution_y = context.scene.render.resolution_y
+        
+        try:
+            # Set render settings for backend agent context (1024x1024)
+            context.scene.camera = gesture_camera
+            context.scene.render.resolution_x = 1024
+            context.scene.render.resolution_y = 1024
+            context.scene.render.filepath = str(output_dir / "render.png")
+            
+            # Render the image
+            bpy.ops.render.render(write_still=True)
+            
+            print(f"📸 Auto-refresh: GestureCamera rendered -> {context.scene.render.filepath}")
+            
+        except Exception as e:
+            print(f"❌ Error rendering GestureCamera: {e}")
+        finally:
+            # Restore original settings
+            context.scene.camera = original_camera
+            context.scene.render.filepath = original_filepath
+            context.scene.render.resolution_x = original_resolution_x
+            context.scene.render.resolution_y = original_resolution_y
+    
+    @staticmethod
+    def is_auto_refresh_running():
+        """Check if auto-refresh is currently running"""
+        return hasattr(bpy.context.window_manager, 'conjure_auto_refresh_running') and \
+               bpy.context.window_manager.conjure_auto_refresh_running
+
+
+class CONJURE_OT_stop_auto_refresh(bpy.types.Operator):
+    """Stop the automatic GestureCamera refresh"""
+    bl_idname = "conjure.stop_auto_refresh"
+    bl_label = "Stop Auto Refresh"
+    bl_description = "Stop automatic rendering of GestureCamera"
+    
+    def execute(self, context):
+        if not CONJURE_OT_auto_refresh_render.is_auto_refresh_running():
+            self.report({'INFO'}, "Auto-refresh is not running")
+            return {'CANCELLED'}
+        
+        print("🛑 Stopping automatic GestureCamera refresh...")
+        
+        # Set flag to stop the timer
+        context.window_manager.conjure_auto_refresh_running = False
+        
+        # The timer will check this flag and stop itself
+        self.report({'INFO'}, "Auto-refresh stopped")
+        return {'FINISHED'}
+
+
 classes = (
     ConjureFingertipOperator,
     CONJURE_OT_stop_operator,
+    CONJURE_OT_auto_refresh_render,
+    CONJURE_OT_stop_auto_refresh,
 )
 
 def register():
@@ -1378,14 +1527,23 @@ def register():
     # Register custom properties to the WindowManager
     bpy.types.WindowManager.conjure_is_running = bpy.props.BoolProperty(default=False)
     bpy.types.WindowManager.conjure_should_stop = bpy.props.BoolProperty(default=False)
+    bpy.types.WindowManager.conjure_auto_refresh_running = bpy.props.BoolProperty(default=False)
 
 
 def unregister():
+    # Stop auto-refresh timer if it's running
+    if hasattr(bpy.types.WindowManager, 'conjure_auto_refresh_running'):
+        try:
+            bpy.context.window_manager.conjure_auto_refresh_running = False
+        except:
+            pass  # Context might not be available during shutdown
+    
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     # Clean up the custom properties
     del bpy.types.WindowManager.conjure_is_running
     del bpy.types.WindowManager.conjure_should_stop
+    del bpy.types.WindowManager.conjure_auto_refresh_running
 
 
 if __name__ == "__main__":
