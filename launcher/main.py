@@ -139,7 +139,8 @@ class ConjureApp:
         # We'll keep the generation/selection logic as it's triggered by Blender/gestures.
         # if command == "agent_user_message":
         #     print(f"\nUser message received: {state_data.get('text')}")
-        #     # First, clear the user message command so it doesn't get processed again.
+        #     # First, clear the user message command so it doesn't get 
+        # processed again.
         #     self.state_manager.clear_command()
         #     # Now, get the agent's response. The agent may issue a new command
         #     # to Blender by updating the state file itself.

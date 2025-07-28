@@ -1,24 +1,8 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[19:55:52] [AGENT_TURN] MESSAGE: for the Conjure Modeling System.
-[19:55:52] [AGENT_TURN] MESSAGE: conversational AI assistant.
-[19:55:52] [AGENT_TURN] MESSAGE: through the creation cycle.
-[19:55:52] [AGENT_TURN] MESSAGE: I'm here to guide you through.
-[19:55:53] [AGENT_TURN] MESSAGE: Hello there!
-USER (Whisper): K, we did it.
-[19:55:53] [USER_TURN] MESSAGE: K, we did it.
-[19:55:54] [AGENT_TURN] MESSAGE: I'm Vibe, your special...
-[19:55:54] [AGENT_TURN] MESSAGE: You mentioned wanting to create a cylinder.
-[19:55:54] [AGENT_TURN] MESSAGE: Would you like to start with a cylinder to roughly describe your idea? Or would you prefer to verbally describe it first and create something completely new?
-[19:56:09] [AGENT_TURN] MESSAGE: Great.
-[19:56:10] [AGENT_TURN] MESSAGE: So, you'd like to use a cylinder as a starting point. That sounds like a good plan. Back end agent, let's prepare to spawn a cylinder.
-[19:56:10] [AGENT_TURN] MESSAGE: Is a simple cylinder what you had in mind, or were you thinking of something a bit different?
-[19:56:16] [AGENT_TURN] MESSAGE: Perfect.
-[19:56:17] [AGENT_TURN] MESSAGE: Now that we're starting with a cylinder, do you have a specific vision for what you want to create with it?
-[19:56:17] [AGENT_TURN] MESSAGE: Are you thinking of something like a vase, a pillar, or perhaps something more abstract?
-[19:56:17] [AGENT_TURN] MESSAGE: Give me a sense of the direction you'd like to take it, and I'll have Backend Agent create the cylinder for you.
-[19:56:38] [AGENT_TURN] MESSAGE: Are you still there?
-[19:56:39] [AGENT_TURN] MESSAGE: Please let me know if you'd like to proceed or if you need a moment.
-USER (Whisper): Uh, yeah, let's create a cylinder. I don't see any cylinders.
-[19:56:47] [USER_TURN] MESSAGE: Uh, yeah, let's create a cylinder. I don't see any cylinders.
-[19:56:48] [AGENT_TURN] MESSAGE: Back-end agent lets trigger spawn primitive with the type set to cylinder.
-[19:57:02] [AGENT_TURN] MESSAGE: Are you still there?
+[15:33:10] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
+[15:33:18] [AGENT_TURN] MESSAGE: So you'd like to start with a primitive to roughly describe your idea.
+USER (Whisper): Let's start with the cylinder and let's go in there.
+[15:33:18] [USER_TURN] MESSAGE: Let's start with the cylinder and let's go in there.
+[15:33:18] [AGENT_TURN] MESSAGE: Alright, a cylinder it is.
+[15:33:19] [AGENT_TURN] MESSAGE: Now let me ask BackendAgent to create a cylinder. BackendAgent, let's spawn a cylinder. I'll wait here while you sculpt it, let me know when you're ready.
+[15:33:38] [AGENT_TURN] MESSAGE: Are you still there?

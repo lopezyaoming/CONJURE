@@ -154,26 +154,38 @@ class ConversationalAgent:
     # 🎯 STRUCTURED CONVERSATION TURN MANAGEMENT
     
     def _add_user_message(self, message: str):
-        """Add user message and immediately send to backend (simplified approach)."""
+        """Add user message to current conversation turn."""
         self._debug_log("USER_TURN", "MESSAGE", message)
         
         user_msg = message.strip()
         print(f"📝 USER REQUEST: {user_msg}")
         
-        # NEW SIMPLIFIED APPROACH: Send only user speech directly to backend
-        # No more complex conversation turns - just immediate user requests
-        self._send_user_request_to_backend(user_msg)
+        # Store user message in current conversation turn
+        self.current_turn["user_message"] = user_msg
+        
+        # Initialize turn timing if this is the start
+        if self._turn_start_time is None:
+            self._turn_start_time = time.time()
+        
+        # Check if we have a complete turn (user + agent) to send to backend
+        self._check_turn_completion()
     
     def _add_agent_message(self, message: str):
-        """Log agent message but don't send to backend (simplified approach)."""
+        """Add agent message to current conversation turn."""
         self._debug_log("AGENT_TURN", "MESSAGE", message)
         
-        # SIMPLIFIED: Agent messages are just logged, not sent to backend
-        # The conversational agent handles conversation flow independently
         agent_msg = message.strip()
         print(f"🤖 AGENT RESPONSE: {agent_msg}")
         
-        # No complex turn management - agent responses stay with conversational agent
+        # Store agent message in current conversation turn
+        self.current_turn["agent_message"] = agent_msg
+        
+        # Initialize turn timing if this is the start
+        if self._turn_start_time is None:
+            self._turn_start_time = time.time()
+        
+        # Check if we have a complete turn (user + agent) to send to backend
+        self._check_turn_completion()
     
     def _check_turn_completion(self):
         """Check if current turn is complete (has both user and agent messages)."""
@@ -414,23 +426,21 @@ class ConversationalAgent:
                     agent_event = message.get('agent_response_event', {})
                     agent_text = agent_event.get('agent_response', '')
                     if agent_text:
-                        print(f"🤖 AGENT TRANSCRIPT: {agent_text}")
+                        # Removed console logging for cleaner output
                         if self.transcript_sources.get("message_hooks", True):
-                            print("🤖 Adding agent response fragment to buffer...")
                             try:
                                 self._add_agent_message_fragment(agent_text)
                             except Exception as e:
                                 print(f"Error adding agent response fragment: {e}")
                         else:
-                            print("🔇 Message hooks disabled - skipping")
+                            pass  # Message hooks disabled
                 
                 elif message_type == 'user_transcript':
                     print("🎯 FOUND USER_TRANSCRIPT MESSAGE:")
                     user_event = message.get('user_transcription_event', {})
                     user_text = user_event.get('user_transcript', '')
                     if user_text:
-                        print(f"📝 USER TRANSCRIPT (from SDK): {user_text}")
-                        print("📝 Adding SDK user transcript to conversation turn...")
+                        # Removed console logging for cleaner output
                         try:
                             self._add_user_message(user_text)
                         except Exception as e:
@@ -586,10 +596,7 @@ class ConversationalAgent:
                 
                 agent_text = transcript.text.strip()
                 if agent_text and len(agent_text) > 3:  # Filter out very short transcripts
-                    print(f"🤖 AGENT TRANSCRIPT (Whisper): {agent_text}")
-                    
-                    # Add to conversation turn
-                    print("🤖 Adding agent transcript to conversation turn...")
+                    # Removed console logging for cleaner output
                     try:
                         self._add_agent_message(agent_text)
                     except Exception as e:
@@ -712,7 +719,7 @@ class ConversationalAgent:
             transcript = self._transcribe_audio(audio_file)
             
             if transcript and transcript.strip():
-                print(f"📝 USER TRANSCRIPT: {transcript}")
+                # Removed console logging for cleaner output
                 
                 # Log to debug file
                 with open("transcript_debug.txt", "a") as f:
@@ -720,7 +727,6 @@ class ConversationalAgent:
                 
                 # Add to structured conversation turn (NO immediate sending)
                 # ALWAYS add user messages to turn regardless of transcript source
-                print("📝 Adding user transcript to conversation turn...")
                 self._add_user_message(transcript)
                 
                 # Only skip the Whisper-specific processing if disabled
@@ -836,18 +842,16 @@ class ConversationalAgent:
 
     def _on_agent_response(self, response):
         """Callback for agent response - should be called by ElevenLabs SDK."""
-        print(f"🎯 SDK CALLBACK: AGENT RESPONSE RECEIVED")
-        print(f"🤖 AGENT RESPONSE (via callback): {response}")
+        # Removed console logging for cleaner output
         
         if response and response.strip():
             if self.transcript_sources.get("sdk_callbacks", True):
-                print("🤖 Adding SDK agent response fragment to buffer...")
                 try:
                     self._add_agent_message_fragment(response)
                 except Exception as e:
                     print(f"Error adding SDK agent response fragment: {e}")
             else:
-                print("🔇 SDK callbacks disabled - skipping agent response")
+                pass  # SDK callbacks disabled
         
         # Note: Removed immediate backend sending - now handled by structured turns
 

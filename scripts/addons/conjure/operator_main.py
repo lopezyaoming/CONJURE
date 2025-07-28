@@ -1083,7 +1083,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
             self._command_debug_counter += 1
             
             if self._command_debug_counter % 60 == 0:  # Every 60 frames (~2 seconds)
-                print(f"🔍 DEBUG: Current command from fingertips.json: '{command}'")
+                pass  # Removed debug logging for cleaner console output
 
             # --- Process Fingertips for Visualization ---
             right_hand_data = live_data.get("right_hand")
@@ -1475,7 +1475,7 @@ class CONJURE_OT_auto_refresh_render(bpy.types.Operator):
             # Render the image
             bpy.ops.render.render(write_still=True)
             
-            print(f"📸 Auto-refresh: GestureCamera rendered -> {context.scene.render.filepath}")
+                            # Removed auto-refresh logging for cleaner console output
             
         except Exception as e:
             print(f"❌ Error rendering GestureCamera: {e}")

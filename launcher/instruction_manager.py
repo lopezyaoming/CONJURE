@@ -59,14 +59,14 @@ class InstructionManager:
             "command": "spawn_primitive",
             "primitive_type": primitive_type
         }
-        self.state_manager.update_state(command_data) 
+        self.state_manager.update_state(command_data)
 
-     def generate_concepts(self, params: dict):
+    def generate_concepts(self, params: dict):
         """
-         Handles the 'generate_concepts' instruction by setting the
-         'generation_request' state for the main loop.
-         """
-         # The main loop in launcher/main.py will detect this state change.
+        Handles the 'generate_concepts' instruction by setting the
+        'generation_request' state for the main loop.
+        """
+        # The main loop in launcher/main.py will detect this state change.
         print("INFO: Setting state for concept generation request.")
         self.state_manager.set_state("generation_request", "new")
 

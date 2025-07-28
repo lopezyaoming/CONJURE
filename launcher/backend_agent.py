@@ -152,10 +152,10 @@ Focus on understanding user creative intent and translating it into actionable 3
         """
         print(f"Received conversation for backend processing:\n{conversation_history}")
         
-        # Debug: Check for user action requests
+        # Debug: Check for user action requests (for monitoring only)
         action_keywords = [
-            "create", "make", "spawn", "generate", "build", 
-            "cylinder", "sphere", "cube", "cone", "mesh"
+            "create", "make", "spawn", "generate", "build", "do", "want", "add", "place", "put",
+            "cylinder", "sphere", "cube", "cone", "mesh", "bean", "sculpture", "object"
         ]
         
         request_found = any(keyword.lower() in conversation_history.lower() for keyword in action_keywords)
@@ -165,7 +165,7 @@ Focus on understanding user creative intent and translating it into actionable 3
             matching_keywords = [k for k in action_keywords if k.lower() in conversation_history.lower()]
             print(f"🎯 Matching keywords: {matching_keywords}")
         else:
-            print("💬 No action keywords found - likely just conversation")
+            print("💬 No obvious action keywords found (but OpenAI may still detect intent)")
 
         # 1. Prepare the context image from Blender
         image_path = Path(__file__).parent.parent / "data" / "generated_images" / "gestureCamera" / "render.png"
