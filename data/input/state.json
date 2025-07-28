@@ -15,7 +15,5 @@
     "primitive_type": null,
     "flux_prompt": null,
     "flux_seed": null,
-    "min_volume_threshold": 0.01,
-    "prompt": "Generate a Corinthian column with a detailed capital and bay, resembling marble material. The column should have a classic architectural style, not too slender, with intricate carvings typical of Corinthian design.",
-    "seed": 1337
+    "min_volume_threshold": null
 }

@@ -1,34 +1,6 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[16:14:52] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-USER (Whisper): Hey, that's hard putting it in there.
-[16:15:01] [USER_TURN] MESSAGE: Hey, that's hard putting it in there.
-[16:15:01] [AGENT_TURN] MESSAGE: A cylinder is a great starting point. Back-end agent, let's spawn a cylinder.
-[16:15:01] [AGENT_TURN] MESSAGE: Please let me know when you're done sculpting or ready to move on.
-USER (Whisper): I'll let you know
-[16:15:10] [USER_TURN] MESSAGE: I'll let you know
-[16:16:32] [AGENT_TURN] MESSAGE: Excellent! Now that you're done with the cylinder, please tell me more about what you're trying to create.
-USER (Whisper): Cool, I guess I'm done with the loom there, should I describe to you what I'm trying to do with it?
-[16:16:32] [USER_TURN] MESSAGE: Cool, I guess I'm done with the loom there, should I describe to you what I'm trying to do with it?
-[16:16:33] [AGENT_TURN] MESSAGE: We can refine the shape, form, and overall characteristics of your idea. What comes to mind?
-USER (Whisper): Yeah, I'm trying to generate a Corinthian column, so what I'm trying to draw here is a basic shape that will eventually become a capital and a bay, and in general a Corinthian column, so in general marble, I guess marble material, quite bad, not very skinny.
-[16:17:18] [USER_TURN] MESSAGE: Yeah, I'm trying to generate a Corinthian column, so what I'm trying to draw here is a basic shape that will eventually become a capital and a bay, and in general a Corinthian column, so in general marble, I guess marble material, quite bad, not very skinny.
-[16:17:19] [AGENT_TURN] MESSAGE: That sounds like a fantastic vision.
-[16:17:19] [AGENT_TURN] MESSAGE: not skinny form.
-[16:17:20] [AGENT_TURN] MESSAGE: Capital and base
-[16:17:20] [AGENT_TURN] MESSAGE: in marble and with a robust
-[16:17:20] [AGENT_TURN] MESSAGE: to help me refine this.
-[16:17:20] [AGENT_TURN] MESSAGE: Corinthian column with a
-[16:17:22] [AGENT_TURN] MESSAGE: And for the marble, do you have a particular color or veining in mind?
-[16:17:22] [AGENT_TURN] MESSAGE: could you tell me a bit more about the capital and base? Are you envisioning the classic acanthus leaves on the capital or something more unique?
-[16:18:00] [AGENT_TURN] MESSAGE: Known for its beautiful
-[16:18:01] [AGENT_TURN] MESSAGE: white appearance and subtle veining.
-[16:18:01] [AGENT_TURN] MESSAGE: White Carrara Marble is an excellent
-[16:18:02] [AGENT_TURN] MESSAGE: That will give it a truly classic and elegant feel.
-[16:18:02] [AGENT_TURN] MESSAGE: choice for a Corinthian column.
-USER (Whisper): yeah i'm thinking we can start creating uh um uh like like white karara marble i guess um that would be nice karara marble
-[16:18:02] [USER_TURN] MESSAGE: yeah i'm thinking we can start creating uh um uh like like white karara marble i guess um that would be nice karara marble
-[16:18:03] [AGENT_TURN] MESSAGE: Backend agent, let's generate the initial mesh for a robust Corinthian column with a distinct capital and base, made of white Carrara marble.
-[16:18:25] [AGENT_TURN] MESSAGE: Are you still there?
-[16:18:27] [AGENT_TURN] MESSAGE: Please let me know if you're ready to continue or if you need more time.
-USER (Whisper): I'm waiting for the thing to spawn so just wait for me for a sec
-[16:18:35] [USER_TURN] MESSAGE: I'm waiting for the thing to spawn so just wait for me for a sec
+[16:42:24] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
+USER (Whisper): Hey, I wanna start with a cube.
+[16:42:32] [USER_TURN] MESSAGE: Hey, I wanna start with a cube.
+[16:42:32] [AGENT_TURN] MESSAGE: Please let me know when you're done sculpting or if you'd like to try a different primitive.
+[16:42:33] [AGENT_TURN] MESSAGE: Okay, you want to start with a cube. That's a great way to begin. Backend agent, let's spawn a cube primitive.

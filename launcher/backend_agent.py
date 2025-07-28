@@ -56,7 +56,10 @@ You **always** respond with a single, complete JSON object:
 
 If no backend action is required, set `"instruction"` to `null`.
 Never return anything without this structure, as it will catastrophically crash the system.
-VISION: Describe what visual information you are receiving from the 3D viewport
+always return a valid JSON object, with the correct structure.
+always stick to the structure, and do not add any other text or comments.
+always follow this step by step process:
+
 AVAILABLE INSTRUCTIONS,
  in order of operational usage. NOTE: there are some optional instructions that can be skipped, or options (either of them). these are explicitly refered as such,and the user might choose to skip it or trigger one instead of the other.
 [OPTIONAL]
@@ -78,6 +81,8 @@ segment_selection
 select_concept
 - Description: User chooses concept option, triggers multi-view rendering and mv2mv/mv23D workflows
 - Parameters: option_id (integer) - 1, 2, or 3
+VISION: Describe what visual information you are receiving from the 3D viewport
+
 """
 
     def _encode_image_to_base64(self, image_path):
@@ -101,7 +106,7 @@ select_concept
                 response = client.post(
                     "http://127.0.0.1:8000/execute_instruction",
                     json={"instruction": instruction},
-                    timeout=30.0
+                    timeout=1.0  # Reduced from 30s to 3s for faster fallback
                 )
                 if response.status_code == 200:
                     print(f"✅ Successfully executed {tool_name} via API")

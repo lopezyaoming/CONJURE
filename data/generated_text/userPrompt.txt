@@ -1,1 +1,1 @@
-Imagine a luxurious slab of white Carrara marble, with intricate gray veining running through its smooth, polished surface. The marble exudes elegance and sophistication, reflecting light subtly to highlight its natural beauty. It is a timeless piece, perfect for high-end architectural designs or artistic sculptures, embodying both strength and grace.
+Create a basic cube primitive to start the modeling process, replacing the current sphere in the scene.

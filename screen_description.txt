@@ -1,1 +1,1 @@
-A blank gray screen, indicating no current 3D model or object is present.
+A black sphere is displayed on a gray background.
