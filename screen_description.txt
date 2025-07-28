@@ -1,1 +1,1 @@
-A black, glossy sphere is centered in the 3D viewport against a neutral gray background.
+A blank gray screen, indicating no current 3D model or object is present.

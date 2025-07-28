@@ -54,12 +54,22 @@ class InstructionManager:
             print("Error: spawn_primitive called without 'primitive_type' parameter.")
             return
         
+        print(f"INFO: Spawning {primitive_type} primitive via state file...")
+        
         # This command will be read by the main operator in Blender
         command_data = {
             "command": "spawn_primitive",
             "primitive_type": primitive_type
         }
         self.state_manager.update_state(command_data)
+        print(f"✅ Command written to state file: spawn_primitive({primitive_type})")
+        
+        # Debug: Read back the state to confirm it was written
+        try:
+            current_state = self.state_manager.get_state()
+            print(f"🔍 Current state after update: command='{current_state.get('command', 'None')}', primitive_type='{current_state.get('primitive_type', 'None')}'")
+        except Exception as e:
+            print(f"⚠️ Error reading state back: {e}")
 
     def generate_concepts(self, params: dict):
         """

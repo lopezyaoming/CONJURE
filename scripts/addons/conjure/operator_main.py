@@ -538,6 +538,8 @@ class ConjureFingertipOperator(bpy.types.Operator):
         """
         Spawns a new primitive by duplicating it from the 'PRIMITIVES' collection.
         """
+        # Normalize case - accept both "cylinder" and "Cylinder"
+        primitive_type = primitive_type.capitalize()
         print(f"DEBUG: handle_spawn_primitive received type: {primitive_type}")
 
         # --- 1. Find the Primitive Template ---
@@ -603,13 +605,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
         
         command = state_data.get("command")
         if command:
-            # print(f"CONJURE: Detected command: {command}")
+            print(f"🎯 BLENDER: Detected command from state file: {command}")
             
             if command == "spawn_primitive":
                 primitive_type = state_data.get("primitive_type", "Cube")
+                print(f"🎯 BLENDER: Processing spawn_primitive command with type: {primitive_type}")
                 self.spawn_primitive(context, primitive_type)
                 # Clear the command (same pattern as existing code)
                 state_data["command"] = None
+                print(f"🧹 BLENDER: Cleared spawn_primitive command from state file")
                 with open(state_file_path, 'w') as f:
                     json.dump(state_data, f, indent=4)
             
@@ -753,39 +757,52 @@ class ConjureFingertipOperator(bpy.types.Operator):
         """
         Spawn a primitive object and replace the current Mesh.
         """
+        # Normalize case - accept both "cylinder" and "Cylinder"
+        primitive_type = primitive_type.capitalize()
         print(f"Spawning primitive: {primitive_type}")
         
         # Remove existing mesh if it exists
         existing_mesh = bpy.data.objects.get("Mesh")
         if existing_mesh:
             bpy.data.objects.remove(existing_mesh, do_unlink=True)
+            print("✅ Removed existing mesh")
         
         # Create the new primitive
         if primitive_type == "Sphere":
             bpy.ops.mesh.primitive_uv_sphere_add(location=(0, 0, 0))
+            print("✅ Created sphere primitive")
         elif primitive_type == "Cube":
             bpy.ops.mesh.primitive_cube_add(location=(0, 0, 0))
+            print("✅ Created cube primitive")
         elif primitive_type == "Cone":
             bpy.ops.mesh.primitive_cone_add(location=(0, 0, 0))
+            print("✅ Created cone primitive")
         elif primitive_type == "Cylinder":
             bpy.ops.mesh.primitive_cylinder_add(location=(0, 0, 0))
+            print("✅ Created cylinder primitive")
         elif primitive_type == "Disk":
             bpy.ops.mesh.primitive_circle_add(location=(0, 0, 0), fill_type='NGON')
+            print("✅ Created disk primitive")
         elif primitive_type == "Torus":
             bpy.ops.mesh.primitive_torus_add(location=(0, 0, 0))
+            print("✅ Created torus primitive")
         elif primitive_type == "Head":
             # Create a rough head shape using a sphere with some deformation
             bpy.ops.mesh.primitive_uv_sphere_add(location=(0, 0, 0))
             head_obj = context.active_object
             head_obj.scale = (0.8, 1.0, 1.2)  # Make it more head-like
+            print("✅ Created head primitive (scaled sphere)")
         elif primitive_type == "Body":
             # Create a rough body shape using a cylinder
             bpy.ops.mesh.primitive_cylinder_add(location=(0, 0, 0))
             body_obj = context.active_object
             body_obj.scale = (1.2, 0.8, 2.0)  # Make it more body-like
+            print("✅ Created body primitive (scaled cylinder)")
         else:
             # Default to cube if unknown type
+            print(f"⚠️ Unknown primitive type '{primitive_type}', defaulting to cube")
             bpy.ops.mesh.primitive_cube_add(location=(0, 0, 0))
+            print("✅ Created default cube primitive")
         
         # Rename the new object to "Mesh"
         new_obj = context.active_object

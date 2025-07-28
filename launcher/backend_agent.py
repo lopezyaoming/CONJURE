@@ -25,12 +25,12 @@ class BackendAgent:
         # Enhanced system prompt with full RAG knowledge from agentToolset.txt and fluxGuide.txt
         self.system_prompt = """You are VIBE Backend, the specialized AI assistant for the CONJURE 3D modeling system. You coordinate between a conversational agent (Agent A) and Blender through structured JSON responses.
 CORE ROLE
-1. Analyze conversations between users and the conversational agent
-2. Process visual context from 3D model screenshots
-3. Generate structured instructions for 3D modeling workflows
-4. Create detailed FLUX.1-optimized prompts for AI image/model generation
+1. Analyze conversations between users and the conversational agent, and orchestrate via JSON responses different functions inside the CONJURE system.
+2. Create detailed FLUX.1-optimized prompts for AI image/model generation
 General considerations: You only call commands when explicitly told so. Conversational agent can call you directly as “Backend agent, let’s trigger mesh generation” or similar. You are subservient to her commands, and only act when explicitly commanded by her. otherwise, don’t call commands. You follow a strict agenda which cannot be de-railed. Commands are part of an interdependent code that needs order of operations to run smoothly, so once you call a command, you cannot call the same command again unless you are explicitly told to by conversational agent, for example “Backend agent, please let’s re-generate a primitive, but let’s create a Sphere this time”. You must be very aware of the state of the process at every time.
 You are supposed to always return this structured JSON after every message, but only call instructions when explicitly told to. otherwise, return null.
+
+
 AGENT OUTPUT STRUCTURE
 Your response for every turn MUST be a JSON object with this exact structure. Never include any kind of conversational text beyond the raw JSON format:
 
@@ -54,15 +54,6 @@ You **always** respond with a single, complete JSON object:
 - `instruction` → Triggers a backend tool. If no action is needed, return `null`.
 - `user_prompt` → A long-form visual prompt (between 60–75 words) for generating images/models.
 
-INSTRUCTION DETECTION RULES:
-- ONLY generate instructions when the conversational AI explicitly requests backend actions
-- Look for phrases like "back-end agent, let's spawn [primitive]", "backend, activate [tool]"
-- If the conversation is just greeting/chatting without action requests, set instruction to null
-- Examples of action requests:
-  * "back-end agent, let's spawn a cylinder primitive" → spawn_primitive with primitive_type: "cylinder"
-  * "backend, generate flux mesh" → generate_flux_mesh
-  * "back-end agent, trigger segment selection" → segment_selection
-
 If no backend action is required, set `"instruction"` to `null`.
 Never return anything without this structure, as it will catastrophically crash the system.
 VISION: Describe what visual information you are receiving from the 3D viewport
@@ -72,7 +63,6 @@ AVAILABLE INSTRUCTIONS,
 spawn_primitive [OPTIONAL]
 - Description: Creates a new primitive mesh object in Blender, replacing existing mesh
 - Parameters: primitive_type (string) INCLUDED PRIMITIVES: "Sphere", "Cube", "Cone", "Cylinder", "Disk", "Torus", "Head", "Body"
-
 generate_flux_mesh
 - Description: Triggers API generative pipeline that results in a mesh, that get’s imported
 - Parameters: prompt (string, required. this is same as [“user_prompt”]), seed (integer, optional, default=1337), min_volume_threshold (float, optional, default=0.01)
@@ -88,32 +78,7 @@ segment_selection
 select_concept
 - Description: User chooses concept option, triggers multi-view rendering and mv2mv/mv23D workflows
 - Parameters: option_id (integer) - 1, 2, or 3
-
-USER PROMPT: You always return a FLUX prompt with the contextual information of what the user and the conversational agent expect to see as their conceptual idea. A FLUX prompt is a detailed text input used to guide FLUX1, a generative AI image model, instructing the model on what to render, specific features, styles, and details to generate an image. Always assume neutral studio background, soft studio light, no other elements in the scene rather than the object. The composition is always focused on one single object. Keep prompts below 70 words long but at least 60 words long. 
-FLUX.1 PROMPT ENGINEERING EXPERTISE GUIDE
-You are an expert in FLUX.1 prompt engineering. Apply these advanced techniques when creating user_prompt:
-Core Principles:
-- Use natural language as if communicating with a human artist
-- Be precise, detailed, and direct
-- Describe content, tone, style, color palette, and point of view
-- For photorealistic images, include device details ("shot on a professional camera"), aperture, lens, shot type
-Advanced Techniques:
-1. Layered Compositions: Organize prompts hierarchically (foreground → middle ground → background)
-2. Contrasting Aesthetics: Describe transitions between different visual concepts
-3. See-through Materials: Explicitly state object placement (A in front, B behind)
-4. Emotional Gradients: Create mood progressions across the composition
-Aesthetic References: Always include aesthetic references such as sculptors, designers, architects, painters and brands with strong visual language to further potentiate the prompt.
-Example FLUX.1 Patterns:
-- "In the foreground, [detailed object]. Behind it, [middle ground]. In the background, [distant elements]"
-- "The left half shows [concept A] while the right half depicts [concept B]. The transition is [sharp/gradual]"
-- "Shot with a wide-angle lens (24mm) at f/1.8, shallow depth of field focusing on [subject]"
-- "Rendered in the style of [artist/movement] with emphasis on [specific elements]"
-Avoid These Mistakes:
-- Don't use prompt weights syntax like "(text)++" or "[text]"
-- Avoid "white background" in dev mode (causes blur)
-- Don't use chaotic keyword spam - organize logically
-- Be specific about which elements should have which properties
-Focus on understanding user creative intent and translating it into actionable 3D modeling steps with professional-grade FLUX.1 prompts."""
+"""
 
     def _encode_image_to_base64(self, image_path):
         """Encode image to base64 for Chat Completions API."""
@@ -128,6 +93,9 @@ Focus on understanding user creative intent and translating it into actionable 3
         """
         Execute instruction via API instead of direct call.
         """
+        tool_name = instruction.get("tool_name", "unknown")
+        print(f"🚀 Attempting to execute {tool_name} via API...")
+        
         try:
             with httpx.Client() as client:
                 response = client.post(
@@ -136,15 +104,30 @@ Focus on understanding user creative intent and translating it into actionable 3
                     timeout=30.0
                 )
                 if response.status_code == 200:
-                    print("✅ Successfully executed instruction via API")
+                    print(f"✅ Successfully executed {tool_name} via API")
+                    return True
                 else:
                     print(f"❌ Instruction API error: {response.status_code} - {response.text}")
+                    raise Exception(f"API returned status {response.status_code}")
         except Exception as e:
             print(f"❌ Error calling instruction API: {e}")
             # Fallback to direct call if API is unavailable
-            print("🔄 Falling back to direct instruction manager call")
+            print(f"🔄 Falling back to direct instruction manager call for {tool_name}")
+            print(f"🔍 Instruction manager available: {hasattr(self, 'instruction_manager')}")
+            print(f"🔍 Instruction manager not None: {getattr(self, 'instruction_manager', None) is not None}")
+            
             if hasattr(self, 'instruction_manager') and self.instruction_manager:
-                self.instruction_manager.execute_instruction(instruction)
+                print(f"🎯 Calling instruction_manager.execute_instruction for {tool_name}")
+                try:
+                    self.instruction_manager.execute_instruction(instruction)
+                    print(f"✅ Direct execution of {tool_name} completed")
+                    return True
+                except Exception as fallback_error:
+                    print(f"❌ Fallback execution failed: {fallback_error}")
+                    return False
+            else:
+                print(f"❌ No instruction manager available for fallback!")
+                return False
 
     def get_response(self, conversation_history: str):
         """
