@@ -25,17 +25,33 @@ class StateManager:
 
     def set_state(self, key, value):
         """Sets a value in the state and immediately saves it to disk."""
+        # DEBUG: Track FLUX pipeline request changes
+        if key == "flux_pipeline_request":
+            print(f"🔧 STATE MANAGER: Setting {key} = {value}")
+        
         state = self.get_state()
         state[key] = value
         with open(self.state_file_path, 'w') as f:
             json.dump(state, f, indent=4)
+            
+        # DEBUG: Confirm FLUX pipeline request was written
+        if key == "flux_pipeline_request":
+            print(f"✅ STATE MANAGER: {key} written to file")
 
     def update_state(self, data_to_update: dict):
         """Merges the given dictionary into the current state and saves it."""
+        # DEBUG: Track FLUX pipeline request changes
+        if "flux_pipeline_request" in data_to_update:
+            print(f"🔧 STATE MANAGER: Updating flux_pipeline_request = {data_to_update['flux_pipeline_request']}")
+        
         state = self.get_state()
         state.update(data_to_update)
         with open(self.state_file_path, 'w') as f:
             json.dump(state, f, indent=4)
+            
+        # DEBUG: Confirm FLUX pipeline request was written
+        if "flux_pipeline_request" in data_to_update:
+            print(f"✅ STATE MANAGER: flux_pipeline_request updated in file")
 
     def clear_command(self):
         """Sets the 'command' and 'text' keys to null in the state file."""
@@ -47,12 +63,20 @@ class StateManager:
 
     def clear_specific_requests(self, keys_to_clear: list):
         """Sets the specified keys to null in the state file."""
+        # DEBUG: Track FLUX pipeline request clearing
+        if "flux_pipeline_request" in keys_to_clear:
+            print(f"🧹 STATE MANAGER: Clearing flux_pipeline_request (along with {keys_to_clear})")
+        
         state = self.get_state()
         for key in keys_to_clear:
             if key in state:
                 state[key] = None
         with open(self.state_file_path, 'w') as f:
             json.dump(state, f, indent=4)
+            
+        # DEBUG: Confirm FLUX pipeline request was cleared
+        if "flux_pipeline_request" in keys_to_clear:
+            print(f"✅ STATE MANAGER: flux_pipeline_request cleared from file")
 
     def clear_all_requests(self):
         """

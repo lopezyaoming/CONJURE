@@ -129,7 +129,11 @@ class ConjureApp:
             self._monitor_backend_agent_activity(state_data)
         
         # Check for FLUX pipeline request first (highest priority)
-        if state_data.get("flux_pipeline_request") == "new":
+        flux_request = state_data.get("flux_pipeline_request")
+        if flux_request is not None:
+            print(f"🔍 MAIN LOOP: flux_pipeline_request = '{flux_request}'")
+        
+        if flux_request == "new":
             print("🚀 DEBUG: FLUX pipeline request detected!")
             self.handle_flux_pipeline_request(state_data)
             self.state_manager.clear_specific_requests(["flux_pipeline_request"])

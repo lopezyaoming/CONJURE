@@ -584,6 +584,13 @@ class ConjureFingertipOperator(bpy.types.Operator):
         bpy.ops.object.select_all(action='DESELECT')
         new_obj.select_set(True)
         bpy.context.view_layer.objects.active = new_obj
+        
+        # --- 4.5. Ensure Visibility for GestureCamera Rendering ---
+        print("DEBUG: Setting visibility for GestureCamera rendering...")
+        new_obj.hide_viewport = False  # Visible in viewport
+        new_obj.hide_render = False    # Visible in renders (KEY FIX!)
+        new_obj.hide_select = False    # Selectable
+        print("✅ Mesh is now visible for GestureCamera rendering")
 
         # --- 5. Recalculate Initial Volume for Deformation ---
         self._initial_volume = self.get_mesh_volume(new_obj)

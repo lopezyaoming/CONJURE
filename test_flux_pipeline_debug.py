@@ -178,19 +178,19 @@ def trigger_flux_pipeline():
     except (FileNotFoundError, json.JSONDecodeError):
         state_data = {}
     
-    # Set FLUX pipeline request
-    state_data.update({
-        "flux_pipeline_request": "new",
-        "flux_prompt": "A futuristic robotic sculpture with smooth curves and metallic surfaces",
-        "flux_seed": 42,
-        "min_volume_threshold": 0.001
-    })
+    # DISABLED: Set FLUX pipeline request (was overriding user prompts)
+    # state_data.update({
+    #     "flux_pipeline_request": "new", 
+    #     "flux_prompt": "A futuristic robotic sculpture with smooth curves and metallic surfaces",
+    #     "flux_seed": 42,
+    #     "min_volume_threshold": 0.001
+    # })
     
     with open(state_file, 'w') as f:
         json.dump(state_data, f, indent=2)
     
-    print("✅ FLUX pipeline request set in state.json")
-    print("   Watch the main launcher console for debug messages")
+    print("❌ FLUX pipeline test DISABLED to prevent overriding user prompts")
+    print("   User prompts should now work correctly")
     
     # Wait and check for status updates
     for i in range(30):  # Wait up to 30 seconds for the request to be picked up
