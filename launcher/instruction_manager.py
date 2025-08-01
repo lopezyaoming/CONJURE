@@ -1,3 +1,6 @@
+import hashlib
+import json
+import time
 from state_manager import StateManager
 
 class InstructionManager:
@@ -7,6 +10,8 @@ class InstructionManager:
     """
     def __init__(self, state_manager: StateManager):
         self.state_manager = state_manager
+        self._executed_instructions = {}  # Hash -> timestamp for deduplication
+        self._instruction_timeout = 15  # seconds before allowing re-execution
         self.tool_map = {
             "spawn_primitive": self.spawn_primitive,
             # "generate_concepts": self.generate_concepts,  # COMMENTED OUT - Advanced operation not used
@@ -24,12 +29,46 @@ class InstructionManager:
             # "mesh_import": self.mesh_import,  # COMMENTED OUT - Advanced operation not used
         }
 
+    def _generate_instruction_hash(self, instruction: dict):
+        """Generate a unique hash for an instruction to prevent duplicates."""
+        # Create a deterministic hash based on tool name and parameters
+        instruction_str = json.dumps(instruction, sort_keys=True)
+        return hashlib.md5(instruction_str.encode()).hexdigest()
+    
+    def _is_duplicate_instruction(self, instruction: dict):
+        """Check if this instruction was recently executed to prevent duplicates."""
+        instruction_hash = self._generate_instruction_hash(instruction)
+        current_time = time.time()
+        
+        # Clean up old entries first
+        expired_hashes = [
+            h for h, timestamp in self._executed_instructions.items()
+            if current_time - timestamp > self._instruction_timeout
+        ]
+        for h in expired_hashes:
+            del self._executed_instructions[h]
+        
+        # Check if this instruction was recently executed
+        if instruction_hash in self._executed_instructions:
+            time_since_execution = current_time - self._executed_instructions[instruction_hash]
+            print(f"🚫 DUPLICATE INSTRUCTION: {instruction.get('tool_name')} was executed {time_since_execution:.1f}s ago")
+            return True
+        
+        # Mark this instruction as executed
+        self._executed_instructions[instruction_hash] = current_time
+        return False
+
     def execute_instruction(self, instruction: dict):
         """
         Public method to execute a given instruction.
         """
         if not instruction or "tool_name" not in instruction:
             # This can happen if the agent just wants to talk
+            return
+
+        # Check for duplicate instructions
+        if self._is_duplicate_instruction(instruction):
+            print(f"⏭️ Skipping duplicate instruction: {instruction.get('tool_name')}")
             return
 
         tool_name = instruction.get("tool_name")

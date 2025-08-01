@@ -1,1 +1,1 @@
-A simple 3D sphere model on a gray background.
+A simple white cube floating in a neutral studio background with soft lighting.

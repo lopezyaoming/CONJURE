@@ -4,6 +4,8 @@ Manages the event loop and state transitions.
 """
 
 import json
+import time
+import threading
 from pathlib import Path
 
 class StateManager:
@@ -11,17 +13,52 @@ class StateManager:
     def __init__(self, state_file='data/input/state.json'):
         self.state_file_path = Path(state_file)
         self.state_file_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()  # Thread-safe locking for state file operations
+        
         if not self.state_file_path.exists():
-            with open(self.state_file_path, 'w') as f:
-                json.dump({}, f)
+            self._write_state_safely({})
+
+    def _write_state_safely(self, state_data, max_retries=3):
+        """Thread-safe write with retry mechanism to prevent corruption."""
+        with self._lock:
+            for attempt in range(max_retries):
+                try:
+                    # Write to temporary file first, then atomically rename
+                    temp_file = self.state_file_path.with_suffix('.tmp')
+                    with open(temp_file, 'w') as f:
+                        json.dump(state_data, f, indent=4)
+                    
+                    # Atomically replace the original file
+                    temp_file.replace(self.state_file_path)
+                    return
+                except Exception as e:
+                    print(f"🚨 STATE MANAGER: Write attempt {attempt + 1} failed: {e}")
+                    if attempt == max_retries - 1:
+                        print(f"❌ STATE MANAGER: Failed to write state after {max_retries} attempts")
+                        raise
+                    time.sleep(0.1)  # Brief delay before retry
+
+    def _read_state_safely(self):
+        """Thread-safe read with JSON validation and recovery."""
+        with self._lock:
+            try:
+                with open(self.state_file_path, 'r') as f:
+                    data = json.load(f)
+                return data
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"🚨 STATE MANAGER: State file corrupted or missing: {e}")
+                print("🔧 STATE MANAGER: Resetting to clean state...")
+                clean_state = {
+                    "app_status": "initializing",
+                    "hand_tracker_status": "stopped", 
+                    "blender_status": "stopped"
+                }
+                self._write_state_safely(clean_state)
+                return clean_state
 
     def get_state(self):
         """Loads the state from the JSON file, or creates it if it doesn't exist."""
-        try:
-            with open(self.state_file_path, 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+        return self._read_state_safely()
 
     def set_state(self, key, value):
         """Sets a value in the state and immediately saves it to disk."""
@@ -31,8 +68,7 @@ class StateManager:
         
         state = self.get_state()
         state[key] = value
-        with open(self.state_file_path, 'w') as f:
-            json.dump(state, f, indent=4)
+        self._write_state_safely(state)
             
         # DEBUG: Confirm FLUX pipeline request was written
         if key == "flux_pipeline_request":
@@ -56,8 +92,7 @@ class StateManager:
         if "command" in data_to_update and data_to_update["command"] == "import_and_process_mesh":
             print(f"🚨 STATE MANAGER: About to write state with command = '{state.get('command')}'")
         
-        with open(self.state_file_path, 'w') as f:
-            json.dump(state, f, indent=4)
+        self._write_state_safely(state)
             
         # DEBUG: Confirm FLUX pipeline request was written
         if "flux_pipeline_request" in data_to_update:
@@ -68,8 +103,7 @@ class StateManager:
             print(f"🚨 STATE MANAGER: import_and_process_mesh command WRITTEN to file!")
             # Immediately read back to verify
             try:
-                with open(self.state_file_path, 'r') as f:
-                    verify_state = json.load(f)
+                verify_state = self.get_state()  # Use safe read method
                 print(f"🚨 STATE MANAGER: Verification read: command = '{verify_state.get('command')}'")
             except Exception as e:
                 print(f"❌ STATE MANAGER: Failed to verify write: {e}")
@@ -86,8 +120,7 @@ class StateManager:
         
         state['command'] = None
         state['text'] = None
-        with open(self.state_file_path, 'w') as f:
-            json.dump(state, f, indent=4)
+        self._write_state_safely(state)
 
     def clear_specific_requests(self, keys_to_clear: list):
         """Sets the specified keys to null in the state file."""
@@ -108,8 +141,7 @@ class StateManager:
         for key in keys_to_clear:
             if key in state:
                 state[key] = None
-        with open(self.state_file_path, 'w') as f:
-            json.dump(state, f, indent=4)
+        self._write_state_safely(state)
             
         # DEBUG: Confirm FLUX pipeline request was cleared
         if "flux_pipeline_request" in keys_to_clear:
@@ -150,8 +182,7 @@ class StateManager:
         state["hand_tracker_status"] = "stopped"
         state["blender_status"] = "stopped"
         
-        with open(self.state_file_path, 'w') as f:
-            json.dump(state, f, indent=4)
+        self._write_state_safely(state)
             
         if cleared_keys:
             print(f"✅ Cleared leftover requests: {', '.join(cleared_keys)}")
@@ -185,7 +216,6 @@ class StateManager:
             "min_volume_threshold": None
         }
         
-        with open(self.state_file_path, 'w') as f:
-            json.dump(clean_state, f, indent=4)
+        self._write_state_safely(clean_state)
             
         print("✅ State reset to clean initial values") 

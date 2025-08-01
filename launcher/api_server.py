@@ -12,6 +12,9 @@ import asyncio
 import os
 import tempfile
 import shutil
+import json
+import hashlib
+import time
 from pathlib import Path
 from gradio_client import Client, handle_file
 
@@ -198,6 +201,36 @@ async def execute_instruction(request: InstructionRequest):
     try:
         tool_name = request.instruction.get("tool_name", "unknown")
         print(f"🔧 API received instruction: {tool_name}")
+        
+        # Add API-level deduplication to prevent duplicate calls to the same instruction
+        instruction_str = json.dumps(request.instruction, sort_keys=True)
+        instruction_hash = hashlib.md5(instruction_str.encode()).hexdigest()
+        
+        if not hasattr(execute_instruction, '_processed_instructions'):
+            execute_instruction._processed_instructions = {}
+        
+        current_time = time.time()
+        
+        # Clean up old entries (older than 30 seconds)
+        expired_hashes = [
+            h for h, timestamp in execute_instruction._processed_instructions.items()
+            if current_time - timestamp > 30
+        ]
+        for h in expired_hashes:
+            del execute_instruction._processed_instructions[h]
+        
+        # Check for duplicates
+        if instruction_hash in execute_instruction._processed_instructions:
+            time_since = current_time - execute_instruction._processed_instructions[instruction_hash]
+            print(f"🚫 API: Duplicate instruction {tool_name} blocked (executed {time_since:.1f}s ago)")
+            return APIResponse(
+                success=True,
+                message=f"Instruction {tool_name} already processed recently",
+                data={"instruction": request.instruction, "duplicate_blocked": True}
+            )
+        
+        # Mark as processed
+        execute_instruction._processed_instructions[instruction_hash] = current_time
         
         # Call existing instruction manager method (NO CHANGES to instruction_manager.py)
         instruction_manager.execute_instruction(request.instruction)

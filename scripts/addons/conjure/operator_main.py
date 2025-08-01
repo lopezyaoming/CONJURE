@@ -608,16 +608,33 @@ class ConjureFingertipOperator(bpy.types.Operator):
             with open(state_file_path, 'r') as f:
                 state_data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"🔍 DEBUG: check_for_state_commands - Failed to read state file: {e}")
-            return  # File not found or invalid JSON, nothing to do
+            # 🚨 IMPROVED ERROR HANDLING: Don't spam console with errors
+            # Only log once per session to avoid console spam
+            if not hasattr(self, '_logged_state_error'):
+                print(f"🔧 BLENDER: State file issue detected: {e}")
+                print("🔧 BLENDER: Waiting for launcher to recover state file...")
+                self._logged_state_error = True
+            return  # File corrupted or missing, wait for launcher to fix it
         
         command = state_data.get("command")
         
-        # Debug mesh import issues: Check if import_and_process_mesh is in ANY field
+        # PRIORITY CHECK: Handle import_and_process_mesh with highest priority
         if "import_and_process_mesh" in str(state_data):
             print(f"🔍 URGENT: import_and_process_mesh found SOMEWHERE in state file!")
             print(f"🔍 URGENT: Full state data: {state_data}")
             print(f"🔍 URGENT: Exact command value: '{command}' (type: {type(command)})")
+            
+            # Force processing if command is not exactly matching
+            if command != "import_and_process_mesh":
+                print(f"🚨 BLENDER: Forcing import_and_process_mesh execution despite command mismatch!")
+                command = "import_and_process_mesh"
+        
+        # PRIORITY PROCESSING: Handle import commands immediately, skip other checks
+        if command == "import_and_process_mesh":
+            print(f"🚨 BLENDER: PRIORITY - Processing import_and_process_mesh immediately!")
+            import time
+            print(f"🕐 BLENDER: Current time: {time.time()}")
+            # Jump directly to import processing (defined below)
         
         # Only log when there's actually a command (reduce console spam)
         if command:
@@ -652,6 +669,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
             elif command == "import_and_process_mesh":
                 # Import and process PartPacker results
                 print(f"🎯 BLENDER: Processing import_and_process_mesh command...")
+                print(f"🎯 BLENDER: State data: {state_data}")
                 
                 # Check if operator exists before calling
                 try:
@@ -663,18 +681,35 @@ class ConjureFingertipOperator(bpy.types.Operator):
                         print(f"🔍 BLENDER: Available conjure operators: {dir(bpy.ops.conjure)}")
                     
                     print(f"🔧 BLENDER: About to call bpy.ops.conjure.import_and_process_mesh()")
-                    bpy.ops.conjure.import_and_process_mesh()
-                    print(f"✅ BLENDER: import_and_process_mesh completed successfully")
+                    result = bpy.ops.conjure.import_and_process_mesh()
+                    print(f"✅ BLENDER: import_and_process_mesh completed with result: {result}")
                 except Exception as e:
                     print(f"❌ BLENDER: Error executing import_and_process_mesh: {e}")
                     import traceback
                     print(f"🔍 BLENDER: Full traceback:\n{traceback.format_exc()}")
                 
-                # Clear the command
+                # Clear the command using safe StateManager method
                 print(f"🧹 BLENDER: Clearing import_and_process_mesh command from state file")
-                state_data["command"] = None
-                with open(state_file_path, 'w') as f:
-                    json.dump(state_data, f, indent=4)
+                try:
+                    # Use safer file operations with the same locking mechanism  
+                    from pathlib import Path
+                    import tempfile
+                    
+                    # Use temp file approach similar to StateManager
+                    temp_file = Path(state_file_path).with_suffix('.tmp')
+                    state_data["command"] = None
+                    
+                    with open(temp_file, 'w') as f:
+                        json.dump(state_data, f, indent=4)
+                    temp_file.replace(state_file_path)
+                    print(f"✅ BLENDER: Command cleared safely")
+                    
+                except Exception as clear_error:
+                    print(f"❌ BLENDER: Error clearing command: {clear_error}")
+                    # Fallback to direct write
+                    state_data["command"] = None
+                    with open(state_file_path, 'w') as f:
+                        json.dump(state_data, f, indent=4)
             
             elif command == "fuse_mesh":
                 # Boolean union all segments
