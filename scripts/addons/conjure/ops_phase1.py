@@ -64,67 +64,103 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
     def execute(self, context):
         print("📦 Starting mesh import and processing...")
         
-        # Check if we have a mesh path in state
+        # Wrap entire execution in try-catch to prevent crashes
         try:
-            with open(config.STATE_JSON_PATH, 'r') as f:
-                state_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            self.report({'ERROR'}, "Could not read state file")
-            return {'CANCELLED'}
-        
-        mesh_path = state_data.get("mesh_path")
-        if not mesh_path:
-            self.report({'ERROR'}, "No mesh path specified")
-            return {'CANCELLED'}
-        
-        full_path = Path(mesh_path)
-        if not full_path.exists():
-            self.report({'ERROR'}, f"Mesh file not found: {mesh_path}")
-            return {'CANCELLED'}
-        
-        print(f"📦 Importing mesh from: {full_path}")
-        
-        # Create placeholder "Mesh" empty to prevent console errors
-        self.create_placeholder_mesh()
-        
-        # Clear existing imported meshes (but keep Mesh placeholder)
-        self.clear_existing_segments()
-        
-        # Import the GLB file
-        try:
-            bpy.ops.import_scene.gltf(filepath=str(full_path))
-            print("✅ GLTF import completed")
+            # Check if we have a mesh path in state
+            try:
+                with open(config.STATE_JSON_PATH, 'r') as f:
+                    state_data = json.load(f)
+                print("✅ State file read successfully")
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"❌ Could not read state file: {e}")
+                self.report({'ERROR'}, "Could not read state file")
+                return {'CANCELLED'}
+            
+            mesh_path = state_data.get("mesh_path")
+            if not mesh_path:
+                print("❌ No mesh path specified in state")
+                self.report({'ERROR'}, "No mesh path specified")
+                return {'CANCELLED'}
+            
+            full_path = Path(mesh_path)
+            if not full_path.exists():
+                print(f"❌ Mesh file not found: {mesh_path}")
+                self.report({'ERROR'}, f"Mesh file not found: {mesh_path}")
+                return {'CANCELLED'}
+            
+            print(f"📦 Importing mesh from: {full_path}")
+            print(f"📊 File size: {full_path.stat().st_size / 1024:.1f} KB")
+            
+            # Create placeholder "Mesh" empty to prevent console errors
+            print("📍 Creating placeholder mesh...")
+            self.create_placeholder_mesh()
+            
+            # Clear existing imported meshes (but keep Mesh placeholder)
+            print("🗑️ Clearing existing segments...")
+            self.clear_existing_segments()
+            
+            # Import the GLB file with detailed error catching
+            print("📥 Starting GLB import...")
+            try:
+                bpy.ops.import_scene.gltf(filepath=str(full_path))
+                print("✅ GLTF import completed")
+            except Exception as e:
+                print(f"❌ GLB import failed: {e}")
+                import traceback
+                print(f"🔍 Full error: {traceback.format_exc()}")
+                self.report({'ERROR'}, f"Failed to import GLB: {e}")
+                return {'CANCELLED'}
+            
+            # Process imported meshes
+            print("🔍 Getting imported meshes...")
+            mesh_objects = self.get_imported_meshes()
+            print(f"📊 Found {len(mesh_objects)} imported mesh objects")
+            
+            if not mesh_objects:
+                print("❌ No valid meshes found after import")
+                # List all objects for debugging
+                all_objects = [obj.name for obj in bpy.data.objects]
+                print(f"🔍 All objects in scene: {all_objects}")
+                self.report({'ERROR'}, "No valid meshes found after import")
+                return {'CANCELLED'}
+            
+            # Filter by volume and rename
+            print("🔍 Filtering meshes by volume...")
+            min_volume_threshold = state_data.get("min_volume_threshold", 0.001)
+            print(f"📊 Volume threshold: {min_volume_threshold}")
+            
+            valid_meshes = self.filter_and_rename_meshes(mesh_objects, min_volume_threshold)
+            print(f"📊 {len(valid_meshes)} meshes survived volume filtering")
+            
+            if not valid_meshes:
+                print("❌ No meshes survived volume filtering")
+                self.report({'ERROR'}, "No meshes survived volume filtering")
+                return {'CANCELLED'}
+            
+            # Center all meshes at origin
+            print("📍 Centering meshes at origin...")
+            self.center_meshes_at_origin(valid_meshes)
+            
+            print(f"✅ Successfully imported and processed {len(valid_meshes)} mesh segments")
+            
+            # Setup materials and apply default material to all segments
+            print("🎨 Setting up materials...")
+            self.setup_selection_materials()
+            self.apply_default_materials_to_segments(valid_meshes)
+            
+            # Enter segment selection mode automatically
+            print("🎯 Entering selection mode...")
+            self.enter_selection_mode()
+            
+            print("🎉 Mesh import and processing completed successfully!")
+            return {'FINISHED'}
+            
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to import GLB: {e}")
+            print(f"💥 CRITICAL ERROR in mesh import: {e}")
+            import traceback
+            print(f"🔍 Full error traceback:\n{traceback.format_exc()}")
+            self.report({'ERROR'}, f"Critical error during import: {e}")
             return {'CANCELLED'}
-        
-        # Process imported meshes
-        mesh_objects = self.get_imported_meshes()
-        if not mesh_objects:
-            self.report({'ERROR'}, "No valid meshes found after import")
-            return {'CANCELLED'}
-        
-        # Filter by volume and rename
-        min_volume_threshold = state_data.get("min_volume_threshold", 0.001)
-        valid_meshes = self.filter_and_rename_meshes(mesh_objects, min_volume_threshold)
-        
-        if not valid_meshes:
-            self.report({'ERROR'}, "No meshes survived volume filtering")
-            return {'CANCELLED'}
-        
-        # Center all meshes at origin
-        self.center_meshes_at_origin(valid_meshes)
-        
-        print(f"✅ Successfully imported and processed {len(valid_meshes)} mesh segments")
-        
-        # Setup materials and apply default material to all segments
-        self.setup_selection_materials()
-        self.apply_default_materials_to_segments(valid_meshes)
-        
-        # Enter segment selection mode automatically
-        self.enter_selection_mode()
-        
-        return {'FINISHED'}
     
     def setup_selection_materials(self):
         """Get existing materials for default and selected states"""
@@ -288,30 +324,49 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
     def center_meshes_at_origin(self, mesh_objects):
         """Center all mesh objects at the origin"""
         if not mesh_objects:
+            print("⚠️ No mesh objects to center")
             return
         
-        # Calculate the combined bounding box of all meshes
-        min_bound = mathutils.Vector((float('inf'), float('inf'), float('inf')))
-        max_bound = mathutils.Vector((float('-inf'), float('-inf'), float('-inf')))
-        
-        for obj in mesh_objects:
-            for vertex in obj.bound_box:
-                world_vertex = obj.matrix_world @ mathutils.Vector(vertex)
-                min_bound.x = min(min_bound.x, world_vertex.x)
-                min_bound.y = min(min_bound.y, world_vertex.y)
-                min_bound.z = min(min_bound.z, world_vertex.z)
-                max_bound.x = max(max_bound.x, world_vertex.x)
-                max_bound.y = max(max_bound.y, world_vertex.y)
-                max_bound.z = max(max_bound.z, world_vertex.z)
-        
-        # Calculate center offset
-        center_offset = (min_bound + max_bound) / 2
-        
-        # Move all meshes to center them at origin
-        for obj in mesh_objects:
-            obj.location -= center_offset
-        
-        print(f"📍 Centered {len(mesh_objects)} meshes at origin (offset: {center_offset})")
+        try:
+            print(f"📍 Centering {len(mesh_objects)} meshes...")
+            
+            # Calculate the combined bounding box of all meshes
+            min_bound = mathutils.Vector((float('inf'), float('inf'), float('inf')))
+            max_bound = mathutils.Vector((float('-inf'), float('-inf'), float('-inf')))
+            
+            for i, obj in enumerate(mesh_objects):
+                print(f"🔍 Processing mesh {i+1}: {obj.name}")
+                try:
+                    for vertex in obj.bound_box:
+                        world_vertex = obj.matrix_world @ mathutils.Vector(vertex)
+                        min_bound.x = min(min_bound.x, world_vertex.x)
+                        min_bound.y = min(min_bound.y, world_vertex.y)
+                        min_bound.z = min(min_bound.z, world_vertex.z)
+                        max_bound.x = max(max_bound.x, world_vertex.x)
+                        max_bound.y = max(max_bound.y, world_vertex.y)
+                        max_bound.z = max(max_bound.z, world_vertex.z)
+                except Exception as e:
+                    print(f"❌ Error processing mesh {obj.name}: {e}")
+                    continue
+            
+            # Calculate center offset
+            center_offset = (min_bound + max_bound) / 2
+            print(f"📊 Calculated center offset: {center_offset}")
+            
+            # Move all meshes to center them at origin
+            for obj in mesh_objects:
+                try:
+                    obj.location -= center_offset
+                    print(f"✅ Centered mesh: {obj.name}")
+                except Exception as e:
+                    print(f"❌ Error centering mesh {obj.name}: {e}")
+            
+            print(f"📍 Successfully centered {len(mesh_objects)} meshes at origin (offset: {center_offset})")
+            
+        except Exception as e:
+            print(f"❌ Error in center_meshes_at_origin: {e}")
+            import traceback
+            print(f"🔍 Traceback: {traceback.format_exc()}")
 
 class CONJURE_OT_fuse_mesh(bpy.types.Operator):
     """Boolean union all mesh segments into a single 'Mesh' object"""

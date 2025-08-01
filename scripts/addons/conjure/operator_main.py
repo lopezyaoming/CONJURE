@@ -607,10 +607,19 @@ class ConjureFingertipOperator(bpy.types.Operator):
         try:
             with open(state_file_path, 'r') as f:
                 state_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"🔍 DEBUG: check_for_state_commands - Failed to read state file: {e}")
             return  # File not found or invalid JSON, nothing to do
         
         command = state_data.get("command")
+        
+        # Debug mesh import issues: Check if import_and_process_mesh is in ANY field
+        if "import_and_process_mesh" in str(state_data):
+            print(f"🔍 URGENT: import_and_process_mesh found SOMEWHERE in state file!")
+            print(f"🔍 URGENT: Full state data: {state_data}")
+            print(f"🔍 URGENT: Exact command value: '{command}' (type: {type(command)})")
+        
+        # Only log when there's actually a command (reduce console spam)
         if command:
             print(f"🎯 BLENDER: Detected command from state file: {command}")
             
@@ -642,8 +651,27 @@ class ConjureFingertipOperator(bpy.types.Operator):
             
             elif command == "import_and_process_mesh":
                 # Import and process PartPacker results
-                bpy.ops.conjure.import_and_process_mesh()
+                print(f"🎯 BLENDER: Processing import_and_process_mesh command...")
+                
+                # Check if operator exists before calling
+                try:
+                    # Check if the operator is registered
+                    if hasattr(bpy.ops.conjure, 'import_and_process_mesh'):
+                        print(f"✅ BLENDER: import_and_process_mesh operator is registered")
+                    else:
+                        print(f"❌ BLENDER: import_and_process_mesh operator NOT REGISTERED!")
+                        print(f"🔍 BLENDER: Available conjure operators: {dir(bpy.ops.conjure)}")
+                    
+                    print(f"🔧 BLENDER: About to call bpy.ops.conjure.import_and_process_mesh()")
+                    bpy.ops.conjure.import_and_process_mesh()
+                    print(f"✅ BLENDER: import_and_process_mesh completed successfully")
+                except Exception as e:
+                    print(f"❌ BLENDER: Error executing import_and_process_mesh: {e}")
+                    import traceback
+                    print(f"🔍 BLENDER: Full traceback:\n{traceback.format_exc()}")
+                
                 # Clear the command
+                print(f"🧹 BLENDER: Clearing import_and_process_mesh command from state file")
                 state_data["command"] = None
                 with open(state_file_path, 'w') as f:
                     json.dump(state_data, f, indent=4)
@@ -732,13 +760,18 @@ class ConjureFingertipOperator(bpy.types.Operator):
         # Step 3: Set state to trigger the API pipeline
         # The main launcher will detect this and handle the API calls
         print("🔄 Step 3: Triggering API pipeline...")
-        # Update state file with flux pipeline request
+        
+        # DEBUG: Read current state before update
         try:
             with open(config.STATE_JSON_PATH, 'r') as f:
                 current_state = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+            print(f"🔍 BLENDER: Read state file, current flux_pipeline_request = '{current_state.get('flux_pipeline_request', 'missing')}'")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"🔍 BLENDER: Error reading state file: {e}")
             current_state = {}
         
+        # Update state file with flux pipeline request
+        print(f"🔧 BLENDER: Writing flux_pipeline_request = 'new' to state file...")
         current_state.update({
             "flux_pipeline_request": "new",
             "flux_prompt": prompt,
@@ -748,6 +781,22 @@ class ConjureFingertipOperator(bpy.types.Operator):
         
         with open(config.STATE_JSON_PATH, 'w') as f:
             json.dump(current_state, f, indent=4)
+        
+        # DEBUG: Verify the write was successful
+        try:
+            with open(config.STATE_JSON_PATH, 'r') as f:
+                verify_state = json.load(f)
+            written_value = verify_state.get('flux_pipeline_request', 'missing')
+            print(f"✅ BLENDER: Verified write - flux_pipeline_request = '{written_value}'")
+            if written_value != "new":
+                print(f"❌ BLENDER: Write verification FAILED! Expected 'new', got '{written_value}'")
+            else:
+                print(f"⏳ BLENDER: Waiting 1 second for main launcher to detect...")
+                import time
+                time.sleep(1.0)  # Give main launcher time to detect the change
+                print(f"🔍 BLENDER: Step 3 completed - main launcher should have detected the request")
+        except Exception as e:
+            print(f"❌ BLENDER: Failed to verify write: {e}")
     
     def save_prompt_to_file(self, prompt):
         """Save the prompt to userPrompt.txt for the generation pipeline"""

@@ -44,18 +44,46 @@ class StateManager:
         if "flux_pipeline_request" in data_to_update:
             print(f"🔧 STATE MANAGER: Updating flux_pipeline_request = {data_to_update['flux_pipeline_request']}")
         
+        # DEBUG: Track import_and_process_mesh command specifically
+        if "command" in data_to_update and data_to_update["command"] == "import_and_process_mesh":
+            print(f"🚨 STATE MANAGER: Writing CRITICAL command = import_and_process_mesh")
+            print(f"🚨 STATE MANAGER: Full update data: {data_to_update}")
+        
         state = self.get_state()
         state.update(data_to_update)
+        
+        # DEBUG: Show what we're about to write for import command
+        if "command" in data_to_update and data_to_update["command"] == "import_and_process_mesh":
+            print(f"🚨 STATE MANAGER: About to write state with command = '{state.get('command')}'")
+        
         with open(self.state_file_path, 'w') as f:
             json.dump(state, f, indent=4)
             
         # DEBUG: Confirm FLUX pipeline request was written
         if "flux_pipeline_request" in data_to_update:
             print(f"✅ STATE MANAGER: flux_pipeline_request updated in file")
+            
+        # DEBUG: Confirm import command was written
+        if "command" in data_to_update and data_to_update["command"] == "import_and_process_mesh":
+            print(f"🚨 STATE MANAGER: import_and_process_mesh command WRITTEN to file!")
+            # Immediately read back to verify
+            try:
+                with open(self.state_file_path, 'r') as f:
+                    verify_state = json.load(f)
+                print(f"🚨 STATE MANAGER: Verification read: command = '{verify_state.get('command')}'")
+            except Exception as e:
+                print(f"❌ STATE MANAGER: Failed to verify write: {e}")
 
     def clear_command(self):
         """Sets the 'command' and 'text' keys to null in the state file."""
         state = self.get_state()
+        
+        # DEBUG: Track when import command gets cleared
+        if state.get('command') == 'import_and_process_mesh':
+            print(f"🚨 STATE MANAGER: CLEARING import_and_process_mesh command!")
+            import traceback
+            print(f"🚨 STATE MANAGER: Clear called from:\n{traceback.format_stack()}")
+        
         state['command'] = None
         state['text'] = None
         with open(self.state_file_path, 'w') as f:
@@ -66,6 +94,15 @@ class StateManager:
         # DEBUG: Track FLUX pipeline request clearing
         if "flux_pipeline_request" in keys_to_clear:
             print(f"🧹 STATE MANAGER: Clearing flux_pipeline_request (along with {keys_to_clear})")
+            
+        # DEBUG: Track import command clearing
+        if "command" in keys_to_clear:
+            state = self.get_state()
+            if state.get('command') == 'import_and_process_mesh':
+                print(f"🚨 STATE MANAGER: CLEARING import_and_process_mesh via clear_specific_requests!")
+                print(f"🚨 STATE MANAGER: Keys being cleared: {keys_to_clear}")
+                import traceback
+                print(f"🚨 STATE MANAGER: Clear called from:\n{traceback.format_stack()}")
         
         state = self.get_state()
         for key in keys_to_clear:

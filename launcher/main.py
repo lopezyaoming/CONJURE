@@ -130,8 +130,14 @@ class ConjureApp:
         
         # Check for FLUX pipeline request first (highest priority)
         flux_request = state_data.get("flux_pipeline_request")
-        if flux_request is not None:
-            print(f"🔍 MAIN LOOP: flux_pipeline_request = '{flux_request}'")
+        
+        # DEBUG: Track flux_pipeline_request changes
+        if not hasattr(self, '_last_flux_request'):
+            self._last_flux_request = None
+        
+        if flux_request != self._last_flux_request:
+            print(f"🔄 MAIN LOOP: flux_pipeline_request changed: '{self._last_flux_request}' → '{flux_request}'")
+            self._last_flux_request = flux_request
         
         if flux_request == "new":
             print("🚀 DEBUG: FLUX pipeline request detected!")
