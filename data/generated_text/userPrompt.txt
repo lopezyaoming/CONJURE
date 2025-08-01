@@ -1,1 +1,1 @@
-A minimalistic 3D sphere model with soft lighting on a neutral gray background, showcasing smooth and even shading across the surface.
+Create a smooth, reflective black sphere centered on a neutral gray background. The sphere should appear glossy and polished, with subtle reflections indicating a smooth surface. Ensure the lighting highlights the sphere's curvature and texture, giving it a realistic and three-dimensional appearance.

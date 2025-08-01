@@ -613,11 +613,9 @@ class ConjureFingertipOperator(bpy.types.Operator):
         
         command = state_data.get("command")
         
-        # Debug mesh import issues: Check if import_and_process_mesh is in ANY field
+        # Debug mesh import detection (simplified)
         if "import_and_process_mesh" in str(state_data):
-            print(f"🔍 URGENT: import_and_process_mesh found SOMEWHERE in state file!")
-            print(f"🔍 URGENT: Full state data: {state_data}")
-            print(f"🔍 URGENT: Exact command value: '{command}' (type: {type(command)})")
+            print(f"📦 BLENDER: Mesh import command detected in state file")
         
         # Only log when there's actually a command (reduce console spam)
         if command:

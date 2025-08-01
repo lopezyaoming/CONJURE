@@ -802,7 +802,7 @@ class ConversationalAgent:
                 response = client.post(
                     "http://127.0.0.1:8000/process_conversation",
                     json=payload,
-                    timeout=30.0
+                    timeout=120.0  # Increased from 30s to 120s for OpenAI Vision API calls
                 )
                 
                 print(f"📥 API response status: {response.status_code}")

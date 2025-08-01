@@ -15,7 +15,5 @@
     "primitive_type": null,
     "flux_prompt": null,
     "flux_seed": null,
-    "min_volume_threshold": 0.01,
-    "prompt": "Create a round shield made of either steel or rock, featuring monolithic material with Baroque-like detailing. Include fine tapestry or bas-relief with dragon scenes, battles, knights, and kings. The shield should float on a white background.",
-    "seed": 1337
+    "min_volume_threshold": null
 }

@@ -1,1 +1,1 @@
-A simple 3D sphere model on a gray background.
+A black sphere is centered in a gray background, appearing smooth and reflective.
