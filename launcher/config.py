@@ -5,6 +5,9 @@ Global configuration constants and paths.
 import os
 from pathlib import Path
 
+# Generation Mode Configuration
+GENERATION_MODE = "local"  # Can be "local" or "cloud"
+
 # Base paths
 PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = PROJECT_ROOT / "data"

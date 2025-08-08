@@ -1,0 +1,396 @@
+MAIN API: "RunComfy API Reference
+Introduction
+Sample code (Postman)
+Conventions
+Authorization
+Integration Process
+Request Limits
+Rate Limits
+Pricing
+Introduction
+The reference is your key to a comprehensive understanding of the RunComfy API.
+
+❗
+You need an API key to interact with the RunComfy API. You can find your API key after you signed in to RunComfy (Click the profile icon on the top right)
+Sample code (Postman)
+Click here, https://documenter.getpostman.com/view/5334389/2sAY5191Af#4c3576f2-aef5-4a43-8658-3c70b03540ee
+
+Conventions
+The base URL to send all API requests is https://api.runcomfy.net. Please pay special attention that it is .net instead of .com. HTTPS is required for all API requests.
+
+The RunComfy API follows RESTful conventions when possible, with most operations performed via GET, POST, PATCH, and DELETE requests on resources. Request and response bodies are encoded as JSON.
+
+SUPPORTED ENDPOINTS
+
+HTTP method
+Endpoint
+Jump-to
+GET
+List all workflows
+Link
+GET
+List all running machines
+Link
+GET
+Retrieve machine status
+Link
+POST
+Launch a machine
+Link
+POST
+Change machine running duration
+Link
+DELETE
+Stop a machine
+Link
+Authorization
+RunComfy uses Bearer Token authorization, once you get the token from your user profile, please add the following to your request Headers, such as the curl below,
+
+Copy
+curl --location 'https://api.runcomfy.net/prod/api/users/xxxxx/workflows' \
+--header 'Authorization: Bearer api_token_string'
+Integration Process
+Preparation
+UserID
+Grab your userId from the dashboard url once you signed in.
+image
+Token
+There are two tokens, Token1 and Token2, in the user profile and you can use either one to call RunComfy API. Token2 is for token rotation when you need to refresh Token1.
+image
+(Https request) Send a request to get all workflows in your account and grab the version_id (attn! version_id) of the workflow you want to launch the machine with.
+(Https request) Issue a POST request to launch a machine, please note this request will return right away with a server_id.
+server_type options:
+medium
+large
+extra-large
+2x-large
+2xl-turbo
+estimated_durationis a time span in seconds, for instance, you can set 86400 for one day. You can issue another POST request to change this value after the machine is Ready.
+(Https request) Poll the current machine launching status using the server_id until the status is Ready. You are NOT charged until the machine status is Ready.
+Once the status is Ready, the main_service_url will show up in the response and that url is the ComfyUI url to call queue prompt at.
+You can also connect with websocket(wss) to the main_service_url to get the ComfyUI queue status.
+See a simple guide here for how to work with ComfyUI backend API.
+(Https request) Modify the machine running duration to adjust to your specific running scenario. For instance, if you have two running machines and the request queue to your service is dropping, you might consider shortening the running duration of one of your machines or just stop it right away using the request below.
+(Https request) Stop the machine by calling the DELETE machine API. Once the DELETE request is returned with 200, the machine charge is stopped right away.
+Request Limits
+To ensure a consistent developer experience for all API users, the RunComfy API is rate limited and size limits apply to request parameters.
+
+ Rate Limits
+Rate-limited requests will return a "rate_limited" error code (HTTP response status 429). The rate limit for incoming requests per account is one request per second. Some bursts beyond the average rate are allowed.
+
+❗
+Rate limits may change
+In the future, we plan to adjust rate limits to balance for demand and reliability.
+
+Pricing
+The API pricing model is the same as the on-demand server model, you pay per second by (GPU machine time * the hourly rate) as listed here. You will be charged by the seconds starting from machine status ‘Ready’ till your DELETE machine call returns 200. See how RunComfy charges the machine in the website here.
+
+" sampleCode POSTMAN: :"
+Public
+ENVIRONMENT
+No Environment
+LAYOUT
+Double Column
+LANGUAGE
+cURL - cURL
+RunComfy API
+Introduction
+API
+RunComfy API
+This is for developers of RunComfy, please see the RunComfy integration document here for more details.
+
+GET
+Get Machine Status (By Id)
+https://beta-api.runcomfy.net/prod/api/users/:user/servers/:server
+AUTHORIZATION
+Bearer Token
+Token
+{{token}}
+
+HEADERS
+Accept
+application/json
+
+PATH VARIABLES
+user
+{{userId}}
+
+(Required)
+
+server
+{{serverId}}
+
+(Required)
+
+Example Request
+Get Machine Status (By Id) (Success, Starting)
+curl
+curl --location -g 'https://beta-api.runcomfy.net/prod/api/users/{{userId}}/servers/{{serverId}}' \
+--header 'Accept: application/json'
+200 OK
+Example Response
+Body
+Headers (15)
+json
+{
+  "server_id": "d26d4f31-8696-43ad-ba62-b4f8c268b79a",
+  "estimated_duration": 600,
+  "server_type": "extra-large",
+  "user_id": "xxxxxxx",
+  "main_service_url": null,
+  "current_status": "Starting",
+  "service_ready_at": null,
+  "estimated_stopping_at": null
+}
+POST
+Modify Machine Running Duration
+https://beta-api.runcomfy.net/prod/api/users/:user/servers/:server/update-estimated-duration
+AUTHORIZATION
+Bearer Token
+Token
+{{token}}
+
+HEADERS
+Accept
+application/json
+
+PATH VARIABLES
+user
+{{userId}}
+
+(Required)
+
+server
+{{serverId}}
+
+(Required)
+
+Body
+raw (json)
+json
+{
+  "update_estimated_duration": 400
+}
+Example Request
+Modify Machine Running Duration (Success)
+curl
+curl --location -g 'https://beta-api.runcomfy.net/prod/api/users/{{userId}}/servers/{{serverId}}/update-estimated-duration' \
+--header 'Accept: application/json' \
+--data '{
+  "update_estimated_duration": 400
+}'
+200 OK
+Example Response
+Body
+Headers (15)
+json
+{
+  "server_id": "761af3a7-5ac3-459c-8158-e9cb36a2d87a",
+  "estimated_duration": 400,
+  "server_type": "large",
+  "user_id": "xxxxxx",
+  "main_service_url": "https://761af3a7-5ac3-459c-8158-e9cb36a2d87f-comfyui.runcomfy.com",
+  "current_status": "Ready",
+  "service_ready_at": "2024-11-08T05:13:44.100554Z",
+  "estimated_stopping_at": "2024-11-08T05:20:24.100554Z"
+}
+DELETE
+Stop Machine
+https://beta-api.runcomfy.net/prod/api/users/:user/servers/:server
+AUTHORIZATION
+Bearer Token
+Token
+{{token}}
+
+HEADERS
+Accept
+application/json
+
+PATH VARIABLES
+user
+{{userId}}
+
+(Required)
+
+server
+{{serverId}}
+
+(Required)
+
+Example Request
+Stop Machine (Success, Deleting)
+curl
+curl --location -g --request DELETE 'https://beta-api.runcomfy.net/prod/api/users/{{userId}}/servers/{{serverId}}' \
+--header 'Accept: application/json'
+200 OK
+Example Response
+Body
+Headers (15)
+json
+{
+  "server_id": "d26d4f31-8696-43ad-ba62-b4f8c268b795",
+  "estimated_duration": 600,
+  "server_type": "extra-large",
+  "user_id": "xxxxxxx",
+  "main_service_url": "https://d26d4f31-8696-43ad-ba62-b4f8c268b795-comfyui.runcomfy.com",
+  "current_status": "Deleting",
+  "service_ready_at": "2024-11-08T08:16:44.557732Z",
+  "estimated_stopping_at": "2024-11-08T08:26:44.557732Z"
+}" Running ComfyUI Backend Server from RunComfy: "Working with ComfyUI Backend API
+Get ComfyUI Backend URL
+From RunComfy website in the browser
+The url appears as https://www.runcomfy.com/comfyui/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/servers/yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy.
+The actual ComfyUI URL can be found in here, in a format of https://yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com.
+From RunComfy API
+It is the main_service_url in this response.
+Note: Please use this ComfyUI URL in a trusted environment, DO NOT SHARE IT publicly.
+Activate Development Mode
+Ensure that "Enable Development Mode Options" is activated in the Settings menu.
+
+image
+Download the workflow_api.json file by clicking on the Save (API Format) button.
+
+The following file is AnimateDiff + ControlNet + Auto Mask | Restyle Video, which will be used as an example.
+
+workflow_api.json7.3KB
+Upload Image as Input
+Copy
+import requests
+
+url = "https://yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com/upload/image"
+
+payload = {'overwrite':'true', 'type':'input', 'subfolder':''} # you can safely remove the subfolder field here if you don't need it
+files=[
+  ('image',('zzzz.png',open('/folder_path/zzzz.png','rb'),'application/octet-stream'))
+]
+headers = {}
+
+response = requests.post(url, headers=headers, data=payload, files=files)
+
+print(response.json())
+Upload Video as Input
+Copy
+import requests
+
+url = "https://yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com/upload/image"
+
+payload = {'overwrite':'true', 'type':'input', 'subfolder':''} # you can safely remove the subfolder field here if you don't need it
+files=[
+  ('image',('zzzz.mp4',open('/folder_path/zzzz.mp4','rb'),'application/octet-stream'))
+]
+headers = {}
+
+response = requests.post(url, headers=headers, data=payload, files=files)
+
+print(response.json())
+The response will be something like:
+
+Copy
+{
+    "name": "zzzz.mp4",
+    "subfolder": "",
+    "type": "input"
+}
+The zzzz.mp4 is the file you uploaded via the API in the input folder. Sometimes it may contain suffixes like '(1)' or '(1)(1)' if a file with the same name already exists.
+
+Queue prompt
+Basic HTTP API:
+
+Generate client_id
+Copy
+import uuid
+client_id = str(uuid.uuid4())
+Load workflow_api.json from your local disk and change the input to the file name which you just uploaded in input folder, and also modify the prompt text in the json if you need to.
+Copy
+import json
+
+prompt_data = json.load(open("workflow_api.json"))
+
+prompt_data['89']['inputs']['video'] = 'zzzz.mp4'
+Call the queue prompt api
+Copy
+import requests
+
+url = "https://yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com/prompt"
+
+prompt = {
+    "prompt": prompt_data,
+    "client_id": client_id
+}
+
+headers = {}
+
+response = requests.post(url, headers=headers, json=prompt)
+
+print(response.json())
+
+### response:
+{'prompt_id': '10b3da78-cf5f-4ed7-885d-dccf5f3f3c69', 'number': 0, 'node_errors': {}}
+check status
+Reference to https://github.com/comfyanonymous/ComfyUI/blob/master/script_examples/websockets_api_example.py for more details
+Copy
+import websocket
+import uuid
+
+ws = websocket.WebSocket()
+ws.connect("ws://{}/ws?clientId={}".format('yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com', client_id))
+while True:
+    out = ws.recv()
+    print(out)
+status.txt426.2KB
+Get Result
+Copy
+import requests
+import urllib.parse 
+
+# see the explanation in the next section for the path
+def get_image(filename, subfolder, folder_type):
+    data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
+    url_value = urllib.parse.urlencode(data)
+    url = "https://yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com/view?{}".format(url_value)
+    response = requests.get(url)
+    return response.content
+
+# see the explanation in the next section for the path
+def get_video(filename, subfolder, _format):
+    data = {"filename": filename, "subfolder": subfolder, "format": _format}
+    url_value = urllib.parse.urlencode(data)
+    url = "https://yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com/view?{}".format(url_value)
+    response = requests.get(url)
+    return response.content
+
+prompt_id = '10b3da78-cf5f-4ed7-885d-dccf5f3f3c69' # the response from POST https://comfyui_url/prompt
+
+url = "https://yyyyyyy-yyyy-yyyy-yyyyyyyyyyyy-comfyui.runcomfy.com/history/{}".format(prompt_id)
+
+headers = {}
+
+response = requests.get(url, headers=headers)
+
+data = response.json().get(prompt_id)
+
+video_result = data.get('outputs').get('90').get('gifs')[0]
+raw_video = get_video(video_result.get('filename'), video_result.get('subfolder'), video_result.get('format'))
+
+with open(video_result.get('filename'), 'wb') as f:
+    f.write(raw_video)
+
+# GET ALL MEDIA OUTPUT FROM WORKFLOW
+    
+for node_id, node_output in data.get('outputs').items():
+    if 'images' in node_output:
+        for image in node_output['images']:
+            raw_image = get_image(image.get('filename'), image.get('subfolder'), image.get('temp'))
+            with open(f"./output/{image.get('filename')}", "wb") as f:
+                f.write(raw_image)
+
+    if 'gifs' in node_output:
+        for video in node_output['gifs']:            
+            raw_video = get_video(video.get('filename'), video.get('subfolder'), video.get('format'))
+            with open(f"./output/{video.get('filename')}", "wb") as f:
+                f.write(raw_video)
+        
+    if 'openpose_json' in node_output:
+        pass
+Explanation on the url path
+If you want to get the file from the following path, /ComfyUI/output/subfolder1/subfolder2/test_00001_.png, try GET the following url, https://xxx-comfyui.runcomfy.com/api/view?filename=test_00001_.png&subfolder=subfolder1%2Fsubfolder2&type=output"

@@ -1,0 +1,1320 @@
+{
+  "229": {
+    "inputs": {
+      "ckpt_name": "depth_anything_vitl14.pth",
+      "resolution": 1024
+    },
+    "class_type": "DepthAnythingPreprocessor",
+    "_meta": {
+      "title": "Depth Anything"
+    }
+  },
+  "1182": {
+    "inputs": {
+      "unet_name": "flux1-dev.safetensors",
+      "weight_dtype": "fp8_e4m3fn_fast"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "1183": {
+    "inputs": {
+      "lora_name": "funky.safetensors",
+      "strength_model": 1.0000000000000002,
+      "strength_clip": 1.0000000000000002,
+      "model": [
+        "1182",
+        0
+      ],
+      "clip": [
+        "1184",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "1184": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "1185": {
+    "inputs": {
+      "text": [
+        "1267",
+        0
+      ],
+      "clip": [
+        "1183",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "1186": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "1187": {
+    "inputs": {
+      "noise_seed": 137057998573645
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "1188": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "1189": {
+    "inputs": {
+      "scheduler": "normal",
+      "steps": 20,
+      "denoise": 1,
+      "model": [
+        "1182",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "1190": {
+    "inputs": {
+      "model": [
+        "1183",
+        0
+      ],
+      "conditioning": [
+        "1185",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "1191": {
+    "inputs": {
+      "noise": [
+        "1187",
+        0
+      ],
+      "guider": [
+        "1190",
+        0
+      ],
+      "sampler": [
+        "1188",
+        0
+      ],
+      "sigmas": [
+        "1189",
+        0
+      ],
+      "latent_image": [
+        "1186",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "1192": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "1193": {
+    "inputs": {
+      "samples": [
+        "1191",
+        0
+      ],
+      "vae": [
+        "1192",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "1194": {
+    "inputs": {
+      "rules_1": [
+        "1259",
+        0
+      ],
+      "rules_2": [
+        "1195",
+        0
+      ],
+      "rules_3": [
+        "1196",
+        0
+      ],
+      "rules_4": [
+        "1197",
+        0
+      ],
+      "rules_5": [
+        "1198",
+        0
+      ],
+      "rules_6": [
+        "1199",
+        0
+      ]
+    },
+    "class_type": "Griptape Combine: Rules List",
+    "_meta": {
+      "title": "Griptape Combine: Rules List"
+    }
+  },
+  "1195": {
+    "inputs": {
+      "name": "My rules",
+      "rules": "Camera Settings:\nFocal Length: ~50mm (standard lens) – provides a natural perspective without distortion.\nAperture: f/4 to f/5.6 – moderate depth of field, ensuring the main subjects are in focus while maintaining background clarity.\nShutter Speed: ~1/100s (adjust based on lighting) – ensures sharpness without motion blur.\nISO: ~100-200 – keeps noise minimal in well-lit environments.\nWhite Balance: Neutral – maintains the soft, natural tones of the object and curtain backdrop.\nFocus: Centered on the primary object – sharp on metallic surfaces and rocks."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1196": {
+    "inputs": {
+      "name": "My rules",
+      "rules": "no text on the image."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1197": {
+    "inputs": {
+      "name": "My rules",
+      "rules": "Composition & Framing:\nside view Perspective & top Angle:\n\nThe shot is taken below eye level, ensuring symmetry and balance in the composition.\nThe slight downward angle helps ground the objects while maintaining spatial clarity. Furniture style photography is ideal. \nSubject Positioning:\n\nThe object are positioned following the rule of thirds, with the chair occupying the left and the side table on the right.\nNegative space in the background (curtain and floor) provides breathing room.\nLeading Lines & Balance:\n\nThe vertical lines of the chair and table contrast with the organic shape of the rocks, creating tension and visual interest.\nThe curtain backdrop has subtle vertical folds that add depth without distraction.\nLighting & Shadows:\n\nSoft, diffused lighting (likely natural or from a large softbox) eliminates harsh shadows.\nGentle highlights on the object surfaces create a sense of depth and material contrast."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1198": {
+    "inputs": {
+      "name": "My rules",
+      "rules": "Background & Studio Context Rule Set (Floors & Walls):\nWalls:\nColor: Pure white backgroud for a clean, minimalist look.\nTexture: Smooth and matte to avoid distracting reflections.\nLighting: Evenly diffused to eliminate harsh shadows or gradients.\nHorizon Line: Positioned at a neutral height to maintain balance in composition.\nFloor:\nMaterial: Light gray concrete with a subtle texture.\nFinish: Matte or lightly polished to create soft, natural reflections.\nLighting Effect: Soft shadows cast on the floor, enhancing depth and dimension.\nSeamless Transition: The floor and wall meet in a way that avoids strong horizon lines, ensuring a floating effect for the object."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1199": {
+    "inputs": {
+      "name": "My rules",
+      "rules": "Visual Style Constraints:\n\nThe object must be presented on a neutral white, plain background .\n\nDo not add any visual elements such as color palettes, titles, labels, legends, charts, logos, or explanatory text anywhere in the image.\n\nThe focus must remain solely on the product itself, with no graphic design overlays.\n\nThe product should appear as a clean, isolated render — as it would in a professional product photography setup for manufacturing documentation."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1200": {
+    "inputs": {
+      "rules_1": [
+        "1201",
+        0
+      ],
+      "rules_2": [
+        "1202",
+        0
+      ],
+      "rules_3": [
+        "1203",
+        0
+      ],
+      "rules_4": [
+        "1204",
+        0
+      ],
+      "rules_5": [
+        "1205",
+        0
+      ],
+      "rules_6": [
+        "1206",
+        0
+      ],
+      "rules_7": [
+        "1207",
+        0
+      ],
+      "rules_8": [
+        "1194",
+        0
+      ]
+    },
+    "class_type": "Griptape Combine: Rules List",
+    "_meta": {
+      "title": "Griptape Combine: Rules List"
+    }
+  },
+  "1201": {
+    "inputs": {
+      "name": "Scope of Task",
+      "rules": "Only one single object will be designed.\n\nCentered in frame, clean studio-style composition.\n\nNo design variations, no families, no multi-object outputs."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1202": {
+    "inputs": {
+      "name": "Material Usage Rules",
+      "rules": "Allowed materials:\n\nPrimary:  given material response\n\nSecondary (only for assembly): Screws, glue, nails.\n\nNo other materials are allowed for structure, support, or decoration.\n\nAll visible parts must be made from  given material response.\n\nFrames, bases, supports, or decorative add-ons in other materials are strictly prohibited."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1203": {
+    "inputs": {
+      "name": "Material Behavior Constraints",
+      "rules": "Respect real-world properties of given material :\n\nThickness\n\nRigidity & Flexibility\n\nBend radius limits\n\nSurface texture & finish\n\nStructural strength\n\nScale and available quantity\n\nNo unrealistic deformation \n\nFabrication methods must be plausible (cutting, slotting, gluing, basic fasteners)."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1204": {
+    "inputs": {
+      "name": "Visual Output Rules",
+      "rules": "Strict Visual Purity Rule:\n- Generate only a clean, photorealistic render of the designed object.\n- Absolutely no text, labels, dimensions, annotations, arrows, logos, or branding in the image.\n- Do not add technical diagrams, charts, vectors, or marketing elements.\n- This is not a presentation board, blueprint, or manual.\n- The product must be shown alone, in a plain white backdrop .\n- Do not add inferred usage context, props, or visual guides.\n- Focus purely on the object's form, material behavior, and realism.\nBackground must be plain white with no gradients, no texture, no floor shadow. The object should appear as if photographed in a high-key product photography studio with clean lights and no environment."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1205": {
+    "inputs": {
+      "name": "Physical Realism & Manufacturability",
+      "rules": "Design must be:\n\nRealistic to manufacture\n\nStructurally sound\n\nTrue to material limits\n\nNo creative liberties that would violate real fabrication logic.\n\nObject geometry must reflect actual material behavior."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1206": {
+    "inputs": {
+      "name": "Material Quantity Enforcement",
+      "rules": "The design cannot exceed the predefined material quantity.\n\nAll components must fit within the available sheet size and thickness.\n\nWaste and offcuts are to be minimized, reflecting efficient material usage."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1207": {
+    "inputs": {
+      "name": "Output Deliverable",
+      "rules": "One final photorealistic image of the designed object.\n\nCompliant with all material, visual, and fabrication constraints.\n\nReady-to-manufacture as shown."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1208": {
+    "inputs": {
+      "model_name": "flux-dev-fp8",
+      "controlnet_path": "flux-depth-controlnet.safetensors"
+    },
+    "class_type": "LoadFluxControlNet",
+    "_meta": {
+      "title": "Load Flux ControlNet"
+    }
+  },
+  "1209": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "interpolation": "lanczos",
+      "method": "pad",
+      "condition": "always",
+      "multiple_of": 2,
+      "image": [
+        "1271",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "1210": {
+    "inputs": {
+      "mask": [
+        "1271",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "1211": {
+    "inputs": {
+      "mode": "base",
+      "use_jit": true
+    },
+    "class_type": "TransparentBGSession+",
+    "_meta": {
+      "title": "🔧 InSPyReNet TransparentBG"
+    }
+  },
+  "1212": {
+    "inputs": {
+      "text": "blur,text, non white background, blue",
+      "clip": [
+        "1183",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "1214": {
+    "inputs": {
+      "rules_1": [
+        "1195",
+        0
+      ],
+      "rules_2": [
+        "1196",
+        0
+      ],
+      "rules_3": [
+        "1197",
+        0
+      ],
+      "rules_4": [
+        "1207",
+        0
+      ]
+    },
+    "class_type": "Griptape Combine: Rules List",
+    "_meta": {
+      "title": "Griptape Combine: Rules List"
+    }
+  },
+  "1216": {
+    "inputs": {
+      "key": [
+        "1222",
+        0
+      ],
+      "value": ""
+    },
+    "class_type": "Griptape Create: Key Value Pair",
+    "_meta": {
+      "title": "Griptape Create: Key Value Pair"
+    }
+  },
+  "1217": {
+    "inputs": {
+      "noise": [
+        "1220",
+        0
+      ],
+      "guider": [
+        "1190",
+        0
+      ],
+      "sampler": [
+        "1188",
+        0
+      ],
+      "sigmas": [
+        "1189",
+        0
+      ],
+      "latent_image": [
+        "1186",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "1218": {
+    "inputs": {
+      "samples": [
+        "1217",
+        0
+      ],
+      "vae": [
+        "1192",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "1219": {
+    "inputs": {
+      "noise": [
+        "1221",
+        0
+      ],
+      "guider": [
+        "1190",
+        0
+      ],
+      "sampler": [
+        "1188",
+        0
+      ],
+      "sigmas": [
+        "1189",
+        0
+      ],
+      "latent_image": [
+        "1186",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "1220": {
+    "inputs": {
+      "noise_seed": 756599317243864
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "1221": {
+    "inputs": {
+      "noise_seed": 314615686809091
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "1222": {
+    "inputs": {
+      "file_path": "C:\\Dev\\Format-project\\data\\input\\user2imgs\\userPrompt.txt",
+      "dictionary_name": ""
+    },
+    "class_type": "Load Text File",
+    "_meta": {
+      "title": "USER TEXT PROMPT"
+    }
+  },
+  "1223": {
+    "inputs": {
+      "STRING": "make a badass chair",
+      "INPUT": [
+        "1222",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "1224": {
+    "inputs": {
+      "model_name": "flux-dev-fp8",
+      "controlnet_path": "flux-depth-controlnet.safetensors"
+    },
+    "class_type": "LoadFluxControlNet",
+    "_meta": {
+      "title": "Load Flux ControlNet"
+    }
+  },
+  "1225": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "1226": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "1227": {
+    "inputs": {
+      "scheduler": "normal",
+      "steps": 30,
+      "denoise": 1,
+      "model": [
+        "1230",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "1228": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "1229": {
+    "inputs": {
+      "noise_seed": 223959841445272
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "1230": {
+    "inputs": {
+      "unet_name": "flux1-schnell.safetensors",
+      "weight_dtype": "fp8_e4m3fn_fast"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "1231": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "1232": {
+    "inputs": {
+      "text_input": [
+        "1234",
+        0
+      ],
+      "task": "more_detailed_caption",
+      "fill_mask": true,
+      "keep_model_loaded": false,
+      "max_new_tokens": 1024,
+      "num_beams": 3,
+      "do_sample": true,
+      "output_mask_select": "",
+      "seed": 597991376590224,
+      "image": [
+        "1218",
+        0
+      ],
+      "florence2_model": [
+        "1233",
+        0
+      ]
+    },
+    "class_type": "Florence2Run",
+    "_meta": {
+      "title": "Florence2Run"
+    }
+  },
+  "1233": {
+    "inputs": {
+      "model": "Florence-2-base",
+      "precision": "fp16",
+      "attention": "sdpa",
+      "convert_to_safetensors": false
+    },
+    "class_type": "Florence2ModelLoader",
+    "_meta": {
+      "title": "Florence2ModelLoader"
+    }
+  },
+  "1234": {
+    "inputs": {
+      "string": ""
+    },
+    "class_type": "Simple String",
+    "_meta": {
+      "title": "Simple String"
+    }
+  },
+  "1235": {
+    "inputs": {
+      "lora_name": "funky.safetensors",
+      "strength_model": 1.0000000000000002,
+      "strength_clip": 1.0000000000000002,
+      "model": [
+        "1230",
+        0
+      ],
+      "clip": [
+        "1225",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "1236": {
+    "inputs": {
+      "samples": [
+        "1219",
+        0
+      ],
+      "vae": [
+        "1192",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "1237": {
+    "inputs": {
+      "text": "blur,text, non white background, blue",
+      "clip": [
+        "1235",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "1238": {
+    "inputs": {
+      "text": [
+        "1266",
+        0
+      ],
+      "clip": [
+        "1235",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "1239": {
+    "inputs": {
+      "model": [
+        "1235",
+        0
+      ],
+      "conditioning": [
+        "1238",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "1240": {
+    "inputs": {
+      "noise": [
+        "1229",
+        0
+      ],
+      "guider": [
+        "1239",
+        0
+      ],
+      "sampler": [
+        "1226",
+        0
+      ],
+      "sigmas": [
+        "1227",
+        0
+      ],
+      "latent_image": [
+        "1228",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "1241": {
+    "inputs": {
+      "output_path": "C:\\Dev\\Format-project\\data\\output\\user2imgs",
+      "filename_prefix": "Assembly Diagram",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "1243",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "1242": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "1243",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "1243": {
+    "inputs": {
+      "samples": [
+        "1240",
+        0
+      ],
+      "vae": [
+        "1231",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "1244": {
+    "inputs": {
+      "ckpt_name": "depth_anything_vitl14.pth",
+      "resolution": 1024,
+      "image": [
+        "1243",
+        0
+      ]
+    },
+    "class_type": "DepthAnythingPreprocessor",
+    "_meta": {
+      "title": "Depth Anything"
+    }
+  },
+  "1245": {
+    "inputs": {
+      "strength": 1.0000000000000002,
+      "controlnet": [
+        "1224",
+        0
+      ],
+      "image": [
+        "1244",
+        0
+      ]
+    },
+    "class_type": "ApplyFluxControlNet",
+    "_meta": {
+      "title": "Apply Flux ControlNet"
+    }
+  },
+  "1246": {
+    "inputs": {
+      "text": [
+        "1232",
+        2
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "Show Text 🐍"
+    }
+  },
+  "1247": {
+    "inputs": {
+      "ckpt_name": "depth_anything_vitl14.pth",
+      "resolution": 1024,
+      "image": [
+        "1193",
+        0
+      ]
+    },
+    "class_type": "DepthAnythingPreprocessor",
+    "_meta": {
+      "title": "Depth Anything"
+    }
+  },
+  "1248": {
+    "inputs": {
+      "strength": 1.0000000000000002,
+      "controlnet": [
+        "1208",
+        0
+      ],
+      "image": [
+        "1247",
+        0
+      ]
+    },
+    "class_type": "ApplyFluxControlNet",
+    "_meta": {
+      "title": "Apply Flux ControlNet"
+    }
+  },
+  "1249": {
+    "inputs": {
+      "output_path": "C:\\Dev\\Format-project\\data\\output\\user2imgs",
+      "filename_prefix": "OP2",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "1218",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "1250": {
+    "inputs": {
+      "output_path": "C:\\Dev\\Format-project\\data\\output\\user2imgs",
+      "filename_prefix": "OP1",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "1193",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "1251": {
+    "inputs": {
+      "output_path": "C:\\Dev\\Format-project\\data\\output\\user2imgs",
+      "filename_prefix": "OP3",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "prefix_as_filename",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "1236",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "1252": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "1236",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "1253": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "1218",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "1254": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "1193",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "1256": {
+    "inputs": {
+      "STRING": "1] Material Identification\n\n- Material: Metal (likely steel or aluminum).\n- Surface: Smooth, matte finish.\n- Color: Silver/gray.\n- Defects: No visible defects.\n\n2] Form Usability & Product Potential\n\n- Form Insight: Cylindrical shape with a hollow interior.\n- Affordance Check: Hollow form suggests potential for containment or structural support.\n- Direct Use Potential: Can be used as-is for supporting or as a conduit.\n- Transformative Use: Minimal changes needed; could be cut or joined for specific applications.\n\n3] Estimated Quantity, Dimensions, and Scale\n\n- Quantity: 1 piece.\n- Dimensions: Approximately 10 cm in diameter, 30 cm in height, 2 mm wall thickness.\n\n4] Potential Applications\n\n- Applications: Structural support, conduit for cables or fluids, decorative column.\n- Creative Use-Cases: Lamp base, plant holder, or industrial-style furniture component.\n\n5] Condition and Age Assessment\n\n- Condition: Appears new.\n- Indicators: No discoloration, residue, or structural decay visible.",
+      "INPUT": [
+        "1260",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "1257": {
+    "inputs": {
+      "rembg_session": [
+        "1211",
+        0
+      ],
+      "image": [
+        "1209",
+        0
+      ]
+    },
+    "class_type": "ImageRemoveBackground+",
+    "_meta": {
+      "title": "🔧 Image Remove Background"
+    }
+  },
+  "1258": {
+    "inputs": {
+      "mask": [
+        "1257",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "1259": {
+    "inputs": {
+      "name": "My rules",
+      "rules": "You are an accomplished contemporary furniture and product designer working exclusively with cardboard—no additional joinery, no adhesives. Inspired by Charles & Ray Eames, Ludwig Mies van der Rohe, Ronan & Erwan Bouroullec, Frank Gehry, Alvar Aalto, and Eileen Gray, your work explores the architectural potential of folding. Guided by a refined sense of proportion, color, and form, you use origami principles to transform a humble material into precise, expressive structures. Your approach is radically minimal and deeply experimental—every crease is both structure and statement."
+    },
+    "class_type": "Griptape Create: Rules",
+    "_meta": {
+      "title": "Griptape Create: Rules"
+    }
+  },
+  "1260": {
+    "inputs": {
+      "STRING": "You are a materials and form analysis expert. Your role is to visually assess objects using training in materials science, fabrication, and applied product design.\n\nFor each image, analyze the material properties and the inherent form of the object. Determine if the shape, structure, or assembly can directly suggest or enable product-level functionality.\n\nUse the object's visual cues and implied scale (you may reference scale implicitly, but never mention the pen) to provide accurate, concise bullet-point responses.\nDo not exceed bullet format. Be objective, factual, and brief.\n\nFor each image, respond with the following:\n\n1] Material Identification\n\n- Identify the material type (wood, plastic, metal, etc).\n\n- Describe its surface texture, finish (matte, gloss, raw), color, and any visible defects (scratches, stains, warping, etc).\n\n2] Form Usability & Product Potential\nForm Insight: Analyze the object's geometry and construction. Determine if its current shape allows for direct use as a product (e.g., no modification needed).\n\nAffordance Check: If the object has flat surfaces, cavities, stackability, or interlocking shapes, these should be preserved in any design recommendation.\n\nDirect Use Potential: Can it be used as-is for sitting, storing, stacking, or supporting?\n\nTransformative Use: If needed, describe minimal changes that make the form usable—avoid designing from scratch unless essential.\n\n3] Estimated quantity, Dimensions and Scale\n\n- How many piece are there in the input image? \n- Estimate the object’s length, width, height, and thickness in cm or mm.\n\n- If volume or area is more relevant, provide that instead.\n\n4] Potential Applications\n\n-Based on the material quanitites, properties, list possible realistic applications.\n\n-Include common and creative use-cases (e.g., furniture, insulation, toys, casings).\n\n5] Condition and Age Assessment\n\n-Assess wear level: new, lightly used, aged, damaged, repurposed.\n\n- Mention any visual indicators: discoloration, residue, fading, or structural decay.\n\n",
+      "image": [
+        "1271",
+        0
+      ],
+      "agent": [
+        "1269",
+        1
+      ]
+    },
+    "class_type": "Griptape Run: Image Description",
+    "_meta": {
+      "title": "Griptape Run: Image Description"
+    }
+  },
+  "1261": {
+    "inputs": {
+      "STRING": "**(Agent Persona & Design Philosophy)**\nYou are a master product designer AND a structural engineer, deeply inspired by the material-first ethos of konstantin grcic and the minimalist storytelling of verner panton. Your entire design philosophy is rooted in elevating humble cardboard into objects of beauty and function.\n\nYou have a precise, almost intuitive understanding of cardboard’s behavior—its thickness, foldability, surface grain, rigidity, and structural limits. You never force the material beyond what it can naturally achieve. Instead, your work is a dialogue with the material, using origami principles and analog craft intelligence to unlock strength, flexibility, and form.\n\n**( Differentiated Structural Mandate)**\n* **Primary Goal:** The design's primary aesthetic MUST be the clear visual distinction between the lightweight seating shell and the powerful, load-bearing structure.\n* **Targeted Reinforcement:** The legs and any other primary supports **must be designed to be significantly thicker and more robust** than the seat and back. This should be achieved by designing them as separate components made from multiple laminated layers of cardboard.\n\n**(Material Specification)**\n* You are working with heavy-duty, double-wall corrugated cardboard with a thickness of approximately 6mm. All design choices must reflect the strength and stiffness of this specific material, not thin paper.\n\n**(Structural Mandate)**\n* Your PRIMARY design driver is structural stability. The final object must be plausibly capable of supporting the weight of an adult (approx. 200 lbs / 90 kg) solely through its geometric folds.\n* You are REQUIRED to use proven structural techniques like triangular trusses, accordion/gusseted folds, or folded beam profiles to create self-supporting structures. The design's strength must be obvious and visually communicated.\n* **Rule of Spans and Reinforcement:** Your design must explicitly eliminate or reinforce weak points. Specifically, no large, flat, unsupported horizontal surfaces are permitted. Any seating or tabletop surface must be structurally reinforced through integrated methods like folded beams underneath, triangular trussing, or by being directly integrated into the primary vertical load-bearing folds.\n\n**(Core Principles & Constraints)**\nEvery design must emerge purely from the geometry of the sheet.\n* **No Adhesives, No Hardware:** All connections are achieved through clever folds, locking tabs, slots, or nesting geometries.\n* **Material Honesty:** The final object must clearly look like it was created from standard cardboard sheets. Respect the material's thickness, allowable fold radius, and surface grain. Do not invent or assume unrealistic properties.\n* **Structural Expression:** Every crease must be intentional. Every fold is both structure and expression. The aesthetic is one of minimalist, angular symmetry and structural clarity.\n\n**(Final Review & Self-Correction Mandate)**\nBefore finalizing your output, you must evaluate your generated object for originality, clarity of folds, and fabrication feasibility. Then, you must make the following improvements:\n1.  If the form feels too symmetrical or static, introduce dynamic posture or structural imbalance.\n2.  If the design is over-complicated, simplify folds while maintaining functional expression.\n3.  If there is no surprise, add one clever moment — a twist in how it folds, a dual function, or an unexpected void.\n\n**(Visual Output Requirements)**\n* Generate a single, clean, centered studio-style photorealistic render of the final, improved object.\n* The background must be a plain white studio background.\n* The lighting must be soft and neutral, with minimal, soft shadows to ground the object.\n* The style must be professional product photography, isolating the object.\n\n**(Written Output Requirements)**\nAfter generating the visual, you must provide a detailed breakdown for the improved design:\n1.  **Design Summary:** Provide a highly specific, visual description of the object from all angles (front, side, top). Describe its posture, key angles, leg geometry, and how all parts connect logically.\n2.  **Assembly Method:** Describe the exact sequence of construction from a flat sheet. Explain the folds, slots, and interlocks in the order they are performed. The description must be clear enough for someone to understand the hand-assembly process.\n3.  **Structural Justification:** Explain precisely HOW the design achieves its strength. Describe the load paths—how weight from the top surface is transferred to the floor. In your justification, specifically address how you have reinforced the primary horizontal surface (like the seat) and why it will not sag or fail under load.\n4.  **Total Dimensions:** List the final object size (L × W × H, in mm).\n5.  **Constraint Check:** Explicitly confirm: 'This design uses only cardboard and is assembled without adhesives or hardware, adhering to all material constraints.'\n\n**[ADD YOUR FINAL TASK HERE]**\n-Design a {{ product_name }}.\n-The design must be adult-sized at a 1:1 scale, featuring an interesting form while remaining fully buildable from the specified material.",
+      "max_subtasks": 3,
+      "agent": [
+        "1269",
+        1
+      ],
+      "config": [
+        "1268",
+        0
+      ],
+      "rulesets": [
+        "1200",
+        0
+      ],
+      "input_string": [
+        "1256",
+        0
+      ],
+      "key_value_replacement": [
+        "1216",
+        0
+      ]
+    },
+    "class_type": "Griptape Create: Agent",
+    "_meta": {
+      "title": "Griptape Create: Agent"
+    }
+  },
+  "1262": {
+    "inputs": {
+      "STRING": "**(Agent Persona & Core Mission)**\nYou are a master craft teacher, with the patience and warmth of a beloved grandfather who has spent a lifetime making wonderful things from wood and paper. You are teaching a complete beginner—who could be a 10-year-old child or a 70-year-old grandparent—how to build a cardboard object. Your voice is calm, encouraging, and you find joy in explaining things with perfect clarity.\n\nYour mission is to write a crystal-clear, illustrated, step-by-step fabrication guide based on a provided design summary.\n\n**(Guiding Principles)**\n* **The Golden Rule:** Never assume the user knows anything. Explain every single action as if it's the first time they have ever held cardboard or a ruler. There is no such thing as a step that is \"too small\" or \"too obvious.\"\n* **Use Analogies:** Explain complex shapes or actions using simple, everyday analogies (e.g., \"fold it like you're closing a book,\" \"it should look like a slice of pizza,\" \"the base will form a big 'W' shape\").\n* **Safety First:** When a tool like a knife or scissors is used, the very first instruction in that step is a clear safety warning.\n\n**(Strict Step-by-Step Format)**\nYou MUST format every single step using the following five-part structure:\n\n1.  **STEP [#]: [Action-Oriented Title]**\n2.  **The Goal:** (A single, simple sentence explaining *why* we are doing this step.)\n3.  **You Will Need:** (List the exact tools or materials for this step. e.g., \"The cardboard sheet, your ruler, and a pencil.\")\n4.  **The Action:** (A numbered list of tiny, specific, hold-your-hand actions. Use clear language like \"Place your ruler on the line...\" \"With your right hand, pick up the pencil...\")\n5.  **Check Your Work:** (A simple question or statement that lets the user confirm they did it right. e.g., \"Does your line go from corner to corner? Perfect.\" or \"Your cardboard should now look like a tent.\")\n\n**(Input)**\nYou will be provided with the technical output of a design generator. Your ONLY job is to translate that technical summary into this ultra-simple guide.",
+      "max_subtasks": 3,
+      "agent": [
+        "1269",
+        1
+      ],
+      "input_string": [
+        "1261",
+        0
+      ]
+    },
+    "class_type": "Griptape Run: Agent",
+    "_meta": {
+      "title": "Griptape Run: Agent"
+    }
+  },
+  "1263": {
+    "inputs": {
+      "STRING": "Certainly! Let's create a simple, step-by-step guide for building a cardboard chair.\n\n---\n\n### STEP 1: Prepare Your Cardboard\n\n**The Goal:** To have a clean, flat piece of cardboard ready for cutting.\n\n**You Will Need:** A large sheet of heavy-duty cardboard, a clear workspace.\n\n**The Action:**\n\n1. Lay your cardboard flat on the table.\n2. Make sure there are no wrinkles or bends.\n\n**Check Your Work:** Is your cardboard flat and smooth? Great!\n\n---\n\n### STEP 2: Mark the Seat\n\n**The Goal:** To outline where you will cut the seat.\n\n**You Will Need:** A ruler, a pencil.\n\n**The Action:**\n\n1. Place your ruler along the edge of the cardboard.\n2. With your pencil, draw a rectangle 500mm wide and 500mm long.\n\n**Check Your Work:** Does your rectangle look like a square? Perfect!\n\n---\n\n### STEP 3: Cut the Seat\n\n**The Goal:** To cut out the seat shape.\n\n**You Will Need:** Scissors or a craft knife (ask an adult for help).\n\n**The Action:**\n\n1. Safety first! Be careful with sharp tools.\n2. Cut along the lines you drew to remove the seat piece.\n\n**Check Your Work:** Is your piece a neat rectangle? Well done!\n\n---\n\n### STEP 4: Fold the Seat\n\n**The Goal:** To create a comfortable seating curve.\n\n**You Will Need:** Your hands.\n\n**The Action:**\n\n1. Gently bend the cardboard to form a shallow U-shape.\n2. Make sure the curve is even on both sides.\n\n**Check Your Work:** Does it look like a gentle curve? Excellent!\n\n---\n\n### STEP 5: Mark the Legs\n\n**The Goal:** To outline where you will cut the legs.\n\n**You Will Need:** A ruler, a pencil.\n\n**The Action:**\n\n1. Draw four rectangles, each 500mm tall and 100mm wide.\n2. Space them evenly apart.\n\n**Check Your Work:** Do you have four rectangles? Great!\n\n---\n\n### STEP 6: Cut the Legs\n\n**The Goal:** To cut out the leg shapes.\n\n**You Will Need:** Scissors or a craft knife (ask an adult for help).\n\n**The Action:**\n\n1. Safety first! Be careful with sharp tools.\n2. Cut along the lines to remove the leg pieces.\n\n**Check Your Work:** Do you have four neat rectangles? Fantastic!\n\n---\n\n### STEP 7: Fold the Legs\n\n**The Goal:** To create strong, triangular legs.\n\n**You Will Need:** Your hands.\n\n**The Action:**\n\n1. Fold each rectangle into a triangle shape.\n2. Make sure the edges meet neatly.\n\n**Check Your Work:** Do they look like little tents? Perfect!\n\n---\n\n### STEP 8: Attach the Legs\n\n**The Goal:** To connect the legs to the seat.\n\n**You Will Need:** The seat and leg pieces.\n\n**The Action:**\n\n1. Slot the ends of the legs into the seat.\n2. Ensure they fit snugly without gaps.\n\n**Check Your Work:** Is everything holding together? Wonderful!\n\n---\n\n### STEP 9: Mark the Backrest\n\n**The Goal:** To outline where you will cut the backrest.\n\n**You Will Need:** A ruler, a pencil.\n\n**The Action:**\n\n1. Draw a rectangle 500mm wide and 300mm tall.\n2. Position it above the seat.\n\n**Check Your Work:** Does it look like a rectangle? Nice!\n\n---\n\n### STEP 10: Cut the Backrest\n\n**The Goal:** To cut out the backrest shape.\n\n**You Will Need:** Scissors or a craft knife (ask an adult for help).\n\n**The Action:**\n\n1. Safety first! Be careful with sharp tools.\n2. Cut along the lines to remove the backrest piece.\n\n**Check Your Work:** Is your piece a neat rectangle? Excellent!\n\n---\n\n### STEP 11: Fold the Backrest\n\n**The Goal:** To prepare the backrest for attachment.\n\n**You Will Need:** Your hands.\n\n**The Action:**\n\n1. Gently bend the backrest to match the seat's curve.\n2. Ensure it aligns well with the seat.\n\n**Check Your Work:** Does it curve nicely? Great!\n\n---\n\n### STEP 12: Attach the Backrest\n\n**The Goal:** To complete the chair assembly.\n\n**You Will Need:** The seat and backrest pieces.\n\n**The Action:**\n\n1. Slot the backrest into the seat.\n2. Make sure it fits securely.\n\n**Check Your Work:** Does your chair look complete? Fantastic job!\n\n---\n\nEnjoy your new cardboard chair! Remember, every step you take is a step towards creating something wonderful.",
+      "INPUT": [
+        "1262",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "1264": {
+    "inputs": {
+      "path": "C:\\Dev\\Format-project\\data\\output\\user2imgs\\fabrication-guide-txt",
+      "filename_prefix": "ComfyUI",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "file_extension": ".txt",
+      "encoding": "utf-8",
+      "filename_suffix": "",
+      "text": [
+        "1263",
+        0
+      ]
+    },
+    "class_type": "Save Text File",
+    "_meta": {
+      "title": "Save Text File"
+    }
+  },
+  "1265": {
+    "inputs": {
+      "STRING": "refer the following analysis of the furniture and Create a 12-step instructional diagram for fabricating a contemporary cardboard furniture. all the digrams should use fabrication logic. Use a clean layout with plain white background with minimal technical illustration style. Each step shows a distinct action in the process from flat cardboard to finished furniture.\n\nThis 12-step diagram should focus exclusively on the core construction process.Ignore the first two steps, which involve general preparation (e.g., workspace setup, gathering materials), and the last two steps, which involve testing or final evaluation.Only include steps from step 3 to step 14 of the process — specifically those involving folding, cutting, slotting, and assembling.Prioritize actions that create irreversible geometric or structural changes to the cardboard as it transforms into furniture.Begin with a flat cardboard net layout showing fold lines (dashed) and cut lines (solid). show Progress through each folding action folds. Use accurate cardboard thickness as mentioned in previous analysis.\n\nAdd a realistic cardboard texture fill to all pieces, but keep the linework sharp and diagrammatic. Maintain consistent isometric perspective and object scale in all steps. Use clear and minimal design similar to industrial design instruction sheets or IKEA manuals.\nVisual style:\n\n-Black single-weight linework only for geometry\n-text always in black color. \n-Use only dimension lines in red, all other text (step numbers) must be black.\n-no arrows, no notes, no captions.\n-each drawing must be uniquely labeled with numbers 1,2,3,4,5,6,7,8,9,10,11,12 left to right respectively\n-use of flat colour with texture of the material with no shadows\n-Dimension text must also be clearly readable, and big sizes proportionate to the geometry\n-clear and dark linework\n-avoid overdrawn or doubled lines\n-avoid shading, hatching, shadows, or textures\n-No hands, tools, props, or glue bottles\n-No ground plane or background elements\n-No text or annotations except dimension labels in small sans-serif font\n-Use orthographic or axonometric views consistently throughout\n-Maintain equal object scale across all steps\n\n\nLayout:\n\n-Place each step in a strict rectangular grid (e.g., 3x4 or 4x3)\n-Do not show gridlines but maintain perfect alignment and spacing\n-Step order flows left to right, top to bottom\n-Do not include step numbers or captions\n-Keep dimension labels minimal ,clean and always in mm (e.g., \"300mm\")\n\n",
+      "max_subtasks": 3,
+      "agent": [
+        "1269",
+        1
+      ],
+      "input_string": [
+        "1267",
+        0
+      ]
+    },
+    "class_type": "Griptape Run: Agent",
+    "_meta": {
+      "title": "Griptape Run: Agent"
+    }
+  },
+  "1266": {
+    "inputs": {
+      "STRING": "I'm unable to create visual diagrams directly, but I can guide you through the process of creating a 12-step instructional diagram for fabricating contemporary cardboard furniture. Here's a step-by-step outline you can follow to create your diagrams:\n\n### Step-by-Step Instructional Diagram Outline\n\n1. **Flat Layout**\n   - Show the flat cardboard net with dashed fold lines and solid cut lines.\n   - Include dimension labels (e.g., \"300mm\").\n\n2. **Initial Cuts**\n   - Illustrate the first cuts along the solid lines.\n   - Maintain the cardboard texture fill.\n\n3. **Primary Folds**\n   - Show the first set of folds along the dashed lines.\n   - Ensure folds are clear and precise.\n\n4. **Secondary Folds**\n   - Continue with additional folds to shape the main body.\n   - Keep the perspective consistent.\n\n5. **Slot Creation**\n   - Illustrate slots being cut for interlocking.\n   - Use dimension labels for slot sizes.\n\n6. **Leg Assembly**\n   - Show the folding and layering of cardboard to form legs.\n   - Highlight the thickness through layered views.\n\n7. **Leg Attachment**\n   - Illustrate how the legs interlock with the main body.\n   - Ensure clear depiction of slots and tabs.\n\n8. **Backrest Formation**\n   - Show the folding of the backrest piece.\n   - Maintain the cardboard texture.\n\n9. **Backrest Attachment**\n   - Illustrate the backrest being slotted into the main body.\n   - Use dimension labels for alignment.\n\n10. **Reinforcement Folds**\n    - Show additional folds for structural reinforcement.\n    - Highlight the folded beam profiles.\n\n11. **Final Assembly**\n    - Illustrate the complete assembly with all parts connected.\n    - Ensure all folds and slots are visible.\n\n12. **Completed Structure**\n    - Show the finished furniture piece in isometric view.\n    - Include final dimensions for reference.\n\n### Diagram Creation Tips\n\n- Use a vector-based drawing tool for clean linework.\n- Apply a realistic cardboard texture fill to all pieces.\n- Maintain consistent isometric perspective and scale.\n- Use black single-weight lines for geometry and red for dimension lines.\n- Keep the layout in a 3x4 grid, ensuring perfect alignment and spacing.\n\nBy following this outline, you can create a clear and instructional diagram set for fabricating cardboard furniture.",
+      "INPUT": [
+        "1265",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "1267": {
+    "inputs": {
+      "STRING": "I'm unable to create visual designs directly, but I can guide you through designing a cardboard chair based on your specifications.\n\n### Design Summary\n\n- **Front View:** The chair features a distinct separation between the lightweight seating shell and robust, laminated legs. The seat is slightly curved for ergonomic comfort.\n- **Side View:** The backrest is slightly reclined, providing support. The legs form a triangular truss with the seat, enhancing structural integrity.\n- **Top View:** The seat is a simple rectangular shape with rounded edges, and the legs are positioned at each corner, forming a stable base.\n\n### Assembly Method\n\n1. **Cutting:** Begin with a flat sheet of heavy-duty, double-wall corrugated cardboard.\n2. **Folding the Seat:** Fold the seat section into a shallow U-shape to create a comfortable seating surface.\n3. **Creating the Legs:** Cut and fold multiple layers of cardboard to form thick, laminated legs. These are folded into triangular trusses for strength.\n4. **Interlocking:** Use slots and tabs to connect the seat to the legs. Ensure the tabs lock securely into the slots without adhesives.\n5. **Final Assembly:** Attach the backrest by folding and slotting it into the rear of the seat.\n\n### Structural Justification\n\n- **Load Paths:** The weight from the seat is transferred through the triangular trusses of the legs directly to the floor. The legs' thickness and truss design prevent sagging.\n- **Reinforcement:** The seat is reinforced with folded beams underneath, preventing any sagging under load. The triangular truss design of the legs distributes weight evenly.\n\n### Total Dimensions\n\n- **Dimensions:** 500 mm (L) × 500 mm (W) × 800 mm (H).\n\n### Constraint Check\n\n- **Confirmation:** This design uses only cardboard and is assembled without adhesives or hardware, adhering to all material constraints.\n\nThis approach ensures a structurally sound and aesthetically pleasing cardboard chair, fully respecting the material's properties and constraints.",
+      "INPUT": [
+        "1261",
+        0
+      ]
+    },
+    "class_type": "Griptape Display: Text",
+    "_meta": {
+      "title": "Griptape Display: Text"
+    }
+  },
+  "1268": {
+    "inputs": {
+      "model": "gpt-4o",
+      "max_attempts_on_fail": 2,
+      "temperature": 0.1,
+      "seed": 2048,
+      "use_native_tools": true,
+      "max_tokens": -1,
+      "min_p": 0.1,
+      "response_format": "default",
+      "api_key_env_var": "OPENAI_API_KEY",
+      "image_generation_model": "dall-e-3",
+      "size": "1024x1024",
+      "embedding_model": "text-embedding-ada-002",
+      "text_to_speech_model": "tts-1",
+      "voice": "alloy",
+      "audio_transcription_model": "whisper-1",
+      "Get OpenAI API Key": ""
+    },
+    "class_type": "Griptape Agent Config: OpenAI Drivers",
+    "_meta": {
+      "title": "Griptape Agent Config: OpenAI Drivers"
+    }
+  },
+  "1269": {
+    "inputs": {
+      "STRING": "",
+      "max_subtasks": 1000,
+      "config": [
+        "1268",
+        0
+      ]
+    },
+    "class_type": "Griptape Create: Agent",
+    "_meta": {
+      "title": "Griptape Create: Agent"
+    }
+  },
+  "1271": {
+    "inputs": {
+      "base64_data": "",
+      "image_output": "Preview",
+      "save_prefix": "ComfyUI"
+    },
+    "class_type": "easy loadImageBase64",
+    "_meta": {
+      "title": "Load Image (Base64)"
+    }
+  }
+}

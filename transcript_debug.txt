@@ -1,8 +1,2 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[12:00:35] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-USER (Whisper): Wow. Oh, I'm on a month.
-[12:01:08] [USER_TURN] MESSAGE: Wow. Oh, I'm on a month.
-USER (Whisper): Listen to what I'm saying, and produce geometry out of it.
-[12:01:32] [USER_TURN] MESSAGE: Listen to what I'm saying, and produce geometry out of it.
-USER (Whisper): I
-[12:01:43] [USER_TURN] MESSAGE: I
+[12:23:21] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?

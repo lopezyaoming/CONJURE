@@ -1,0 +1,364 @@
+# RunComfy Integration Action Plan for CONJURE
+
+## Overview
+
+This document outlines the complete implementation plan for integrating RunComfy cloud services into CONJURE's generation pipeline. We will follow the proven architecture from the sample project while adapting it for CONJURE's specific needs.
+
+## Phase 1: Foundation Setup
+
+### Step 1.1: Create Core RunComfy Client
+**File**: `runcomfy/runcomfy_client.py`
+**Test**: `test_runcomfy_client.py`
+
+**Implementation Tasks:**
+- Copy and adapt `RunComfyAPIClient` from sample project
+- Configure for CONJURE credentials (from `credentials.txt`)
+- Implement machine lifecycle management
+- Add proper error handling and retries
+- Test machine launch/stop/status operations
+
+**Key Features:**
+- Machine launch with workflow version
+- Status monitoring with timeout handling
+- Machine reuse optimization
+- Cost estimation tracking
+
+### Step 1.2: Create ComfyUI Workflow Client
+**File**: `runcomfy/comfyui_workflow_client.py`
+**Test**: `test_comfyui_workflow_client.py`
+
+**Implementation Tasks:**
+- Adapt `ComfyUIWorkflowClient` for CONJURE workflow
+- Configure for `generate_flux_mesh.json` workflow
+- Implement workflow preparation with input injection
+- Add WebSocket monitoring with polling fallback
+- Handle image download and file stability checks
+
+**Key Features:**
+- Workflow preparation with image and prompt injection
+- WebSocket monitoring for real-time progress
+- Fallback to HTTP polling for reliability
+- Image download with stability verification
+
+### Step 1.3: Create RunComfy Orchestrator
+**File**: `runcomfy/runcomfy_orchestrator.py`
+**Test**: `test_runcomfy_orchestrator.py`
+
+**Implementation Tasks:**
+- Create high-level workflow orchestration
+- Implement complete job lifecycle management
+- Add machine pool management for reuse
+- Integrate cost tracking and estimation
+- Handle background job execution
+
+**Key Features:**
+- Complete job execution pipeline
+- Machine reuse optimization
+- Cost estimation and tracking
+- Error recovery and cleanup
+
+## Phase 2: CONJURE Integration
+
+### Step 2.1: Update CloudGenerationService
+**File**: `launcher/generation_services.py`
+**Test**: `test_cloud_generation_service.py`
+
+**Implementation Tasks:**
+- Implement CloudGenerationService methods
+- Integrate with RunComfy orchestrator
+- Map CONJURE API to RunComfy workflow
+- Handle generate_flux_mesh workflow specifically
+- Add proper error handling and status reporting
+
+**Key Features:**
+- `generate_flux_depth_image()` using RunComfy FLUX workflow
+- `generate_3d_model()` using PartPacker in workflow
+- Unified interface with LocalGenerationService
+- Progress tracking and status updates
+
+### Step 2.2: Update API Server
+**File**: `launcher/api_server.py`
+**Test**: `test_api_server_cloud.py`
+
+**Implementation Tasks:**
+- Update mode endpoint with RunComfy availability
+- Test cloud generation endpoints
+- Add RunComfy-specific error handling
+- Implement job status tracking
+- Add cost estimation endpoints
+
+**Key Features:**
+- Enhanced `/mode` endpoint with RunComfy status
+- Job tracking for long-running workflows
+- Cost estimation and usage tracking
+- Proper error handling for cloud failures
+
+### Step 2.3: Configuration Management
+**File**: `runcomfy/config.py`
+**Test**: `test_runcomfy_config.py`
+
+**Implementation Tasks:**
+- Create RunComfy configuration management
+- Load credentials from `credentials.txt`
+- Add environment variable overrides
+- Validate configuration on startup
+- Add configuration validation
+
+**Key Features:**
+- Centralized credential management
+- Environment variable configuration
+- Validation and error reporting
+- Default values and fallbacks
+
+## Phase 3: Workflow Adaptation
+
+### Step 3.1: Workflow Analysis and Adaptation
+**File**: `runcomfy/workflow_adapter.py`
+**Test**: `test_workflow_adapter.py`
+
+**Implementation Tasks:**
+- Analyze `generate_flux_mesh.json` workflow
+- Map input nodes for image and prompt injection
+- Identify output nodes for result extraction
+- Create dynamic workflow preparation
+- Add validation for workflow compatibility
+
+**Key Workflow Nodes to Configure:**
+- Node 16: `INPUTIMAGE` - Control image input
+- Node 34: `POSITIVECLIP` - Text prompt input
+- Node 24: `EXPORT IMAGE` - FLUX depth result
+- Node 33: `EXPORTGLB` - 3D model output
+
+### Step 3.2: Input/Output Mapping
+**File**: `runcomfy/workflow_io.py`
+**Test**: `test_workflow_io.py`
+
+**Implementation Tasks:**
+- Create input injection system
+- Map CONJURE inputs to workflow nodes
+- Handle output extraction and conversion
+- Add result processing and validation
+- Implement file format conversions
+
+**Input Mapping:**
+- GestureCamera render → Node 16 (LoadImage)
+- User prompt → Node 34 (CLIPTextEncodeFlux)
+- Generation parameters → Various nodes
+
+**Output Mapping:**
+- FLUX depth result → CONJURE flux.png format
+- 3D GLB model → CONJURE generated_models format
+
+## Phase 4: Testing Framework
+
+### Step 4.1: Unit Tests
+**Files**: `test_*.py` for each component
+
+**Test Coverage:**
+- RunComfy API client operations
+- Workflow client execution
+- Orchestrator job management
+- Configuration loading and validation
+- Error handling and recovery
+
+### Step 4.2: Integration Tests
+**File**: `test_runcomfy_integration.py`
+
+**Test Scenarios:**
+- End-to-end workflow execution
+- Machine lifecycle management
+- Error recovery and cleanup
+- Cost tracking accuracy
+- File handling and stability
+
+### Step 4.3: Performance Tests
+**File**: `test_runcomfy_performance.py`
+
+**Test Areas:**
+- Workflow execution times
+- Machine startup performance
+- Concurrent job handling
+- Memory usage patterns
+- Cost optimization effectiveness
+
+## Phase 5: Advanced Features
+
+### Step 5.1: Machine Pool Management
+**File**: `runcomfy/machine_pool.py`
+**Test**: `test_machine_pool.py`
+
+**Features:**
+- Intelligent machine reuse
+- Load balancing across machines
+- Automatic scaling based on demand
+- Cost optimization strategies
+- Health monitoring and recovery
+
+### Step 5.2: Job Queue Management
+**File**: `runcomfy/job_queue.py`
+**Test**: `test_job_queue.py`
+
+**Features:**
+- Priority-based job scheduling
+- Concurrent job execution
+- Job status tracking and reporting
+- Failed job retry logic
+- Queue monitoring and metrics
+
+### Step 5.3: Cost Optimization
+**File**: `runcomfy/cost_optimizer.py`
+**Test**: `test_cost_optimizer.py`
+
+**Features:**
+- Real-time cost tracking
+- Machine usage optimization
+- Predictive scaling
+- Budget controls and alerts
+- Usage analytics and reporting
+
+## Implementation Order and Dependencies
+
+### Week 1: Core Infrastructure
+1. ✅ Set up testing framework
+2. ✅ Implement RunComfy client
+3. ✅ Test machine operations
+4. ✅ Implement workflow client
+5. ✅ Test workflow execution
+
+### Week 2: Integration
+1. ✅ Create orchestrator
+2. ✅ Test complete job lifecycle
+3. ✅ Update CloudGenerationService
+4. ✅ Test CONJURE API integration
+5. ✅ Update configuration management
+
+### Week 3: Workflow Optimization
+1. ✅ Adapt generate_flux_mesh.json
+2. ✅ Test workflow compatibility
+3. ✅ Implement input/output mapping
+4. ✅ Test end-to-end generation
+5. ✅ Optimize performance
+
+### Week 4: Advanced Features
+1. ✅ Implement machine pool management
+2. ✅ Add job queue functionality
+3. ✅ Implement cost optimization
+4. ✅ Add monitoring and metrics
+5. ✅ Final testing and documentation
+
+## File Structure
+
+```
+runcomfy/
+├── runcomfyactionplan.txt          # This file
+├── config.py                       # Configuration management
+├── runcomfy_client.py              # Low-level API client
+├── comfyui_workflow_client.py      # ComfyUI workflow execution
+├── runcomfy_orchestrator.py        # High-level orchestration
+├── workflow_adapter.py             # Workflow preparation
+├── workflow_io.py                  # Input/output mapping
+├── machine_pool.py                 # Machine management
+├── job_queue.py                    # Job scheduling
+├── cost_optimizer.py               # Cost optimization
+├── exceptions.py                   # Custom exceptions
+├── utils.py                        # Utility functions
+├── models.py                       # Data models
+└── tests/
+    ├── test_runcomfy_client.py
+    ├── test_comfyui_workflow_client.py
+    ├── test_runcomfy_orchestrator.py
+    ├── test_workflow_adapter.py
+    ├── test_workflow_io.py
+    ├── test_machine_pool.py
+    ├── test_job_queue.py
+    ├── test_cost_optimizer.py
+    ├── test_config.py
+    ├── test_runcomfy_integration.py
+    └── test_runcomfy_performance.py
+```
+
+## Critical Implementation Notes
+
+### 1. File Handling (CRITICAL)
+```python
+# ALWAYS read file data before background tasks
+image_content = await image.read()
+asyncio.create_task(process_job(job_id, image_content, filename, content_type))
+```
+
+### 2. WebSocket with Fallback
+```python
+try:
+    return await self.wait_for_completion_websocket(url, prompt_id, client_id)
+except Exception:
+    return await self.wait_for_completion_polling(url, prompt_id)  # HTTP fallback
+```
+
+### 3. Machine Lifecycle
+```python
+try:
+    machine = await self.get_or_create_machine()
+    result = await self.execute_workflow(machine, workflow, image, prompt)
+finally:
+    if auto_shutdown:
+        await self.cleanup_machine(machine.server_id)
+```
+
+### 4. Error Recovery
+- Always implement machine cleanup
+- Use exponential backoff for retries
+- Handle rate limiting gracefully
+- Implement file stability checks
+- Log comprehensive error details
+
+### 5. Cost Management
+- Track machine usage time
+- Implement automatic shutdown
+- Monitor concurrent machine limits
+- Provide cost estimates
+- Add budget controls
+
+## Success Criteria
+
+### Phase 1 Success:
+- ✅ RunComfy API client can launch/stop machines
+- ✅ Workflow client can execute generate_flux_mesh.json
+- ✅ Orchestrator manages complete job lifecycle
+- ✅ All components have comprehensive tests
+
+### Phase 2 Success:
+- ✅ CloudGenerationService works with RunComfy
+- ✅ API endpoints support cloud mode
+- ✅ Configuration management is robust
+- ✅ Error handling is comprehensive
+
+### Phase 3 Success:
+- ✅ generate_flux_mesh.json workflow executes successfully
+- ✅ Input/output mapping works correctly
+- ✅ Results match expected CONJURE formats
+- ✅ Performance is acceptable (< 5 minutes total)
+
+### Final Success:
+- ✅ Cloud mode generates same results as local mode
+- ✅ Cost tracking is accurate
+- ✅ Machine management is efficient
+- ✅ Error recovery is robust
+- ✅ Performance meets requirements
+
+## Risk Mitigation
+
+### High Risks:
+1. **File handling issues** → Implement proven pattern from sample
+2. **Workflow compatibility** → Test thoroughly with actual workflow
+3. **Cost runaway** → Implement strict timeouts and auto-shutdown
+4. **Machine launch failures** → Add robust retry logic
+5. **WebSocket reliability** → Always have polling fallback
+
+### Medium Risks:
+1. **API rate limiting** → Implement exponential backoff
+2. **Concurrent job conflicts** → Add proper job isolation
+3. **Image corruption** → Implement file stability checks
+4. **Memory leaks** → Monitor resource usage
+5. **Configuration errors** → Add validation and defaults
+
+This plan ensures a systematic, tested, and robust implementation of RunComfy integration while following proven patterns from the successful sample project.

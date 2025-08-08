@@ -37,9 +37,70 @@ from backend_agent import BackendAgent
 from conversational_agent import ConversationalAgent
 from instruction_manager import InstructionManager
 
+def select_generation_mode():
+    """
+    Prompt user to select generation mode: local or cloud.
+    Returns the selected mode and updates config.
+    """
+    print("\n" + "="*60)
+    print("🚀 CONJURE - Generation Mode Selection")
+    print("="*60)
+    print("Please choose your generation mode:")
+    print()
+    print("1. LOCAL  - Use HuggingFace models (current implementation)")
+    print("   • FLUX.1-dev and FLUX.1-Depth-dev")
+    print("   • PartPacker for 3D generation")
+    print("   • Requires: HUGGINGFACE_HUB_ACCESS_TOKEN")
+    print()
+    print("2. CLOUD  - Use runComfy cloud services (faster, more expensive)")
+    print("   • Cloud-based ComfyUI workflows")
+    print("   • Faster generation with high-end GPUs")
+    print("   • Requires: runComfy account and credits")
+    print()
+    print("="*60)
+    
+    while True:
+        try:
+            choice = input("Enter your choice (1 for LOCAL, 2 for CLOUD): ").strip()
+            
+            if choice == "1" or choice.lower() == "local":
+                selected_mode = "local"
+                print(f"✅ Selected: LOCAL mode (HuggingFace models)")
+                break
+            elif choice == "2" or choice.lower() == "cloud":
+                selected_mode = "cloud"
+                print(f"✅ Selected: CLOUD mode (runComfy services)")
+                print("⚠️  NOTE: Cloud mode implementation is in progress")
+                break
+            else:
+                print("❌ Invalid choice. Please enter '1' for LOCAL or '2' for CLOUD.")
+                continue
+                
+        except KeyboardInterrupt:
+            print("\n🛑 Setup cancelled by user")
+            sys.exit(0)
+        except Exception as e:
+            print(f"❌ Error reading input: {e}")
+            continue
+    
+    # Update the config module at runtime
+    config.GENERATION_MODE = selected_mode
+    
+    print(f"🔧 Generation mode set to: {selected_mode.upper()}")
+    print("="*60 + "\n")
+    
+    return selected_mode
+
 class ConjureApp:
-    def __init__(self):
+    def __init__(self, generation_mode="local"):
         print("Initializing CONJURE...")
+        
+        # Store generation mode
+        self.generation_mode = generation_mode
+        config.GENERATION_MODE = generation_mode  # Ensure config is updated
+        
+        print(f"🔧 Running in {generation_mode.upper()} mode")
+        
         self.state_manager = StateManager()
         
         # 🧹 STARTUP CLEANUP: Clear any leftover requests from previous runs
@@ -663,5 +724,9 @@ class ConjureApp:
         print("✅ CONJURE shutdown complete")
 
 if __name__ == "__main__":
-    app = ConjureApp()
+    # First, let user select generation mode
+    selected_mode = select_generation_mode()
+    
+    # Initialize app with selected mode
+    app = ConjureApp(generation_mode=selected_mode)
     app.run() 
