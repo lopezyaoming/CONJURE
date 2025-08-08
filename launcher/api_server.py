@@ -202,35 +202,51 @@ async def execute_instruction(request: InstructionRequest):
         tool_name = request.instruction.get("tool_name", "unknown")
         print(f"🔧 API received instruction: {tool_name}")
         
-        # Add API-level deduplication to prevent duplicate calls to the same instruction
-        instruction_str = json.dumps(request.instruction, sort_keys=True)
-        instruction_hash = hashlib.md5(instruction_str.encode()).hexdigest()
-        
+        # Add smart API-level deduplication matching InstructionManager logic
         if not hasattr(execute_instruction, '_processed_instructions'):
             execute_instruction._processed_instructions = {}
         
-        current_time = time.time()
+        if not hasattr(execute_instruction, '_heavy_operations'):
+            execute_instruction._heavy_operations = {
+                "generate_flux_mesh", "import_and_process_mesh", "spawn_primitive"
+            }
+            execute_instruction._interactive_operations = {
+                "segment_selection", "fuse_mesh", "select_concept"
+            }
         
-        # Clean up old entries (older than 30 seconds)
-        expired_hashes = [
-            h for h, timestamp in execute_instruction._processed_instructions.items()
-            if current_time - timestamp > 30
-        ]
-        for h in expired_hashes:
-            del execute_instruction._processed_instructions[h]
-        
-        # Check for duplicates
-        if instruction_hash in execute_instruction._processed_instructions:
-            time_since = current_time - execute_instruction._processed_instructions[instruction_hash]
-            print(f"🚫 API: Duplicate instruction {tool_name} blocked (executed {time_since:.1f}s ago)")
-            return APIResponse(
-                success=True,
-                message=f"Instruction {tool_name} already processed recently",
-                data={"instruction": request.instruction, "duplicate_blocked": True}
-            )
-        
-        # Mark as processed
-        execute_instruction._processed_instructions[instruction_hash] = current_time
+        # Interactive operations are always allowed to repeat at API level
+        if tool_name in execute_instruction._interactive_operations:
+            print(f"🔄 API: Interactive command {tool_name} allowed to repeat")
+        elif tool_name in execute_instruction._heavy_operations:
+            # Apply strict deduplication for heavy operations
+            instruction_str = json.dumps(request.instruction, sort_keys=True)
+            instruction_hash = hashlib.md5(instruction_str.encode()).hexdigest()
+            
+            current_time = time.time()
+            
+            # Clean up old entries (older than 30 seconds)
+            expired_hashes = [
+                h for h, timestamp in execute_instruction._processed_instructions.items()
+                if current_time - timestamp > 30
+            ]
+            for h in expired_hashes:
+                del execute_instruction._processed_instructions[h]
+            
+            # Check for duplicates
+            if instruction_hash in execute_instruction._processed_instructions:
+                time_since = current_time - execute_instruction._processed_instructions[instruction_hash]
+                print(f"🚫 API: Duplicate heavy operation {tool_name} blocked (executed {time_since:.1f}s ago)")
+                return APIResponse(
+                    success=True,
+                    message=f"Heavy operation {tool_name} already processed recently",
+                    data={"instruction": request.instruction, "duplicate_blocked": True}
+                )
+            
+            # Mark as processed
+            execute_instruction._processed_instructions[instruction_hash] = current_time
+            print(f"✅ API: Heavy operation {tool_name} allowed")
+        else:
+            print(f"✅ API: Unknown operation {tool_name} allowed (no API-level deduplication)")
         
         # Call existing instruction manager method (NO CHANGES to instruction_manager.py)
         instruction_manager.execute_instruction(request.instruction)

@@ -1,43 +1,8 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[14:31:49] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-[14:31:56] [AGENT_TURN] MESSAGE: I'm thinking a cube would be a great starting point for your idea.
-[14:31:56] [AGENT_TURN] MESSAGE: Backend agent, let's spawn a primitive.
-USER (Whisper): Hey, can we start with a simple cube?
-[14:31:56] [USER_TURN] MESSAGE: Hey, can we start with a simple cube?
-[14:32:07] [AGENT_TURN] MESSAGE: You're welcome.
-[14:32:08] [AGENT_TURN] MESSAGE: Are you planning to sculpt the cube or would you like to move on to describing your idea further?
-[14:32:42] [AGENT_TURN] MESSAGE: So, to confirm, you're envisioning a
-[14:32:42] [AGENT_TURN] MESSAGE: aesthetic incorporating
-[14:32:43] [AGENT_TURN] MESSAGE: cube with a very distinct sci-fi
-[14:32:43] [AGENT_TURN] MESSAGE: Alien-like steel and
-[14:32:43] [AGENT_TURN] MESSAGE: That sounds like a fantastic concept.
-USER (Whisper): Yeah, I want to create like a sci-fi cube with kind of sci-fi, jagged steel and metal detailing, kind of alien-like, imagine the Transformers cube I guess, with a lot of machinery and yeah.
-[14:32:43] [USER_TURN] MESSAGE: Yeah, I want to create like a sci-fi cube with kind of sci-fi, jagged steel and metal detailing, kind of alien-like, imagine the Transformers cube I guess, with a lot of machinery and yeah.
-[14:32:43] [AGENT_TURN] MESSAGE: intricate machinery details similar to the Transformers cube.
-[14:32:44] [AGENT_TURN] MESSAGE: Backend agent, let's generate the initial mesh with that description.
-[14:33:01] [AGENT_TURN] MESSAGE: You're welcome. Please wait a moment while the mesh is generated.
-[14:33:12] [AGENT_TURN] MESSAGE: Are you still there?
-[14:33:13] [AGENT_TURN] MESSAGE: Please let me know when you're ready to proceed.
-USER (Whisper): Yes, let's wait for Dimash to generate.
-[14:33:21] [USER_TURN] MESSAGE: Yes, let's wait for Dimash to generate.
-[14:33:23] [AGENT_TURN] MESSAGE: I'll continue to wait patiently for the mesh to generate.
-[14:33:23] [AGENT_TURN] MESSAGE: Understood
-[14:35:16] [AGENT_TURN] MESSAGE: Excellent
-[14:35:16] [AGENT_TURN] MESSAGE: Now that the mesh has been imported, we have a few options.
-[14:35:16] [AGENT_TURN] MESSAGE: Would you like to use the entire mesh as a whole, or would you prefer to select a specific segment to work with?
-USER (Whisper): The mesh has been imported into the screen, into the program.
-[14:35:17] [USER_TURN] MESSAGE: The mesh has been imported into the screen, into the program.
-[14:35:30] [AGENT_TURN] MESSAGE: Back-end agent, let's activate segment selection mode.
-[14:35:30] [AGENT_TURN] MESSAGE: You can now point and select the mesh segments you'd like to work with.
-USER (Whisper): Uh, actually let's select a segment.
-[14:35:30] [USER_TURN] MESSAGE: Uh, actually let's select a segment.
-[14:35:43] [AGENT_TURN] MESSAGE: Are you still there?
-[14:35:44] [AGENT_TURN] MESSAGE: Please let me know when you've selected the segment you'd like to work with.
-USER (Whisper): Yes, that's the segment I want to work with.
-[14:35:53] [USER_TURN] MESSAGE: Yes, that's the segment I want to work with.
-[14:35:53] [AGENT_TURN] MESSAGE: Once your selected segment is loaded, you can begin
-[14:35:54] [AGENT_TURN] MESSAGE: Great!
-[14:35:54] [AGENT_TURN] MESSAGE: gesture modeling and detailing.
-[14:35:55] [AGENT_TURN] MESSAGE: Are there any particular textures, patterns, or functional elements you'd like to incorporate?
-[14:35:55] [AGENT_TURN] MESSAGE: As you work, let's refine this idea further. What kind of specific details are you envisioning for this alien sci-fi cube?
-[14:36:53] [AGENT_TURN] MESSAGE: Are you still there?
+[12:00:35] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
+USER (Whisper): Wow. Oh, I'm on a month.
+[12:01:08] [USER_TURN] MESSAGE: Wow. Oh, I'm on a month.
+USER (Whisper): Listen to what I'm saying, and produce geometry out of it.
+[12:01:32] [USER_TURN] MESSAGE: Listen to what I'm saying, and produce geometry out of it.
+USER (Whisper): I
+[12:01:43] [USER_TURN] MESSAGE: I

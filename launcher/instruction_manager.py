@@ -12,6 +12,19 @@ class InstructionManager:
         self.state_manager = state_manager
         self._executed_instructions = {}  # Hash -> timestamp for deduplication
         self._instruction_timeout = 15  # seconds before allowing re-execution
+        
+        # Define which commands should be deduplicated vs. allowed to repeat
+        self._heavy_operations = {
+            "generate_flux_mesh",  # 3D generation - expensive, should not repeat
+            "import_and_process_mesh",  # File operations - should not repeat
+            "spawn_primitive"  # Basic operations that shouldn't repeat rapidly
+        }
+        
+        self._interactive_operations = {
+            "segment_selection",  # Interactive mode - can be entered/exited multiple times
+            "fuse_mesh",  # Quick operation that user might want to retry
+            "select_concept"  # Selection operations that might need repeating
+        }
         self.tool_map = {
             "spawn_primitive": self.spawn_primitive,
             # "generate_concepts": self.generate_concepts,  # COMMENTED OUT - Advanced operation not used
@@ -37,25 +50,49 @@ class InstructionManager:
     
     def _is_duplicate_instruction(self, instruction: dict):
         """Check if this instruction was recently executed to prevent duplicates."""
+        tool_name = instruction.get('tool_name', 'unknown')
+        
+        # Interactive operations are always allowed to repeat
+        if tool_name in self._interactive_operations:
+            print(f"🔄 INTERACTIVE COMMAND: {tool_name} allowed to repeat (interactive operation)")
+            return False
+        
+        # Heavy operations should be deduplicated
+        if tool_name in self._heavy_operations:
+            instruction_hash = self._generate_instruction_hash(instruction)
+            current_time = time.time()
+            
+            # Clean up old entries first
+            expired_hashes = [
+                h for h, timestamp in self._executed_instructions.items()
+                if current_time - timestamp > self._instruction_timeout
+            ]
+            for h in expired_hashes:
+                del self._executed_instructions[h]
+            
+            # Check if this instruction was recently executed
+            if instruction_hash in self._executed_instructions:
+                time_since_execution = current_time - self._executed_instructions[instruction_hash]
+                print(f"🚫 DUPLICATE HEAVY OPERATION: {tool_name} was executed {time_since_execution:.1f}s ago")
+                return True
+            
+            # Mark this instruction as executed
+            self._executed_instructions[instruction_hash] = current_time
+            print(f"✅ HEAVY OPERATION: {tool_name} allowed (first execution or timeout expired)")
+            return False
+        
+        # Unknown operations - apply light deduplication (5 second cooldown)
         instruction_hash = self._generate_instruction_hash(instruction)
         current_time = time.time()
         
-        # Clean up old entries first
-        expired_hashes = [
-            h for h, timestamp in self._executed_instructions.items()
-            if current_time - timestamp > self._instruction_timeout
-        ]
-        for h in expired_hashes:
-            del self._executed_instructions[h]
-        
-        # Check if this instruction was recently executed
         if instruction_hash in self._executed_instructions:
             time_since_execution = current_time - self._executed_instructions[instruction_hash]
-            print(f"🚫 DUPLICATE INSTRUCTION: {instruction.get('tool_name')} was executed {time_since_execution:.1f}s ago")
-            return True
+            if time_since_execution < 5:  # Shorter cooldown for unknown operations
+                print(f"🚫 DUPLICATE UNKNOWN OPERATION: {tool_name} was executed {time_since_execution:.1f}s ago")
+                return True
         
-        # Mark this instruction as executed
         self._executed_instructions[instruction_hash] = current_time
+        print(f"✅ UNKNOWN OPERATION: {tool_name} allowed with light deduplication")
         return False
 
     def execute_instruction(self, instruction: dict):

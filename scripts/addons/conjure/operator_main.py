@@ -731,13 +731,27 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 
                 if segment_objects:
                     # Enable gesture-based segment selection
+                    print(f"🎯 BLENDER: Activating segment selection for {len(segment_objects)} segments")
                     bpy.ops.conjure.segment_selection()
-                    # print("🎯 DEBUG: segment_selection command processed - selection mode should be active")
+                    print(f"✅ BLENDER: Segment selection activated - clearing command to prevent loop")
                     
-                    # Clear the command to prevent repeated processing
-                    state_data["command"] = None
-                    with open(state_file_path, 'w') as f:
-                        json.dump(state_data, f, indent=4)
+                    # Clear the command to prevent repeated processing - use safe write method
+                    try:
+                        from pathlib import Path
+                        temp_file = Path(state_file_path).with_suffix('.tmp')
+                        state_data["command"] = None
+                        
+                        with open(temp_file, 'w') as f:
+                            json.dump(state_data, f, indent=4)
+                        temp_file.replace(state_file_path)
+                        print(f"✅ BLENDER: segment_selection command cleared safely")
+                        
+                    except Exception as clear_error:
+                        print(f"❌ BLENDER: Error clearing segment_selection command: {clear_error}")
+                        # Fallback to direct write
+                        state_data["command"] = None
+                        with open(state_file_path, 'w') as f:
+                            json.dump(state_data, f, indent=4)
                 else:
                     # No segments found - try to import mesh first
                     print("⚠️ DEBUG: No segments found for selection - attempting to import mesh first")

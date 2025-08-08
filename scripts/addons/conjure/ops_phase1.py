@@ -475,9 +475,9 @@ class CONJURE_OT_segment_selection(bpy.types.Operator):
         
         # Update state to indicate we're in selection mode
         # Don't clear existing selection when re-entering selection mode
+        # NOTE: Don't set command="segment_selection" here to avoid infinite loop
         self.update_state({
-            "selection_mode": "active",
-            "command": "segment_selection"  # This disables deform mode
+            "selection_mode": "active"
             # Note: We don't reset selected_segment here to preserve existing selections
         })
         
