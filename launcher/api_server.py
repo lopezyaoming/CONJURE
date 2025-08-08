@@ -25,6 +25,12 @@ from backend_agent import BackendAgent
 import launcher.config as config
 from generation_services import get_generation_service
 
+# Import progress tracker
+try:
+    from runcomfy.workflow_progress_tracker import progress_tracker
+except ImportError:
+    progress_tracker = None
+
 app = FastAPI(
     title="CONJURE API Server",
     description="Internal API server for CONJURE 3D modeling system",
@@ -114,6 +120,42 @@ async def shutdown_event():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "CONJURE API Server"}
+
+# Progress tracking endpoints
+@app.get("/workflow/progress/{prompt_id}")
+async def get_workflow_progress(prompt_id: str):
+    """Get current progress for a workflow execution."""
+    if not progress_tracker:
+        raise HTTPException(status_code=501, detail="Progress tracking not available")
+    
+    progress_summary = progress_tracker.get_workflow_summary(prompt_id)
+    if not progress_summary:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    return {
+        "success": True,
+        "data": progress_summary
+    }
+
+@app.get("/workflow/progress")
+async def get_all_active_workflows():
+    """Get progress for all active workflows."""
+    if not progress_tracker:
+        raise HTTPException(status_code=501, detail="Progress tracking not available")
+    
+    active_workflows = []
+    for prompt_id in progress_tracker.active_workflows:
+        summary = progress_tracker.get_workflow_summary(prompt_id)
+        if summary:
+            active_workflows.append(summary)
+    
+    return {
+        "success": True,
+        "data": {
+            "active_workflows": active_workflows,
+            "total_count": len(active_workflows)
+        }
+    }
 
 # Generation mode endpoint
 @app.get("/mode")

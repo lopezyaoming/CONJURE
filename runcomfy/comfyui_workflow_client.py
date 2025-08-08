@@ -18,6 +18,12 @@ from enum import Enum
 
 import httpx
 
+# Import the progress tracker
+try:
+    from .workflow_progress_tracker import progress_tracker, WorkflowProgress
+except ImportError:
+    from workflow_progress_tracker import progress_tracker, WorkflowProgress
+
 
 class ExecutionStatus(Enum):
     QUEUED = "queued"
@@ -207,13 +213,22 @@ class ComfyUIWorkflowClient:
                             max_val = progress_data.get("max", 100)
                             print(f"      Progress: Node {node} - {value}/{max_val} ({(value/max_val*100):.1f}%)")
                             
+                            # Update progress tracker
+                            progress_tracker.update_node_progress(prompt_id, str(node), "progress", progress_data=progress_data)
+                            
                         elif msg_type == "executing":
                             node_id = data.get("data", {}).get("node", "unknown")
                             print(f"      Executing: Node {node_id}")
                             
+                            # Update progress tracker
+                            progress_tracker.update_node_progress(prompt_id, str(node_id), "executing")
+                            
                         elif msg_type == "executed":
                             node_id = data.get("data", {}).get("node", "unknown")
                             print(f"      Executed: Node {node_id}")
+                            
+                            # Update progress tracker
+                            progress_tracker.update_node_progress(prompt_id, str(node_id), "executed")
                             
                         elif msg_type == "execution_start":
                             exec_prompt_id = data.get("data", {}).get("prompt_id", "")
@@ -434,7 +449,8 @@ class ComfyUIWorkflowClient:
         self, 
         comfyui_url: str, 
         workflow: Dict[str, Any], 
-        use_websocket: bool = True
+        use_websocket: bool = True,
+        workflow_name: str = "generate_flux_mesh"
     ) -> PromptExecution:
         """
         Execute workflow on ComfyUI instance
@@ -443,31 +459,55 @@ class ComfyUIWorkflowClient:
             comfyui_url: Base URL of ComfyUI instance
             workflow: Prepared workflow data
             use_websocket: Whether to use WebSocket monitoring (fallback to polling)
+            workflow_name: Name of the workflow for progress tracking
             
         Returns:
             PromptExecution with results
         """
-        print(f"🚀 Executing workflow on {comfyui_url}")
+        print(f"🚀 Executing workflow: {workflow_name} on {comfyui_url}")
         
         try:
             # Submit workflow
             prompt_id, client_id = await self.submit_workflow(comfyui_url, workflow)
             
+            # Start progress tracking
+            workflow_progress = progress_tracker.start_workflow_tracking(workflow_name, prompt_id, client_id)
+            print(f"📊 [PROGRESS] Started tracking workflow: {workflow_name}")
+            
             # Monitor execution
             if use_websocket:
                 try:
-                    return await self.wait_for_completion_websocket(comfyui_url, prompt_id, client_id)
+                    result = await self.wait_for_completion_websocket(comfyui_url, prompt_id, client_id)
                 except Exception as e:
                     print(f"⚠️ WebSocket monitoring failed: {e}")
                     print("🔄 Falling back to HTTP polling...")
-                    return await self.wait_for_completion_polling(comfyui_url, prompt_id)
+                    result = await self.wait_for_completion_polling(comfyui_url, prompt_id)
             else:
-                return await self.wait_for_completion_polling(comfyui_url, prompt_id)
+                result = await self.wait_for_completion_polling(comfyui_url, prompt_id)
+            
+            # Handle completion in progress tracker
+            if result.status == ExecutionStatus.COMPLETED:
+                progress_tracker.handle_workflow_completion(prompt_id, success=True)
+                print(f"📊 [PROGRESS] Workflow completed successfully: {workflow_name}")
+            else:
+                progress_tracker.handle_workflow_completion(prompt_id, success=False, error_message=result.error_message)
+                print(f"📊 [PROGRESS] Workflow failed: {result.error_message}")
+            
+            return result
                 
         except Exception as e:
             print(f"❌ Workflow execution failed: {e}")
+            # Try to handle failure in progress tracker if we have a prompt_id
+            try:
+                if 'prompt_id' in locals():
+                    progress_tracker.handle_workflow_completion(prompt_id, success=False, error_message=str(e))
+            except:
+                pass  # Don't fail on progress tracking errors
+            
             return PromptExecution(
-                prompt_id="unknown",
-                status=ExecutionStatus.FAILED.value,
-                error_message=str(e)
+                prompt_id="",
+                client_id="",
+                status=ExecutionStatus.FAILED,
+                error_message=str(e),
+                outputs={}
             )
