@@ -6,6 +6,34 @@ This document outlines the complete implementation plan for integrating RunComfy
 
 ## Phase 1: Foundation Setup
 
+### Step 1.0: Development Server Startup Script (DEV PRIORITY)
+**File**: `runcomfy/dev_server_startup.py`
+**Test**: `test_dev_server_startup.py`
+
+**RATIONALE**: RunComfy server startup takes up to 3 minutes. For development and debugging, 
+we need to pre-launch the server independently from main.py to avoid repeated startup delays.
+
+**Implementation Tasks:**
+- Create standalone script to launch runComfy server
+- Handle authentication, user_id, token, version_id independently
+- Implement server health monitoring and connection verification
+- Add server status checking and reuse capabilities
+- Store server connection details for main.py to use later
+- Include graceful server shutdown functionality
+
+**Key Features:**
+- Pre-launch runComfy server before development sessions
+- Store active server connection info in shared state file
+- Validate server readiness before workflow execution
+- Cost monitoring during development sessions
+- Clean server shutdown when development is complete
+
+**Development Workflow:**
+1. Run `python runcomfy/dev_server_startup.py` at start of dev session
+2. Server launches and connection details saved to state
+3. Run main.py multiple times using existing server connection
+4. Server shutdown when development session ends
+
 ### Step 1.1: Create Core RunComfy Client
 **File**: `runcomfy/runcomfy_client.py`
 **Test**: `test_runcomfy_client.py`
@@ -13,15 +41,17 @@ This document outlines the complete implementation plan for integrating RunComfy
 **Implementation Tasks:**
 - Copy and adapt `RunComfyAPIClient` from sample project
 - Configure for CONJURE credentials (from `credentials.txt`)
-- Implement machine lifecycle management
+- Implement machine lifecycle management with dev server reuse
 - Add proper error handling and retries
 - Test machine launch/stop/status operations
+- Add connection to existing dev server functionality
 
 **Key Features:**
 - Machine launch with workflow version
 - Status monitoring with timeout handling
-- Machine reuse optimization
+- Machine reuse optimization (especially for dev server)
 - Cost estimation tracking
+- Dev server connection reuse
 
 ### Step 1.2: Create ComfyUI Workflow Client
 **File**: `runcomfy/comfyui_workflow_client.py`
@@ -59,13 +89,32 @@ This document outlines the complete implementation plan for integrating RunComfy
 
 ## Phase 2: CONJURE Integration
 
-### Step 2.1: Update CloudGenerationService
+### Step 2.1: Shared Server State Management
+**File**: `runcomfy/dev_server_state.py`
+**Test**: `test_dev_server_state.py`
+
+**Implementation Tasks:**
+- Create shared state management for active development servers
+- Store server connection details (server_id, base_url, status)
+- Implement server health checking and validation
+- Add server session management and cleanup
+- Track server costs and usage during development
+
+**Key Features:**
+- Store active server connection info in JSON state file
+- Validate server availability before workflow execution
+- Monitor server health and auto-reconnect if needed
+- Track development session costs
+- Clean server state on graceful shutdown
+
+### Step 2.2: Update CloudGenerationService
 **File**: `launcher/generation_services.py`
 **Test**: `test_cloud_generation_service.py`
 
 **Implementation Tasks:**
 - Implement CloudGenerationService methods
 - Integrate with RunComfy orchestrator
+- Add dev server connection reuse functionality
 - Map CONJURE API to RunComfy workflow
 - Handle generate_flux_mesh workflow specifically
 - Add proper error handling and status reporting
@@ -220,10 +269,12 @@ This document outlines the complete implementation plan for integrating RunComfy
 
 ### Week 1: Core Infrastructure
 1. ✅ Set up testing framework
-2. ✅ Implement RunComfy client
-3. ✅ Test machine operations
-4. ✅ Implement workflow client
-5. ✅ Test workflow execution
+2. ✅ Implement development server startup (DEV PRIORITY)
+3. ✅ Implement shared server state management
+4. ✅ Implement RunComfy client (with dev server reuse)
+5. ✅ Test machine operations
+6. ✅ Implement workflow client
+7. ✅ Test workflow execution
 
 ### Week 2: Integration
 1. ✅ Create orchestrator
@@ -264,9 +315,13 @@ runcomfy/
 ├── utils.py                        # Utility functions
 ├── models.py                       # Data models
 └── tests/
+    ├── test_dev_server_startup.py      # HIGHEST PRIORITY
+    ├── test_dev_server_state.py
     ├── test_runcomfy_client.py
     ├── test_comfyui_workflow_client.py
     ├── test_runcomfy_orchestrator.py
+    ├── test_cloud_generation_service.py
+    ├── test_flux_mesh_workflow.py
     ├── test_workflow_adapter.py
     ├── test_workflow_io.py
     ├── test_machine_pool.py
@@ -361,4 +416,39 @@ finally:
 4. **Memory leaks** → Monitor resource usage
 5. **Configuration errors** → Add validation and defaults
 
-This plan ensures a systematic, tested, and robust implementation of RunComfy integration while following proven patterns from the successful sample project.
+## Development Workflow for Fast Iteration
+
+### Daily Development Cycle:
+```bash
+# 1. Start development session - launch server once per day
+python runcomfy/dev_server_startup.py
+
+# 2. Develop and test multiple times using the same server
+python launcher/main.py  # Uses existing server connection
+python test_flux_mesh_workflow.py  # Test specific workflows
+python launcher/main.py  # Another iteration
+
+# 3. End development session - shutdown server
+python runcomfy/dev_server_startup.py --shutdown
+```
+
+### Development Server State File:
+```json
+{
+  "server_id": "srv-xxx", 
+  "base_url": "https://xxx.runcomfy.com",
+  "status": "running",
+  "launch_time": "2024-01-01T10:00:00Z",
+  "workflow_version": "v1.0",
+  "total_cost": 0.25,
+  "session_cost": 0.15
+}
+```
+
+### Benefits:
+- **3-minute startup** → **Instant connection reuse**
+- **Cost efficiency** → Single server for multiple dev iterations
+- **Debug speed** → No waiting between test cycles
+- **Clean separation** → Dev server independent from main.py logic
+
+This plan ensures a systematic, tested, and robust implementation of RunComfy integration while following proven patterns from the successful sample project, with a special focus on rapid development iteration.
