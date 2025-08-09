@@ -1,1 +1,1 @@
-a simple test image
+Create a simple black cube with sharp edges, centered on a neutral gray background. The lighting should be soft and even, highlighting the cube's geometric form. The scene should have a minimalistic and clean aesthetic, focusing on the cube's symmetry and simplicity.

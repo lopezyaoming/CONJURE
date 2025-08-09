@@ -9,7 +9,7 @@ import base64
 import httpx
 from openai import OpenAI
 from pathlib import Path
-from instruction_manager import InstructionManager
+from launcher.instruction_manager import InstructionManager
 
 # Custom ChatGPT ID from the provided URL: https://chatgpt.com/g/g-68742df47c3881918fc61172bf53d4b4-vibe-backend
 CUSTOM_GPT_MODEL = "gpt-4o"  # Use the latest model that supports custom instructions

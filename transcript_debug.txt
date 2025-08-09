@@ -1,35 +1,10 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[11:42:29] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-[11:42:38] [AGENT_TURN] MESSAGE: Yes, I can hear you perfectly.
-[11:42:38] [AGENT_TURN] MESSAGE: To start, please tell me what you'd like to create today.
-[11:42:38] [AGENT_TURN] MESSAGE: Would you like to begin with a primitive shape to roughly describe your idea? Or would you prefer to describe it verbally?
-USER (Whisper): Hi, can you hear me alright?
-[11:42:38] [USER_TURN] MESSAGE: Hi, can you hear me alright?
-[11:42:53] [AGENT_TURN] MESSAGE: many designs. Back end
-[11:42:53] [AGENT_TURN] MESSAGE: A cube is a great starting point for me.
-[11:42:54] [AGENT_TURN] MESSAGE: Agent, let's trigger spawn.
-USER (Whisper): Okay, let's start with the cube.
-[11:42:54] [USER_TURN] MESSAGE: Okay, let's start with the cube.
-[11:42:54] [AGENT_TURN] MESSAGE: Primitive.
-[11:42:54] [AGENT_TURN] MESSAGE: Once that's loaded, you can begin sculpting and let me know when you're done.
-[11:42:54] [AGENT_TURN] MESSAGE: with the primitive type set to cube.
-USER (Whisper): That sounds great, thank you so much.
-[11:43:09] [USER_TURN] MESSAGE: That sounds great, thank you so much.
-USER (Whisper): Hey, can we try that again? I don't see the cube.
-[11:43:18] [USER_TURN] MESSAGE: Hey, can we try that again? I don't see the cube.
-[11:43:19] [AGENT_TURN] MESSAGE: Backend agent, please trigger.
-[11:43:19] [AGENT_TURN] MESSAGE: spawn
-[11:43:19] [AGENT_TURN] MESSAGE: I apologize for the technical hiccup.
-[11:43:19] [AGENT_TURN] MESSAGE: Let's try that again.
-[11:43:20] [AGENT_TURN] MESSAGE: Please let me know when you see the cube and are ready to proceed.
-[11:43:20] [AGENT_TURN] MESSAGE: primitive with the primitive type set to cube once more.
-USER (Whisper): Sounds great.
-[11:43:35] [USER_TURN] MESSAGE: Sounds great.
-USER (Whisper): Sounds great.
-[11:43:49] [USER_TURN] MESSAGE: Sounds great.
-[11:43:51] [AGENT_TURN] MESSAGE: with your initial sculpt.
-[11:43:51] [AGENT_TURN] MESSAGE: Do you see the cube now, and are you done?
-[11:43:51] [AGENT_TURN] MESSAGE: or would you like more time?
-[11:43:51] [AGENT_TURN] MESSAGE: Great! Just to confirm...
-USER (Whisper): Give me a little bit more time
-[11:44:02] [USER_TURN] MESSAGE: Give me a little bit more time
+[14:08:49] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
+[14:08:53] [AGENT_TURN] MESSAGE: A cube is definitely an option if you'd like to start with a primitive.
+[14:08:54] [AGENT_TURN] MESSAGE: Would you like to start with a primitive to roughly describe your idea, or would you prefer to verbally describe it?
+USER (Whisper): Hey, uh, can we create a cube?
+[14:08:54] [USER_TURN] MESSAGE: Hey, uh, can we create a cube?
+USER (Whisper): Uh, these are a bit primitive. Uh, these are really cute.
+[14:09:12] [USER_TURN] MESSAGE: Uh, these are a bit primitive. Uh, these are really cute.
+[14:09:12] [AGENT_TURN] MESSAGE: Please create a cube.
+[14:09:13] [AGENT_TURN] MESSAGE: Back in agent, let's spawn a primitive.

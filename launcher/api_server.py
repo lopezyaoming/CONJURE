@@ -3,6 +3,14 @@ CONJURE FastAPI Server
 Central API server for coordinating all CONJURE components.
 Replaces direct function calls with HTTP API endpoints.
 """
+# --- Add project root to sys.path ---
+# This is necessary to ensure that local modules can be found
+# when this script is run as a subprocess or entry point.
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# -----------------------------------
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
