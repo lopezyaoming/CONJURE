@@ -150,35 +150,60 @@ class RunComfyOrchestrator:
             print(f"❌ Failed to load workflow: {e}")
             raise
     
-    def prepare_workflow_inputs(self, workflow: Dict[str, Any], prompt: str, 
-                              input_image_path: Optional[str] = None) -> Dict[str, Any]:
+    def prepare_workflow_inputs(self, workflow: Dict[str, Any], use_conjure_data: bool = True) -> Dict[str, Any]:
         """
-        Prepare workflow with input prompt and optional image.
+        Prepare workflow with CONJURE data inputs and outputs.
         
         Args:
             workflow: Base workflow JSON
-            prompt: Text prompt for generation
-            input_image_path: Optional input image path for ControlNet
+            use_conjure_data: If True, read from CONJURE data files, otherwise use existing values
             
         Returns:
-            Modified workflow with inputs injected
+            Modified workflow with inputs injected and outputs configured
         """
         # Create a copy to avoid modifying the original
         prepared_workflow = json.loads(json.dumps(workflow))
         
-        # Update text prompts (node 34 - POSITIVECLIP)
-        if "34" in prepared_workflow:
-            prepared_workflow["34"]["inputs"]["clip_l"] = prompt
-            prepared_workflow["34"]["inputs"]["t5xxl"] = prompt
+        if use_conjure_data:
+            # Read prompt from userPrompt.txt
+            user_prompt_path = Path("data/generated_text/userPrompt.txt")
+            if user_prompt_path.exists():
+                try:
+                    with open(user_prompt_path, 'r', encoding='utf-8') as f:
+                        prompt = f.read().strip()
+                    
+                    # Update text prompts (node 34 - POSITIVECLIP)
+                    if "34" in prepared_workflow:
+                        prepared_workflow["34"]["inputs"]["clip_l"] = prompt
+                        prepared_workflow["34"]["inputs"]["t5xxl"] = prompt
+                    
+                    print(f"✅ Loaded prompt from userPrompt.txt: {prompt[:100]}...")
+                    
+                except Exception as e:
+                    print(f"⚠️ Failed to read userPrompt.txt: {e}")
+                    print("   Using default prompt from workflow")
+            else:
+                print(f"⚠️ userPrompt.txt not found: {user_prompt_path}")
+                print("   Using default prompt from workflow")
+            
+            # Verify input image exists (render.png)
+            input_image_path = Path("data/generated_images/gestureCamera/render.png")
+            if input_image_path.exists():
+                # Update input image (node 16 - INPUTIMAGE) - already set to "render.png" in workflow
+                print(f"✅ Input image found: {input_image_path}")
+            else:
+                print(f"⚠️ Input image not found: {input_image_path}")
+                print("   Workflow will use placeholder image")
         
-        # Update input image if provided (node 16 - INPUTIMAGE)
-        if input_image_path and "16" in prepared_workflow:
-            image_filename = Path(input_image_path).name
-            prepared_workflow["16"]["inputs"]["image"] = image_filename
+        # Configure output paths (already set in workflow JSON):
+        # - Node 24 (EXPORT IMAGE): "flux" -> saves as flux.png
+        # - Node 33 (EXPORTGLB): "partpacker_results/partpacker_result_0" -> saves as partpacker_result_0.glb
         
-        print(f"✅ Prepared workflow with prompt: {prompt[:100]}...")
-        if input_image_path:
-            print(f"   Input image: {input_image_path}")
+        print(f"✅ Workflow prepared with CONJURE data management")
+        print(f"   Input image: render.png (from gestureCamera/)")
+        print(f"   Input prompt: from userPrompt.txt")
+        print(f"   Output image: flux.png")
+        print(f"   Output mesh: partpacker_results/partpacker_result_0.glb")
         
         return prepared_workflow
     
@@ -243,30 +268,41 @@ class RunComfyOrchestrator:
         
         return machine_info
     
-    async def create_job(self, prompt: str, input_image_path: Optional[str] = None) -> FluxMeshJob:
+    async def create_job(self, job_name: str = "flux_mesh_generation") -> FluxMeshJob:
         """
-        Create a new flux mesh generation job.
+        Create a new flux mesh generation job using CONJURE data.
         
         Args:
-            prompt: Text prompt for generation
-            input_image_path: Optional input image for ControlNet guidance
+            job_name: Name identifier for the job
             
         Returns:
             Created job with initial status
         """
         job_id = str(uuid.uuid4())
         
+        # Read prompt from userPrompt.txt for job creation
+        prompt = "Default flux mesh generation"
+        user_prompt_path = Path("data/generated_text/userPrompt.txt")
+        if user_prompt_path.exists():
+            try:
+                with open(user_prompt_path, 'r', encoding='utf-8') as f:
+                    prompt = f.read().strip()
+            except Exception as e:
+                print(f"⚠️ Failed to read userPrompt.txt: {e}")
+        
         job = FluxMeshJob(
             job_id=job_id,
             status=JobStatus.PENDING,
             prompt=prompt,
-            input_image_path=input_image_path,
+            input_image_path="data/generated_images/gestureCamera/render.png",
             created_at=datetime.now(timezone.utc).isoformat()
         )
         
         self.active_jobs[job_id] = job
         
-        print(f"📝 Created job {job_id} for prompt: {prompt[:100]}...")
+        print(f"📝 Created CONJURE job {job_id}: {job_name}")
+        print(f"   Prompt: {prompt[:100]}...")
+        print(f"   Input image: render.png")
         return job
     
     async def execute_job(self, job: FluxMeshJob) -> FluxMeshJob:
@@ -302,11 +338,9 @@ class RunComfyOrchestrator:
             # Estimate cost
             job.machine_cost_estimate = self.estimate_cost(machine_type)
             
-            # 2. Load and prepare workflow
+            # 2. Load and prepare workflow with CONJURE data
             workflow = self.load_workflow()
-            prepared_workflow = self.prepare_workflow_inputs(
-                workflow, job.prompt, job.input_image_path
-            )
+            prepared_workflow = self.prepare_workflow_inputs(workflow, use_conjure_data=True)
             
             # 3. Execute workflow with progress tracking
             job.status = JobStatus.RUNNING
@@ -323,23 +357,32 @@ class RunComfyOrchestrator:
             job.client_id = execution_result.client_id
             
             # 4. Handle results
-            if execution_result.status == ExecutionStatus.COMPLETED:
+            if execution_result.status == ExecutionStatus.COMPLETED.value:
                 job.status = JobStatus.COMPLETED
                 job.completed_at = datetime.now(timezone.utc).isoformat()
                 
                 # Extract result URLs from outputs
                 job.result_files = execution_result.outputs
                 
-                # Map specific outputs
-                if "24" in execution_result.outputs:  # Depth result image
-                    job.generated_image_url = execution_result.outputs["24"]
+                print(f"✅ Workflow completed successfully!")
+                print(f"   Available outputs: {list(execution_result.outputs.keys()) if execution_result.outputs else 'None'}")
                 
-                if "33" in execution_result.outputs:  # GLB mesh file
-                    job.generated_mesh_url = execution_result.outputs["33"]
+                # Download results to local CONJURE data folders
+                print(f"💾 Downloading results to local data folders...")
+                downloaded_files = await self.comfyui_client.download_results(job.comfyui_url, execution_result)
                 
-                print(f"✅ Job completed successfully!")
-                print(f"   Image: {job.generated_image_url}")
-                print(f"   Mesh: {job.generated_mesh_url}")
+                # Update job with local file paths
+                if "Generated Image" in downloaded_files:
+                    job.generated_image_url = downloaded_files["Generated Image"]
+                
+                if "Generated Mesh" in downloaded_files:
+                    job.generated_mesh_url = downloaded_files["Generated Mesh"]
+                
+                print(f"✅ Job completed with local files!")
+                if job.generated_image_url:
+                    print(f"   📸 Image: {job.generated_image_url}")
+                if job.generated_mesh_url:
+                    print(f"   🗿 Mesh: {job.generated_mesh_url}")
                 
             else:
                 job.status = JobStatus.FAILED
@@ -364,20 +407,18 @@ class RunComfyOrchestrator:
         print(f"🏁 Job {job.job_id} finished with status: {job.status.value}")
         return job
     
-    async def execute_flux_mesh_generation(self, prompt: str, 
-                                         input_image_path: Optional[str] = None) -> FluxMeshJob:
+    async def execute_flux_mesh_generation(self, job_name: str = "conjure_flux_mesh") -> FluxMeshJob:
         """
-        High-level method to generate a flux mesh from prompt.
+        High-level method to generate a flux mesh using CONJURE data.
         
         Args:
-            prompt: Text description for 3D mesh generation
-            input_image_path: Optional input image for ControlNet guidance
+            job_name: Name identifier for the job
             
         Returns:
             Completed job with results or error information
         """
-        # Create and execute job
-        job = await self.create_job(prompt, input_image_path)
+        # Create and execute job using CONJURE data files
+        job = await self.create_job(job_name)
         job = await self.execute_job(job)
         
         return job

@@ -36,6 +36,7 @@ class ExecutionStatus(Enum):
 class PromptExecution:
     prompt_id: str
     status: str
+    client_id: Optional[str] = None
     queued_at: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
@@ -244,6 +245,7 @@ class ComfyUIWorkflowClient:
                                 execution_completed = True
                                 execution_result = PromptExecution(
                                     prompt_id=prompt_id,
+                                    client_id=client_id,
                                     status=ExecutionStatus.COMPLETED.value,
                                     completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
                                 )
@@ -259,6 +261,7 @@ class ComfyUIWorkflowClient:
                                 execution_completed = True
                                 execution_result = PromptExecution(
                                     prompt_id=prompt_id,
+                                    client_id=client_id,
                                     status=ExecutionStatus.FAILED.value,
                                     error_message=str(error_details),
                                     completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -300,6 +303,7 @@ class ComfyUIWorkflowClient:
                             execution_completed = True
                             execution_result = PromptExecution(
                                 prompt_id=prompt_id,
+                                client_id=client_id,
                                 status=ExecutionStatus.FAILED.value,
                                 error_message=f"Execution timeout after {self.execution_timeout}s",
                                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -331,6 +335,7 @@ class ComfyUIWorkflowClient:
             print(f"   🔄 [WEBSOCKET DEBUG] Falling back to polling method...")
             return PromptExecution(
                 prompt_id=prompt_id,
+                client_id=client_id,
                 status=ExecutionStatus.FAILED.value,
                 error_message=f"WebSocket error: {e}",
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -389,6 +394,7 @@ class ComfyUIWorkflowClient:
                     print(f"   ⏰ [POLLING DEBUG] Timeout reached ({self.execution_timeout}s)")
                     return PromptExecution(
                         prompt_id=prompt_id,
+                        client_id="",
                         status=ExecutionStatus.FAILED.value,
                         error_message=f"Polling timeout after {self.execution_timeout}s",
                         completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -413,6 +419,7 @@ class ComfyUIWorkflowClient:
                                 print(f"   ✅ [POLLING DEBUG] Workflow completed (via polling)")
                                 return PromptExecution(
                                     prompt_id=prompt_id,
+                                    client_id="",
                                     status=ExecutionStatus.COMPLETED.value,
                                     completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ"),
                                     outputs=prompt_history.get("outputs", {})
@@ -421,6 +428,7 @@ class ComfyUIWorkflowClient:
                                 print(f"   ❌ [POLLING DEBUG] Workflow failed (via polling)")
                                 return PromptExecution(
                                     prompt_id=prompt_id,
+                                    client_id="",
                                     status=ExecutionStatus.FAILED.value,
                                     error_message="Execution failed (see ComfyUI logs)",
                                     completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -445,12 +453,183 @@ class ComfyUIWorkflowClient:
                 print(f"   ⚠️ [POLLING DEBUG] Polling error: {e}")
                 await asyncio.sleep(self.poll_interval * 2)  # Wait longer on error
     
+    async def download_results(self, comfyui_url: str, execution_result: PromptExecution) -> Dict[str, str]:
+        """
+        Download workflow results to local CONJURE data folders
+        
+        Args:
+            comfyui_url: Base URL of ComfyUI server
+            execution_result: Completed execution result with outputs
+            
+        Returns:
+            Dictionary mapping output type to local file path
+        """
+        if not execution_result.outputs:
+            print("⚠️ No outputs to download")
+            return {}
+        
+        print(f"💾 Downloading workflow results...")
+        print(f"   Available outputs: {list(execution_result.outputs.keys())}")
+        
+        downloaded_files = {}
+        
+        # Mapping from node IDs to local file paths
+        output_mapping = {
+            "24": {
+                "local_path": Path("data/generated_images/flux/flux.png"),
+                "type": "image",
+                "name": "Generated Image"
+            },
+            "33": {
+                "local_path": Path("data/generated_models/partpacker_results/partpacker_result_0.glb"),
+                "type": "3d", 
+                "name": "Generated Mesh"
+            }
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                for node_id, config in output_mapping.items():
+                    if node_id in execution_result.outputs:
+                        node_outputs = execution_result.outputs[node_id]
+                        local_path = config["local_path"]
+                        output_name = config["name"]
+                        
+                        print(f"\n📥 Processing {output_name} (node {node_id})...")
+                        
+                        if config["type"] == "image" and "images" in node_outputs:
+                            # Handle image outputs
+                            images = node_outputs["images"]
+                            if images:
+                                image_info = images[0]  # Take first image
+                                filename = image_info["filename"]
+                                subfolder = image_info.get("subfolder", "")
+                                
+                                # Build download URL
+                                url_path = f"/view?filename={filename}"
+                                if subfolder:
+                                    url_path += f"&subfolder={subfolder}"
+                                
+                                download_url = f"{comfyui_url}{url_path}"
+                                
+                                print(f"   📡 Downloading: {filename}")
+                                print(f"   🔗 URL: {download_url}")
+                                
+                                # Download file
+                                response = await client.get(download_url)
+                                if response.status_code == 200:
+                                    # Ensure directory exists
+                                    local_path.parent.mkdir(parents=True, exist_ok=True)
+                                    
+                                    # Save file (overwrite existing)
+                                    with open(local_path, 'wb') as f:
+                                        f.write(response.content)
+                                    
+                                    size = len(response.content)
+                                    print(f"   ✅ Saved: {local_path} ({size} bytes)")
+                                    downloaded_files[output_name] = str(local_path)
+                                else:
+                                    print(f"   ❌ Download failed: HTTP {response.status_code}")
+                                    print(f"   Response: {response.text[:200]}...")
+                        
+                        elif config["type"] == "3d" and "3d" in node_outputs:
+                            # Handle 3D/GLB outputs (PartPacker)
+                            gltf_files = node_outputs["3d"]
+                            if gltf_files:
+                                gltf_info = gltf_files[0]  # Take first file
+                                filename = gltf_info["filename"]
+                                subfolder = gltf_info.get("subfolder", "")
+                                
+                                # Build download URL
+                                url_path = f"/view?filename={filename}"
+                                if subfolder:
+                                    url_path += f"&subfolder={subfolder}"
+                                
+                                download_url = f"{comfyui_url}{url_path}"
+                                
+                                print(f"   📡 Downloading: {filename}")
+                                print(f"   🔗 URL: {download_url}")
+                                
+                                # Download file
+                                response = await client.get(download_url)
+                                if response.status_code == 200:
+                                    # Ensure directory exists
+                                    local_path.parent.mkdir(parents=True, exist_ok=True)
+                                    
+                                    # Save file (overwrite existing)
+                                    with open(local_path, 'wb') as f:
+                                        f.write(response.content)
+                                    
+                                    size = len(response.content)
+                                    print(f"   ✅ Saved: {local_path} ({size} bytes)")
+                                    downloaded_files[output_name] = str(local_path)
+                                else:
+                                    print(f"   ❌ Download failed: HTTP {response.status_code}")
+                                    print(f"   Response: {response.text[:200]}...")
+                        else:
+                            print(f"   ⚠️ No {config['type']} outputs found for node {node_id}")
+                            print(f"   Available keys: {list(node_outputs.keys())}")
+        
+        except Exception as e:
+            print(f"❌ Result download failed: {e}")
+        
+        print(f"\n📊 Download Summary:")
+        if downloaded_files:
+            print(f"   ✅ Successfully downloaded {len(downloaded_files)} files:")
+            for output_name, file_path in downloaded_files.items():
+                print(f"      • {output_name}: {file_path}")
+        else:
+            print(f"   ⚠️ No files were downloaded")
+        
+        return downloaded_files
+
+    async def upload_image(self, comfyui_url: str, image_path: str) -> str:
+        """
+        Upload an image to ComfyUI server
+        
+        Args:
+            comfyui_url: Base URL of ComfyUI server
+            image_path: Path to image file to upload
+            
+        Returns:
+            Filename on the server
+        """
+        image_path = Path(image_path)
+        if not image_path.exists():
+            raise FileNotFoundError(f"Image file not found: {image_path}")
+        
+        filename = image_path.name
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                with open(image_path, 'rb') as f:
+                    files = {'image': (filename, f, 'image/png')}
+                    response = await client.post(
+                        f"{comfyui_url}/upload/image",
+                        files=files
+                    )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    uploaded_filename = result.get('name', filename)
+                    print(f"✅ Image uploaded: {uploaded_filename}")
+                    return uploaded_filename
+                else:
+                    print(f"❌ Image upload failed: HTTP {response.status_code}")
+                    print(f"   Response: {response.text}")
+                    raise Exception(f"Image upload failed: HTTP {response.status_code}")
+                    
+        except Exception as e:
+            print(f"❌ Image upload error: {e}")
+            raise
+
     async def execute_workflow(
         self, 
         comfyui_url: str, 
         workflow: Dict[str, Any], 
         use_websocket: bool = True,
-        workflow_name: str = "generate_flux_mesh"
+        workflow_name: str = "generate_flux_mesh",
+        upload_input_image: bool = True
     ) -> PromptExecution:
         """
         Execute workflow on ComfyUI instance
@@ -467,6 +646,21 @@ class ComfyUIWorkflowClient:
         print(f"🚀 Executing workflow: {workflow_name} on {comfyui_url}")
         
         try:
+            # Upload input image if needed
+            if upload_input_image:
+                input_image_path = Path("data/generated_images/gestureCamera/render.png")
+                if input_image_path.exists():
+                    print(f"📤 Uploading input image: {input_image_path}")
+                    uploaded_filename = await self.upload_image(comfyui_url, str(input_image_path))
+                    
+                    # Update workflow to use uploaded filename
+                    if "16" in workflow:
+                        workflow["16"]["inputs"]["image"] = uploaded_filename
+                        print(f"✅ Updated workflow to use uploaded image: {uploaded_filename}")
+                else:
+                    print(f"⚠️ Input image not found: {input_image_path}")
+                    print("   Workflow will use existing image reference")
+            
             # Submit workflow
             prompt_id, client_id = await self.submit_workflow(comfyui_url, workflow)
             
@@ -486,7 +680,7 @@ class ComfyUIWorkflowClient:
                 result = await self.wait_for_completion_polling(comfyui_url, prompt_id)
             
             # Handle completion in progress tracker
-            if result.status == ExecutionStatus.COMPLETED:
+            if result.status == ExecutionStatus.COMPLETED.value:
                 progress_tracker.handle_workflow_completion(prompt_id, success=True)
                 print(f"📊 [PROGRESS] Workflow completed successfully: {workflow_name}")
             else:

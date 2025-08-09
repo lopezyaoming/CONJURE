@@ -1,8 +1,8 @@
 {
   "3": {
     "inputs": {
-      "noise_seed": 380878235998520,
-      "steps": 25,
+      "noise_seed": 370878235997532,
+      "steps": 20,
       "timestep_to_start_cfg": 1,
       "true_gs": 3.5,
       "image_to_image_strength": 0,
@@ -120,7 +120,7 @@
   },
   "16": {
     "inputs": {
-      "image": "ComfyUI_00001_.png"
+      "image": "render.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -144,7 +144,7 @@
   },
   "24": {
     "inputs": {
-      "filename_prefix": "depth_res",
+      "filename_prefix": "flux",
       "images": [
         "37",
         0
@@ -205,7 +205,7 @@
   },
   "33": {
     "inputs": {
-      "filename_prefix": "mesh/ComfyUI",
+      "filename_prefix": "partpacker_results/partpacker_result_0",
       "image": "",
       "mesh": [
         "32",
