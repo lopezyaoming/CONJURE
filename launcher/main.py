@@ -106,6 +106,10 @@ class ConjureApp:
         # 🧹 STARTUP CLEANUP: Clear any leftover requests from previous runs
         self.state_manager.reset_to_clean_state()
         
+        # 🔧 Store generation mode in state file for API server access
+        self.state_manager.set_state("generation_mode", generation_mode)
+        print(f"🔧 Generation mode stored in state file: {generation_mode}")
+        
         self.subprocess_manager = SubprocessManager()
         self.instruction_manager = InstructionManager(self.state_manager)
         self.backend_agent = BackendAgent(instruction_manager=self.instruction_manager)

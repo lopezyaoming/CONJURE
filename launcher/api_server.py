@@ -401,8 +401,17 @@ if not HF_TOKEN:
     print("⚠️  WARNING: HUGGINGFACE_HUB_ACCESS_TOKEN not set - API calls will use anonymous quota")
 
 def get_generation_mode():
-    """Get the current generation mode from config."""
-    return getattr(config, 'GENERATION_MODE', 'local')
+    """Get the current generation mode from state file."""
+    try:
+        from state_manager import StateManager
+        state_manager = StateManager()
+        state = state_manager.get_state()
+        mode = state.get('generation_mode', 'local')
+        print(f"🔍 API SERVER: Retrieved generation mode from state: {mode}")
+        return mode
+    except Exception as e:
+        print(f"⚠️ API SERVER: Error reading generation mode from state, defaulting to local: {e}")
+        return 'local'
 
 
 

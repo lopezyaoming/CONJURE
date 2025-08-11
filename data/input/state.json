@@ -15,7 +15,6 @@
     "primitive_type": null,
     "flux_prompt": null,
     "flux_seed": null,
-    "min_volume_threshold": 0.001,
-    "prompt": "A detailed 3D mesh model featuring a neutral studio background with soft studio lighting. The model should be high-definition, showcasing intricate textures and forms. The composition should be balanced, with a focus on the central object. The lighting should highlight the contours and details, creating a professional photography standard. The mood should be neutral and clean, emphasizing the quality and precision of the model.",
-    "seed": 0
+    "min_volume_threshold": null,
+    "generation_mode": "cloud"
 }
