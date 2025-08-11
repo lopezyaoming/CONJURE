@@ -5,10 +5,12 @@ Independent script to launch and manage runComfy servers for development.
 Avoids the 3-minute startup delay during iterative development cycles.
 
 Usage:
-    python runcomfy/dev_server_startup.py              # Launch server
-    python runcomfy/dev_server_startup.py --status     # Check server status  
-    python runcomfy/dev_server_startup.py --shutdown   # Shutdown server
-    python runcomfy/dev_server_startup.py --restart    # Restart server
+    python runcomfy/dev_server_startup.py                    # Launch server with interactive menu
+    python runcomfy/dev_server_startup.py --status           # Check server status  
+    python runcomfy/dev_server_startup.py --shutdown         # Shutdown server
+    python runcomfy/dev_server_startup.py --restart          # Restart server with optional type change
+    python runcomfy/dev_server_startup.py --server-type large # Launch specific server type
+    python runcomfy/dev_server_startup.py --no-interactive   # Skip interactive menu (use default)
 """
 
 import asyncio
@@ -77,13 +79,74 @@ class DevServerManager:
         
         return self.client
     
-    async def launch_server(self, server_type: str = "medium", duration: int = 3600) -> bool:
+    def _select_server_type(self) -> str:
+        """Interactive server type selection"""
+        server_options = {
+            "medium": {
+                "description": "Medium server - Good for basic workflows",
+                "specs": "Balanced CPU/GPU",
+                "cost": "Lower cost"
+            },
+            "large": {
+                "description": "Large server - Better performance for complex workflows", 
+                "specs": "More CPU/GPU power",
+                "cost": "Medium cost"
+            },
+            "extra-large": {
+                "description": "Extra Large server - High performance for demanding workflows",
+                "specs": "High CPU/GPU power", 
+                "cost": "Higher cost"
+            },
+            "2x-large": {
+                "description": "2X Large server - Maximum performance",
+                "specs": "Very high CPU/GPU power",
+                "cost": "High cost"
+            },
+            "2xl-turbo": {
+                "description": "2XL Turbo server - Ultra high performance with optimized speed",
+                "specs": "Ultra high CPU/GPU power + speed optimizations",
+                "cost": "Highest cost"
+            }
+        }
+        
+        print("\n🖥️ Select Server Type:")
+        print("=" * 60)
+        
+        options_list = list(server_options.keys())
+        for i, (server_type, info) in enumerate(server_options.items(), 1):
+            print(f"{i}. {server_type.upper()}")
+            print(f"   📝 {info['description']}")
+            print(f"   ⚙️  {info['specs']}")
+            print(f"   💰 {info['cost']}")
+            print()
+        
+        while True:
+            try:
+                choice = input(f"Enter your choice (1-{len(options_list)}) or 'q' to quit: ").strip()
+                
+                if choice.lower() == 'q':
+                    print("❌ Server launch cancelled")
+                    return None
+                
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(options_list):
+                    selected_type = options_list[choice_num - 1]
+                    print(f"✅ Selected: {selected_type.upper()}")
+                    return selected_type
+                else:
+                    print(f"❌ Please enter a number between 1 and {len(options_list)}")
+                    
+            except ValueError:
+                print("❌ Please enter a valid number")
+
+    async def launch_server(self, server_type: str = None, duration: int = 3600, interactive: bool = True) -> bool:
         """
         Launch a new development server
         
         Args:
-            server_type: Server type (medium, large, etc.)
+            server_type: Server type (medium, large, etc.) - if None and interactive=True, will prompt user
             duration: Duration in seconds (default: 1 hour)
+            interactive: Whether to show interactive server selection menu
             
         Returns:
             True if successful, False otherwise
@@ -100,6 +163,14 @@ class DevServerManager:
             
             print("🛑 Shutting down existing server...")
             await self.shutdown_server()
+        
+        # Interactive server type selection if not specified
+        if server_type is None and interactive:
+            server_type = self._select_server_type()
+            if server_type is None:
+                return False
+        elif server_type is None:
+            server_type = "medium"  # Default fallback
         
         print(f"🚀 Launching development server...")
         print(f"   Type: {server_type}")
@@ -231,19 +302,33 @@ class DevServerManager:
             print("❌ Server is not reachable")
             print("💡 Try running with --restart to restart the server")
     
-    async def restart_server(self) -> bool:
+    async def restart_server(self, interactive: bool = True) -> bool:
         """Restart the development server"""
         print("🔄 Restarting development server...")
         
         # Get current server config
         state = self.state_manager.load_server_state()
-        server_type = state.server_type if state else "medium"
+        current_server_type = state.server_type if state else None
         
         # Shutdown existing server
         await self.shutdown_server()
         
+        # Ask if they want to change server type during restart
+        if interactive and current_server_type:
+            print(f"\n📋 Current server type: {current_server_type.upper()}")
+            change_type = input("Do you want to change the server type? (y/N): ").strip().lower()
+            
+            if change_type == 'y':
+                server_type = self._select_server_type()
+                if server_type is None:
+                    return False
+            else:
+                server_type = current_server_type
+        else:
+            server_type = current_server_type
+        
         # Launch new server
-        return await self.launch_server(server_type=server_type)
+        return await self.launch_server(server_type=server_type, interactive=False)
 
 
 async def main():
@@ -270,9 +355,14 @@ async def main():
     )
     parser.add_argument(
         "--server-type", 
-        default="medium",
+        default=None,
         choices=["medium", "large", "extra-large", "2x-large", "2xl-turbo"],
-        help="Server type for launch (default: medium)"
+        help="Server type for launch (if not specified, interactive menu will be shown)"
+    )
+    parser.add_argument(
+        "--no-interactive",
+        action="store_true",
+        help="Skip interactive server selection menu and use default/specified server type"
     )
     parser.add_argument(
         "--duration", 
@@ -292,13 +382,16 @@ async def main():
             success = await manager.shutdown_server()
             sys.exit(0 if success else 1)
         elif args.restart:
-            success = await manager.restart_server()
+            interactive = not args.no_interactive
+            success = await manager.restart_server(interactive=interactive)
             sys.exit(0 if success else 1)
         else:
             # Default action: launch server
+            interactive = not args.no_interactive
             success = await manager.launch_server(
                 server_type=args.server_type,
-                duration=args.duration
+                duration=args.duration,
+                interactive=interactive
             )
             sys.exit(0 if success else 1)
             

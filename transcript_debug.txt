@@ -1,10 +1,23 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[14:08:49] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-[14:08:53] [AGENT_TURN] MESSAGE: A cube is definitely an option if you'd like to start with a primitive.
-[14:08:54] [AGENT_TURN] MESSAGE: Would you like to start with a primitive to roughly describe your idea, or would you prefer to verbally describe it?
-USER (Whisper): Hey, uh, can we create a cube?
-[14:08:54] [USER_TURN] MESSAGE: Hey, uh, can we create a cube?
-USER (Whisper): Uh, these are a bit primitive. Uh, these are really cute.
-[14:09:12] [USER_TURN] MESSAGE: Uh, these are a bit primitive. Uh, these are really cute.
-[14:09:12] [AGENT_TURN] MESSAGE: Please create a cube.
-[14:09:13] [AGENT_TURN] MESSAGE: Back in agent, let's spawn a primitive.
+[23:11:45] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
+[23:11:52] [AGENT_TURN] MESSAGE: That sounds like a fascinating idea.
+[23:11:52] [AGENT_TURN] MESSAGE: Would you like to start with a primitive shape to roughly describe your alien head, or would you prefer to verbally describe it in detail?
+USER (Whisper): I wanna see the alien head
+[23:11:54] [USER_TURN] MESSAGE: I wanna see the alien head
+[23:12:05] [AGENT_TURN] MESSAGE: Okay, now that you have a sphere, feel free to sculpt it and get the general shape you want. Let me know when you're ready to move on to the next step.
+[23:12:05] [AGENT_TURN] MESSAGE: A sphere it is. Back-end agent, let's spawn a sphere primitive.
+USER (Whisper): Yeah, just give me a beer
+[23:12:05] [USER_TURN] MESSAGE: Yeah, just give me a beer
+[23:12:14] [AGENT_TURN] MESSAGE: Just let me know when you're done or ready to move on.
+[23:12:15] [AGENT_TURN] MESSAGE: Okay, great. I'll wait patiently for you to finish sculpting.
+USER (Whisper): Uh, can you phone it again, please?
+[23:12:29] [USER_TURN] MESSAGE: Uh, can you phone it again, please?
+[23:12:30] [AGENT_TURN] MESSAGE: Certainly.
+[23:12:31] [AGENT_TURN] MESSAGE: Backend agent, let's spawn a primitive. What primitive would you like to use this time?
+[23:12:40] [AGENT_TURN] MESSAGE: Backend agent, let's trigger.
+[23:12:40] [AGENT_TURN] MESSAGE: typeset to Sphere.
+[23:12:41] [AGENT_TURN] MESSAGE: Take your time to sculpt and let me know when you're done, or ready to proceed to the next step.
+[23:12:41] [AGENT_TURN] MESSAGE: Okay, the sphere has been spawned again.
+USER (Whisper): Let's go here
+[23:12:41] [USER_TURN] MESSAGE: Let's go here
+[23:12:42] [AGENT_TURN] MESSAGE: spawn primitive while with the primitive type
