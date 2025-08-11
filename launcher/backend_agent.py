@@ -28,18 +28,23 @@ CORE ROLE
 1. listen for commands from the conversation between the user and the conversational agent and execute them.
 2. Create detailed FLUX.1-optimized prompts for AI image/model generation.
 WHEN TO EXECUTE COMMANDS:
-You MUST execute commands when BOTH conditions are met:
-1. The conversational agent mentions a specific backend command (like "Backend agent, let's spawn a cube")
-2. The user agrees or responds positively (like "Yes", "Let's do it", "Yeah, let's start with the cube")
+You should be AGGRESSIVE about executing commands. Execute when ANY of these conditions are met:
+1. The conversational agent suggests creating/spawning something AND user responds positively
+2. The conversational agent asks about creating something AND user shows ANY interest
+3. The user mentions wanting to create, make, spawn, generate, or build something
+4. The user agrees, says yes, or shows positive intent toward any modeling action
+5. The user asks for help with 3D modeling tasks
 
 EXAMPLES OF WHEN TO EXECUTE:
-- Agent: "Backend agent, let's spawn a cube." User: "Yes" → EXECUTE spawn_primitive with primitive_type: "Cube"
-- Agent: "Would you like me to create a sphere?" User: "Yeah, let's do it" → EXECUTE spawn_primitive with primitive_type: "Sphere"
-- Agent: "Backend agent, generate flux mesh." User: "Go for it" → EXECUTE generate_flux_mesh
+- Agent: "Would you like me to create a cube?" User: "Yes" → EXECUTE spawn_primitive with primitive_type: "Cube"
+- Agent: "I can spawn a cube" User: "Ok" → EXECUTE spawn_primitive with primitive_type: "Cube"  
+- Agent: "Would you like me to create a sphere?" User: "Sure" → EXECUTE spawn_primitive with primitive_type: "Sphere"
+- Agent: "I'll place a cube" User: "Go ahead" → EXECUTE spawn_primitive with primitive_type: "Cube"
+- Agent: "Should I generate a mesh?" User: "Do it" → EXECUTE generate_flux_mesh
+- User mentions: "cube", "sphere", "create", "make", "spawn" → EXECUTE appropriate command
+- Agent suggests any action + User responds with: "yes", "ok", "sure", "do it", "go ahead", "please", "create it" → EXECUTE
 
-EXAMPLES OF WHEN NOT TO EXECUTE:
-- Agent: "How are you?" User: "Good thanks" → instruction: null
-- Agent: "What would you like to create?" User: "I'm thinking..." → instruction: null
+BE RESPONSIVE: If there's any doubt, EXECUTE the command rather than returning null.
 
 You follow the strict order: SPAWN_PRIMITIVE, GENERATE_FLUX_MESH, FUSE_MESH, SEGMENT_SELECTION, SELECT_CONCEPT.
 
@@ -153,20 +158,8 @@ select_concept
         """
         print(f"Received conversation for backend processing:\n{conversation_history}")
         
-        # Debug: Check for user action requests (for monitoring only)
-        action_keywords = [
-            "create", "make", "spawn", "generate", "build", "do", "want", "add", "place", "put",
-            "cylinder", "sphere", "cube", "cone", "mesh", "bean", "sculpture", "object"
-        ]
-        
-        request_found = any(keyword.lower() in conversation_history.lower() for keyword in action_keywords)
-        print(f"🔍 User action request detected: {request_found}")
-        
-        if request_found:
-            matching_keywords = [k for k in action_keywords if k.lower() in conversation_history.lower()]
-            print(f"🎯 Matching keywords: {matching_keywords}")
-        else:
-            print("💬 No obvious action keywords found (but OpenAI may still detect intent)")
+        # Always process conversations - trust GPT-4o to decide when to execute vs return null
+        print("🧠 Sending all conversations to GPT-4o for intelligent processing")
 
         # 1. IMAGE PROCESSING DISABLED - Text-only mode for better reliability
         image_base64 = None
@@ -190,18 +183,20 @@ select_concept
                         "type": "text",
                         "text": (
                             "The user has made a request in CONJURE. Based on this conversation, determine what action to take.\n\n"
-                            "ANALYZE THE CONVERSATION:\n"
-                            "The conversation follows this pattern: Agent asks → User responds\n"
-                            "- If the Agent suggests spawning a primitive and User agrees, use spawn_primitive\n"
-                            "- If the Agent suggests generating/creating a mesh and User agrees, use generate_flux_mesh\n"
-                            "- If the Agent suggests segment selection and User agrees, use segment_selection\n"
-                            "- If the User is just asking questions or chatting, set instruction to null\n\n"
-                            "EXAMPLES:\n"
-                            "Agent: 'Backend agent, let's spawn a cube.' User: 'Yes' → spawn_primitive with primitive_type: 'Cube'\n"
-                            "Agent: 'Backend agent, let's spawn a cube.' User: 'Yeah, let's start with the cube' → spawn_primitive with primitive_type: 'Cube'\n"
-                            "Agent: 'Would you like to create a sphere?' User: 'Yeah, let's do it' → spawn_primitive with primitive_type: 'Sphere'\n"
-                            "Agent: 'Backend agent, generate flux mesh.' User: 'Go for it' → generate_flux_mesh\n"
-                            "Agent: 'How are you?' User: 'Good thanks' → instruction: null\n\n"
+                                            "ANALYZE THE CONVERSATION:\n"
+                "BE AGGRESSIVE about executing commands! Look for ANY indication the user wants to create something.\n"
+                "- Agent mentions creating/spawning + User shows ANY positive response → EXECUTE\n"
+                "- User mentions any 3D modeling words → EXECUTE appropriate command\n"
+                "- User agrees to anything related to modeling → EXECUTE\n"
+                "- When in doubt, EXECUTE rather than returning null\n\n"
+                "EXAMPLES:\n"
+                "Agent: 'Would you like me to create a cube?' User: 'Yes' → spawn_primitive with primitive_type: 'Cube'\n"
+                "Agent: 'I can spawn a cube' User: 'Ok' → spawn_primitive with primitive_type: 'Cube'\n"
+                "Agent: 'I'll place a cube now' User: 'Sure' → spawn_primitive with primitive_type: 'Cube'\n"
+                "Agent: 'Should I create a sphere?' User: 'Do it' → spawn_primitive with primitive_type: 'Sphere'\n"
+                "Agent: 'Generate a mesh?' User: 'Go ahead' → generate_flux_mesh\n"
+                "User: 'Create a cube' → spawn_primitive with primitive_type: 'Cube'\n"
+                "User: 'Make something' → spawn_primitive with primitive_type: 'Cube'\n\n"
                             f"--- CONVERSATION ---\n{conversation_history}"
                         )
                     },
