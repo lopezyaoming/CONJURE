@@ -6,15 +6,17 @@
     "generation_request": null,
     "selection_request": null,
     "import_request": null,
-    "command": null,
+    "command": "spawn_primitive",
     "text": null,
     "selection_mode": null,
     "selected_segment": null,
     "flux_pipeline_status": null,
     "mesh_path": null,
-    "primitive_type": null,
+    "primitive_type": "Cube",
     "flux_prompt": null,
     "flux_seed": null,
-    "min_volume_threshold": null,
-    "generation_mode": "cloud"
+    "min_volume_threshold": 0.01,
+    "generation_mode": "cloud",
+    "prompt": "Single sculptural subject: a sleek futuristic helmet with flowing aerodynamic plates and subtle organic seams, high-resolution hard-surface and soft rounded forms. Render in photorealistic style inspired by Syd Mead, matte gunmetal and brushed chrome materials, fine engraved details. Framed center foreground on a neutral studio background with soft studio lighting, shallow depth of field, 50mm lens, f/5.6, dramatic but controlled highlights, high-definition, crisp edge detail.",
+    "seed": 1337
 }

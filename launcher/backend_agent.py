@@ -12,7 +12,7 @@ from pathlib import Path
 from launcher.instruction_manager import InstructionManager
 
 # Custom ChatGPT ID from the provided URL: https://chatgpt.com/g/g-68742df47c3881918fc61172bf53d4b4-vibe-backend
-CUSTOM_GPT_MODEL = "gpt-4o"  # Use the latest model that supports custom instructions
+CUSTOM_GPT_MODEL = "gpt-5-mini"  # Use GPT-5-mini for fast and reliable responses
 
 class BackendAgent:
     def __init__(self, instruction_manager: InstructionManager):
@@ -21,6 +21,8 @@ class BackendAgent:
             raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
         self.client = OpenAI(api_key=api_key)
         self.instruction_manager = instruction_manager
+        
+
         
         # Enhanced system prompt with full RAG knowledge from agentToolset.txt and fluxGuide.txt
         self.system_prompt = """You are VIBE Backend, the specialized AI assistant for the CONJURE 3D modeling system. You coordinate between a conversational agent (Agent A) and Blender through structured JSON responses.
@@ -44,7 +46,13 @@ EXAMPLES OF WHEN TO EXECUTE:
 - User mentions: "cube", "sphere", "create", "make", "spawn" → EXECUTE appropriate command
 - Agent suggests any action + User responds with: "yes", "ok", "sure", "do it", "go ahead", "please", "create it" → EXECUTE
 
-BE RESPONSIVE: If there's any doubt, EXECUTE the command rather than returning null.
+WHEN NOT TO EXECUTE (return null instruction):
+- User gives unclear/confused responses: "what?", "huh?", "what's up?", "I don't understand"
+- User asks questions about the system itself: "how does this work?", "what can you do?"
+- User makes random conversation: "hello", "how are you?", "what's happening?"
+- Agent is explaining something and user just acknowledges: "ok", "got it", "I see"
+
+BE RESPONSIVE: If there's any doubt about creation intent, EXECUTE the command rather than returning null.
 
 You follow the strict order: SPAWN_PRIMITIVE, GENERATE_FLUX_MESH, FUSE_MESH, SEGMENT_SELECTION, SELECT_CONCEPT.
 
@@ -68,7 +76,11 @@ You **always** respond with a single, complete JSON object:
 ```
  
 - `instruction` → Triggers a backend tool. If no action is needed, return `null`.
-- `user_prompt` → A long-form visual prompt (between 60–75 words) for generating images/models. This user prompt is informed exclusively by the user's conversation. To make a good user prompt, follow these steps:
+- `user_prompt` → A long-form visual prompt (between 60–75 words) for generating images/models. ONLY create visual prompts when there's clear creative intent in the conversation. If instruction is null or user is confused/asking questions, create a simple placeholder prompt like "neutral studio background with soft lighting". 
+
+**CONTEXT BUILDING**: If you receive a "PREVIOUS CONTEXT" with a previous user_prompt, BUILD UPON IT coherently. Don't start from scratch - evolve, refine, or add details to the existing prompt. This maintains visual consistency across conversation turns.
+
+To make a good user prompt when appropriate, follow these steps:
 
 Be specific and detailed. Describe the subject, style, composition, lighting, and mood. The more precise you are, the better the results. Break down the scene into layers like foreground, middle ground, and background. Describe each part in order for clear guidance. Use artistic references. Mention specific artists or art movements to guide the model's output. Include technical details if needed, like camera settings, lens type, or aperture. Describe the mood or atmosphere of the image to influence the tone. Avoid chaotic or disorganized prompts. Break the description into clear, logical elements like subject, text, tone, and style. Always use a neutral studio background with soft studio lighting, professional photography standards, and high-definition quality. Avoid abstract language and focus on precise descriptions, emphasizing details like form, shape, and texture. Refer to only one element in the scene at a time. Keep the description simple by avoiding complex scenes with multiple objects.
 
@@ -100,6 +112,7 @@ segment_selection
 select_concept
 - Description: User chooses concept option, triggers multi-view rendering and mv2mv/mv23D workflows
 - Parameters: option_id (integer) - 1, 2, or 3
+Then the cycle goes back to generate_flux_mesh, either select_concept or generate_flux_mesh again. The cycle repeats until the user is satisfied with the result.
 
 """
 
@@ -152,14 +165,34 @@ select_concept
                 print(f"❌ No instruction manager available for fallback!")
                 return False
 
+    def _read_previous_user_prompt(self):
+        """Read the previous user_prompt from userPrompt.txt for context"""
+        try:
+            user_prompt_path = Path("data/generated_text/userPrompt.txt")
+            if user_prompt_path.exists():
+                with open(user_prompt_path, 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    return content if content else None
+            return None
+        except Exception as e:
+            print(f"❌ Error reading previous user prompt: {e}")
+            return None
+
     def get_response(self, conversation_history: str):
         """
         Gets a structured response from the OpenAI Chat Completions API based on the conversation and image context.
         """
         print(f"Received conversation for backend processing:\n{conversation_history}")
         
-        # Always process conversations - trust GPT-4o to decide when to execute vs return null
-        print("🧠 Sending all conversations to GPT-4o for intelligent processing")
+        # Read previous user_prompt as context
+        previous_prompt = self._read_previous_user_prompt()
+        if previous_prompt:
+            print(f"📝 Previous context: {previous_prompt[:100]}...")
+        else:
+            print("📝 No previous context found")
+        
+        # Simple single-turn processing - fast and efficient
+        print(f"🧠 Sending single turn to {CUSTOM_GPT_MODEL} for intelligent processing")
 
         # 1. IMAGE PROCESSING DISABLED - Text-only mode for better reliability
         image_base64 = None
@@ -209,15 +242,27 @@ select_concept
                 ]
             })
         else:
-            # Text-only message
+            # Text-only message with context
+            user_content = (
+                "Here is the latest conversation turn between the user and the conversational AI. "
+                "The format is: Agent asks/suggests → User responds. "
+                "Based on this conversation, please provide the next action as a structured JSON response.\n\n"
+            )
+            
+            # Add previous user_prompt as context if available
+            if previous_prompt:
+                user_content += (
+                    f"--- PREVIOUS CONTEXT ---\n"
+                    f"Previous user_prompt: {previous_prompt}\n"
+                    f"NOTE: This is the context from the previous turn. Build upon this coherently for any new user_prompt. "
+                    f"If generating a new creative prompt, evolve or refine the previous context rather than starting fresh.\n\n"
+                )
+            
+            user_content += f"--- CONVERSATION ---\n{conversation_history}"
+            
             messages.append({  # type: ignore
                 "role": "user",
-                "content": (
-                    "Here is the latest conversation turn between the user and the conversational AI. "
-                    "The format is: Agent asks/suggests → User responds. "
-                    "Based on this conversation, please provide the next action as a structured JSON response.\n\n"
-                    f"--- CONVERSATION ---\n{conversation_history}"
-                )
+                "content": user_content
             })
 
         try:
@@ -225,8 +270,8 @@ select_concept
             response = self.client.chat.completions.create(
                 model=CUSTOM_GPT_MODEL,
                 messages=messages,  # type: ignore
-                max_tokens=1500,  # Increased for more detailed FLUX.1 prompts
-                temperature=0.3,   # Lower temperature for more consistent JSON structure
+                max_completion_tokens=1500,  # GPT-5-mini uses max_completion_tokens instead of max_tokens
+                # temperature=0.3,   # GPT-5-mini only supports default temperature of 1
                 response_format={"type": "json_object"}  # Enhanced JSON mode with intelligent structure
             )
             

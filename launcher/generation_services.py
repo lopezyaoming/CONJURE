@@ -313,7 +313,11 @@ class CloudGenerationService(GenerationService):
         render_path.parent.mkdir(parents=True, exist_ok=True)
         
         if Path(control_image_path).exists():
-            shutil.copy(control_image_path, render_path)
+            # Check if source and destination are the same file to avoid SameFileError
+            if not Path(control_image_path).samefile(render_path):
+                shutil.copy(control_image_path, render_path)
+            else:
+                print(f"🔄 Source and destination are the same file, skipping copy: {control_image_path}")
         else:
             raise FileNotFoundError(f"Control image not found: {control_image_path}")
         
@@ -329,7 +333,11 @@ class CloudGenerationService(GenerationService):
         render_path.parent.mkdir(parents=True, exist_ok=True)
         
         if Path(image_path).exists():
-            shutil.copy(image_path, render_path)
+            # Check if source and destination are the same file to avoid SameFileError
+            if not Path(image_path).samefile(render_path):
+                shutil.copy(image_path, render_path)
+            else:
+                print(f"🔄 Source and destination are the same file, skipping copy: {image_path}")
         else:
             raise FileNotFoundError(f"Input image not found: {image_path}")
         

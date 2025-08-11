@@ -1,17 +1,44 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[02:19:21] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-[02:19:29] [AGENT_TURN] MESSAGE: Great choice.
-[02:19:29] [AGENT_TURN] MESSAGE: Would you like me to create the cube now?
-[02:19:29] [AGENT_TURN] MESSAGE: I can spawn a cube to block out your idea.
-[02:19:37] [AGENT_TURN] MESSAGE: Perfect
-[02:19:38] [AGENT_TURN] MESSAGE: He's spawning a cube now.
-[02:19:38] [AGENT_TURN] MESSAGE: When you're done blocking out, say I'm done, and I'll move us to the next step.
-[02:19:38] [AGENT_TURN] MESSAGE: Please give it a moment to appear, then use your hands to rough in the main proportions.
-[02:19:52] [AGENT_TURN] MESSAGE: On it!
-[02:19:53] [AGENT_TURN] MESSAGE: I'll place a cube in the scene now.
-[02:19:54] [AGENT_TURN] MESSAGE: Take a moment to push and pull it to match your rough silhouette.
-[02:19:55] [AGENT_TURN] MESSAGE: When you're satisfied, just say I'm done, and we'll move on to describing details for generation.
-[02:20:12] [AGENT_TURN] MESSAGE: I'm here.
-[02:20:12] [AGENT_TURN] MESSAGE: Your cube should be in the scene ready for you.
-[02:20:13] [AGENT_TURN] MESSAGE: Do you want a quick nudge on proportions before you sculpt, or are you good to block it out and tell me when you're done?
-[02:20:14] [AGENT_TURN] MESSAGE: If you prefer guidance, tell me the object you're aiming for, so I can suggest rough dimensions and tweaks.
+[11:25:40] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
+[11:25:45] [AGENT_TURN] MESSAGE: Awesome.
+USER (Whisper): Hey, uh, I want to create a-
+[11:25:45] [USER_TURN] MESSAGE: Hey, uh, I want to create a-
+[11:25:46] [AGENT_TURN] MESSAGE: What kind of alien head are you imagining? Sleek and elegant or gnarly and textured?
+[11:25:47] [AGENT_TURN] MESSAGE: Think about skull shape, eye size and count, mouth or mandibles, and overall vibe.
+[11:25:48] [AGENT_TURN] MESSAGE: Would you like me to start you with a simple primitive to roughen the shape, or would you prefer to verbally describe it and I generate it directly?
+USER (Whisper): So just generate the head, and I don't want to create the body.
+[11:26:14] [USER_TURN] MESSAGE: So just generate the head, and I don't want to create the body.
+[11:26:17] [AGENT_TURN] MESSAGE: Perfect
+USER (Whisper): You
+[11:26:18] [USER_TURN] MESSAGE: You
+[11:26:18] [AGENT_TURN] MESSAGE: Tell me, overall silhouette and proportions, elongated cranium, wide cheekbones, narrow chin, or something else?
+[11:26:18] [AGENT_TURN] MESSAGE: Describe your alien head and I'll turn it into a clear generative brief.
+[11:26:19] [AGENT_TURN] MESSAGE: Eyes, how many, size, placement, glow, or no glow.
+[11:26:19] [AGENT_TURN] MESSAGE: Mouth, slit, fanged, mandibles, beak, or none?
+[11:26:19] [AGENT_TURN] MESSAGE: Skin and surface, smooth bony plates, ridges, tendrils, bioluminescent patterns, scars.
+[11:26:20] [AGENT_TURN] MESSAGE: Color and finish, matte, glossy, translucent, pearlescent, or metallic accents.
+[11:26:21] [AGENT_TURN] MESSAGE: Once I have this, I'll say, back end, let's generate the initial mesh.
+[11:26:21] [AGENT_TURN] MESSAGE: Style and vibe. Elegant, menacing, ancient, biotech, aquatic, insectoid, or ethereal?
+[11:26:21] [AGENT_TURN] MESSAGE: Please share as much as you like in one go.
+[11:26:47] [AGENT_TURN] MESSAGE: Got it!
+USER (Whisper): What's up? What is?
+[11:26:50] [USER_TURN] MESSAGE: What's up? What is?
+[11:26:57] [AGENT_TURN] MESSAGE: Got it.
+[11:26:57] [AGENT_TURN] MESSAGE: I'll craft a strong first pass.
+[11:26:58] [AGENT_TURN] MESSAGE: subtle rear crest.
+[11:26:58] [AGENT_TURN] MESSAGE: Find Inner Glow. Find Vallejo.
+[11:26:58] [AGENT_TURN] MESSAGE: Three large almond eyes set in a tree.
+[11:26:58] [AGENT_TURN] MESSAGE: Here's the concept I'll generate.
+[11:26:58] [AGENT_TURN] MESSAGE: SLEEK ELONGATED
+[11:26:58] [AGENT_TURN] MESSAGE: cranium with a high crown and
+[11:26:58] [AGENT_TURN] MESSAGE: vertical slit mouth.
+[11:26:59] [AGENT_TURN] MESSAGE: Triangular layout with a faint
+[11:27:00] [AGENT_TURN] MESSAGE: Back end, let's generate the initial mesh.
+[11:27:00] [AGENT_TURN] MESSAGE: Please hold a moment while it processes.
+[11:27:00] [AGENT_TURN] MESSAGE: with hidden needle teeth, smooth semi-translucent skin with gentle ribbing and bony subsurface ridges, faint bioluminescent lines that trace the skull, overall elegant and slightly unsettling.
+[11:27:36] [AGENT_TURN] MESSAGE: Thanks for waiting.
+[11:27:37] [AGENT_TURN] MESSAGE: Do you want to use the whole mesh as is, or would you like to select a specific segment to work on?
+[11:27:37] [AGENT_TURN] MESSAGE: The initial mesh is in.
+[11:27:41] [AGENT_TURN] MESSAGE: I can either fuse everything into one piece or enter segment selection so you can pick parts.
+[11:27:57] [AGENT_TURN] MESSAGE: Are you still with me?
+[11:27:58] [AGENT_TURN] MESSAGE: Would you like me to fuse the mesh into one piece or switch to segment selection so you can pick parts to focus on?
