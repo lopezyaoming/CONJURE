@@ -25,13 +25,23 @@ class BackendAgent:
         # Enhanced system prompt with full RAG knowledge from agentToolset.txt and fluxGuide.txt
         self.system_prompt = """You are VIBE Backend, the specialized AI assistant for the CONJURE 3D modeling system. You coordinate between a conversational agent (Agent A) and Blender through structured JSON responses.
 CORE ROLE
-1. Analyze conversations between users and the conversational agent, and orchestrate via JSON responses different functions inside the CONJURE system.
-2. Create detailed FLUX.1-optimized prompts for AI image/model generation
-General considerations: You only call commands when explicitly told so. Conversational agent can call you directly as “Backend agent, let’s trigger mesh generation” or similar. You are subservient to their commands, and only act when explicitly commanded by her. 
-Otherwise, don’t call commands. You follow a strict agenda which cannot be de-railed.
-Commands are part of an interdependent code that needs order of operations to run smoothly, so once you call a command, you cannot call the same command again.
-You are supposed to always return this structured JSON after every message, but only call instructions when explicitly told to. otherwise, return null.
-The order goes as follows: SPAWN_PRIMITIVE, GENERATE_FLUX_MESH, FUSE_MESH, SEGMENT_SELECTION, SELECT_CONCEPT.
+1. listen for commands from the conversation between the user and the conversational agent and execute them.
+2. Create detailed FLUX.1-optimized prompts for AI image/model generation.
+WHEN TO EXECUTE COMMANDS:
+You MUST execute commands when BOTH conditions are met:
+1. The conversational agent mentions a specific backend command (like "Backend agent, let's spawn a cube")
+2. The user agrees or responds positively (like "Yes", "Let's do it", "Yeah, let's start with the cube")
+
+EXAMPLES OF WHEN TO EXECUTE:
+- Agent: "Backend agent, let's spawn a cube." User: "Yes" → EXECUTE spawn_primitive with primitive_type: "Cube"
+- Agent: "Would you like me to create a sphere?" User: "Yeah, let's do it" → EXECUTE spawn_primitive with primitive_type: "Sphere"
+- Agent: "Backend agent, generate flux mesh." User: "Go for it" → EXECUTE generate_flux_mesh
+
+EXAMPLES OF WHEN NOT TO EXECUTE:
+- Agent: "How are you?" User: "Good thanks" → instruction: null
+- Agent: "What would you like to create?" User: "I'm thinking..." → instruction: null
+
+You follow the strict order: SPAWN_PRIMITIVE, GENERATE_FLUX_MESH, FUSE_MESH, SEGMENT_SELECTION, SELECT_CONCEPT.
 
 
 AGENT OUTPUT STRUCTURE
@@ -41,7 +51,6 @@ You **always** respond with a single, complete JSON object:
 
 ```json
 {
-  "vision": "Describe the screen in natural language.",
   "instruction": {
     "tool_name": "The backend function to trigger.",
     "parameters": {
@@ -49,24 +58,21 @@ You **always** respond with a single, complete JSON object:
       "param2": "value2"
     }
   },
-  "user_prompt": "A Flux/SDXL-ready prompt derived from the user's conversation and the visual state."
+  "user_prompt": "A Flux/SDXL-ready prompt derived from the user's conversation."
 }
 ```
  
-- `vision` → A visual summary of the current screen. This gets written to `screen_description.txt`. If there is no image embedded in the response, simply use "null"
 - `instruction` → Triggers a backend tool. If no action is needed, return `null`.
-- `user_prompt` → A long-form visual prompt (between 60–75 words) for generating images/models. This user prompt is informed exclusively by the user's conversation, and the visual state of the 3D model. To make a good user prompt, follow these steps:
+- `user_prompt` → A long-form visual prompt (between 60–75 words) for generating images/models. This user prompt is informed exclusively by the user's conversation. To make a good user prompt, follow these steps:
 
 Be specific and detailed. Describe the subject, style, composition, lighting, and mood. The more precise you are, the better the results. Break down the scene into layers like foreground, middle ground, and background. Describe each part in order for clear guidance. Use artistic references. Mention specific artists or art movements to guide the model's output. Include technical details if needed, like camera settings, lens type, or aperture. Describe the mood or atmosphere of the image to influence the tone. Avoid chaotic or disorganized prompts. Break the description into clear, logical elements like subject, text, tone, and style. Always use a neutral studio background with soft studio lighting, professional photography standards, and high-definition quality. Avoid abstract language and focus on precise descriptions, emphasizing details like form, shape, and texture. Refer to only one element in the scene at a time. Keep the description simple by avoiding complex scenes with multiple objects.
 
 By following these steps, you can create effective FLUX.1 prompts for high-quality and creative images.
 
-
 If no backend action is required, set `"instruction"` to `null`.
 Never return anything without this structure, as it will catastrophically crash the system.
-always return a valid JSON object, with the correct structure.
-always stick to the structure, and do not add any other text or comments.
-always follow this step by step process:
+Always return a valid JSON object with the correct structure.
+Always stick to the structure, and do not add any other text or comments.
 
 AVAILABLE INSTRUCTIONS,
  in order of operational usage. NOTE: there are some optional instructions that can be skipped, or options (either of them). these are explicitly refered as such,and the user might choose to skip it or trigger one instead of the other.
@@ -162,18 +168,9 @@ select_concept
         else:
             print("💬 No obvious action keywords found (but OpenAI may still detect intent)")
 
-        # 1. Prepare the context image from Blender
-        image_path = Path(__file__).parent.parent / "data" / "generated_images" / "gestureCamera" / "render.png"
+        # 1. IMAGE PROCESSING DISABLED - Text-only mode for better reliability
         image_base64 = None
-        
-        if image_path.exists():
-            image_base64 = self._encode_image_to_base64(image_path)
-            if image_base64:
-                print("✅ Context image encoded for Chat Completions API")
-            else:
-                print("⚠️ Failed to encode context image")
-        else:
-            print("⚠️ gestureCamera/render.png not found. Proceeding without image context.")
+        print("🚫 Image processing disabled - using text-only mode")
 
         # 2. Prepare the messages for Chat Completions
         messages = [
@@ -192,19 +189,20 @@ select_concept
                     {
                         "type": "text",
                         "text": (
-                            "The user has made a request in CONJURE. Based on this request and the attached image "
-                            "of the current 3D model, determine what action to take.\n\n"
-                            "ANALYZE THE USER REQUEST:\n"
-                            "- If user wants to create/spawn a primitive (cylinder, sphere, cube, etc.), use spawn_primitive\n"
-                            "- If user mentions generating or creating a mesh, use generate_flux_mesh\n"
-                            "- If user wants to select parts or segments, use segment_selection\n"
-                            "- If user is just asking questions or chatting, set instruction to null\n\n"
+                            "The user has made a request in CONJURE. Based on this conversation, determine what action to take.\n\n"
+                            "ANALYZE THE CONVERSATION:\n"
+                            "The conversation follows this pattern: Agent asks → User responds\n"
+                            "- If the Agent suggests spawning a primitive and User agrees, use spawn_primitive\n"
+                            "- If the Agent suggests generating/creating a mesh and User agrees, use generate_flux_mesh\n"
+                            "- If the Agent suggests segment selection and User agrees, use segment_selection\n"
+                            "- If the User is just asking questions or chatting, set instruction to null\n\n"
                             "EXAMPLES:\n"
-                            "- 'I want to create a cylinder' → spawn_primitive with primitive_type: 'cylinder'\n"
-                            "- 'Let's make a sphere' → spawn_primitive with primitive_type: 'sphere'\n"
-                            "- 'Generate a mesh' → generate_flux_mesh\n"
-                            "- 'How are you?' → instruction: null\n\n"
-                            f"--- USER REQUEST ---\n{conversation_history}"
+                            "Agent: 'Backend agent, let's spawn a cube.' User: 'Yes' → spawn_primitive with primitive_type: 'Cube'\n"
+                            "Agent: 'Backend agent, let's spawn a cube.' User: 'Yeah, let's start with the cube' → spawn_primitive with primitive_type: 'Cube'\n"
+                            "Agent: 'Would you like to create a sphere?' User: 'Yeah, let's do it' → spawn_primitive with primitive_type: 'Sphere'\n"
+                            "Agent: 'Backend agent, generate flux mesh.' User: 'Go for it' → generate_flux_mesh\n"
+                            "Agent: 'How are you?' User: 'Good thanks' → instruction: null\n\n"
+                            f"--- CONVERSATION ---\n{conversation_history}"
                         )
                     },
                     {
@@ -221,6 +219,7 @@ select_concept
                 "role": "user",
                 "content": (
                     "Here is the latest conversation turn between the user and the conversational AI. "
+                    "The format is: Agent asks/suggests → User responds. "
                     "Based on this conversation, please provide the next action as a structured JSON response.\n\n"
                     f"--- CONVERSATION ---\n{conversation_history}"
                 )
@@ -256,14 +255,7 @@ select_concept
             # Parse the JSON response
             response_json = json.loads(response_str)
             
-            # Write vision summary
-            vision_summary = response_json.get("vision")
-            if vision_summary:
-                # Write to the expected location for vision descriptions
-                vision_path = Path(__file__).parent.parent / "screen_description.txt"
-                with open(vision_path, 'w', encoding='utf-8') as f:
-                    f.write(vision_summary)
-                print(f"✅ Wrote vision summary to {vision_path}")
+            # Vision processing disabled - skip vision summary writing
 
             # Write user prompt for AI generation
             user_prompt = response_json.get("user_prompt")

@@ -81,6 +81,8 @@ class ComfyUIWorkflowClient:
         Returns:
             Modified workflow ready for execution
         """
+        import random
+        
         print(f"🔧 Preparing generate_flux_mesh workflow")
         print(f"   Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}")
         print(f"   Image size: {len(image_base64)} characters")
@@ -88,9 +90,19 @@ class ComfyUIWorkflowClient:
         # Deep copy workflow to avoid modifying original
         workflow = json.loads(json.dumps(workflow_data))
         
-        # TODO: Update this based on the actual workflow structure
-        # For now, return the workflow as-is for testing
-        print("⚠️ Workflow preparation not yet implemented - using workflow as-is")
+        # Randomize seeds for variation
+        noise_seed = random.randint(0, 18446744073709551615)  # Max value from error message
+        partpacker_seed = random.randint(0, 2147483647)       # Max value from error message
+        
+        # Update XlabsSampler noise_seed (Node 3)
+        if "3" in workflow and "inputs" in workflow["3"]:
+            workflow["3"]["inputs"]["noise_seed"] = noise_seed
+            print(f"🎲 Randomized XlabsSampler noise_seed: {noise_seed}")
+        
+        # Update PartPacker_Sampler seed (Node 32)
+        if "32" in workflow and "inputs" in workflow["32"]:
+            workflow["32"]["inputs"]["seed"] = partpacker_seed
+            print(f"🎲 Randomized PartPacker seed: {partpacker_seed}")
         
         return workflow
     

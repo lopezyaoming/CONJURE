@@ -17,9 +17,17 @@ import asyncio
 import argparse
 import sys
 import os
+import json
+import time
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
+
+# Add websockets import for monitoring
+try:
+    import websockets
+except ImportError:
+    print("⚠️ websockets module not found - monitoring features will be limited")
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -221,6 +229,26 @@ class DevServerManager:
                 is_healthy = await self.state_manager.check_server_health(state)
                 if is_healthy:
                     print("✅ Server health check passed")
+                    
+                    # Pre-warm the server with a startup workflow
+                    print("\n🔥 Pre-warming server with startup workflow...")
+                    warmup_success = await self._prewarm_server(state)
+                    
+                    if warmup_success:
+                        print("🚀 Startup workflow completed: machine is ready to go!")
+                        
+                        # Start workflow monitoring mode
+                        print("\n" + "="*60)
+                        print("🖥️ DEVELOPMENT SERVER MONITORING")
+                        print("="*60)
+                        print("Server is now ready and monitoring workflows.")
+                        print("Use Ctrl+C to stop monitoring and shutdown server.")
+                        print("="*60 + "\n")
+                        
+                        # Enter monitoring mode
+                        await self._monitor_workflow_progress(state)
+                    else:
+                        print("⚠️ Server warmup failed, but server is still available")
                 else:
                     print("⚠️ Server health check failed")
                 
@@ -329,6 +357,194 @@ class DevServerManager:
         
         # Launch new server
         return await self.launch_server(server_type=server_type, interactive=False)
+    
+    async def _prewarm_server(self, state: DevServerState) -> bool:
+        """
+        Pre-warm the server by sending a simple workflow to load AI models
+        
+        Args:
+            state: Active server state
+            
+        Returns:
+            True if warmup successful, False otherwise
+        """
+        try:
+            print("🔥 Starting server warmup workflow...")
+            
+            # Import ComfyUI client
+            from runcomfy.comfyui_workflow_client import ComfyUIWorkflowClient
+            import json
+            
+            # Load the full generate_flux_mesh workflow for proper warmup
+            workflow_path = Path(__file__).parent / "workflows" / "generate_flux_mesh.json"
+            if not workflow_path.exists():
+                print(f"⚠️ Workflow file not found: {workflow_path}")
+                return False
+                
+            with open(workflow_path, 'r', encoding='utf-8') as f:
+                warmup_workflow = json.load(f)
+                
+            print(f"📄 Loaded warmup workflow from: {workflow_path.name}")
+            
+            # Randomize seeds for warmup workflow
+            import random
+            noise_seed = random.randint(0, 18446744073709551615)
+            partpacker_seed = random.randint(0, 2147483647)
+            
+            if "3" in warmup_workflow and "inputs" in warmup_workflow["3"]:
+                warmup_workflow["3"]["inputs"]["noise_seed"] = noise_seed
+                print(f"🎲 Randomized warmup noise_seed: {noise_seed}")
+                
+            if "32" in warmup_workflow and "inputs" in warmup_workflow["32"]:
+                warmup_workflow["32"]["inputs"]["seed"] = partpacker_seed
+                print(f"🎲 Randomized warmup PartPacker seed: {partpacker_seed}")
+            
+            # Initialize workflow client
+            client = ComfyUIWorkflowClient()
+            
+            print("📤 Submitting warmup workflow...")
+            prompt_id, client_id = await client.submit_workflow(
+                state.base_url, 
+                warmup_workflow
+            )
+            
+            print(f"✅ Warmup workflow submitted: {prompt_id}")
+            print("⏳ Waiting for models to load...")
+            
+            # Monitor the warmup workflow using WebSocket
+            print("🔌 Monitoring warmup workflow via WebSocket...")
+            execution_result = await client.wait_for_completion_websocket(
+                state.base_url, 
+                prompt_id, 
+                client_id
+            )
+            
+            success = execution_result.status == "completed"
+            if success:
+                print("✅ Warmup workflow completed successfully!")
+            else:
+                print(f"❌ Warmup workflow failed: {execution_result.error_message}")
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ Server warmup failed: {e}")
+            return False
+    
+
+    async def _monitor_workflow_progress(self, state: DevServerState):
+        """
+        Monitor workflow progress in real-time and display updates
+        
+        Args:
+            state: Active server state
+        """
+        try:
+            import websockets
+            import json
+            
+            # Connect to ComfyUI WebSocket for real-time progress
+            ws_url = state.base_url.replace("http", "ws") + "/ws?clientId=dev_monitor"
+            
+            print("🔌 Connecting to workflow monitoring...")
+            
+            async with websockets.connect(ws_url) as websocket:
+                print("✅ Connected to workflow monitoring")
+                print("📊 Monitoring workflow progress...\n")
+                
+                while True:
+                    try:
+                        message = await asyncio.wait_for(websocket.recv(), timeout=30.0)
+                        data = json.loads(message)
+                        
+                        await self._process_workflow_event(data)
+                        
+                    except asyncio.TimeoutError:
+                        # Periodic heartbeat - show we're still alive
+                        current_time = datetime.now().strftime("%H:%M:%S")
+                        print(f"[{current_time}] 📡 Monitoring active...")
+                        
+                    except websockets.exceptions.ConnectionClosed:
+                        print("❌ WebSocket connection closed")
+                        break
+                        
+        except KeyboardInterrupt:
+            print("\n🛑 Monitoring stopped by user")
+            await self._handle_shutdown_request(state)
+            
+        except Exception as e:
+            print(f"❌ Monitoring error: {e}")
+    
+    async def _process_workflow_event(self, data: dict):
+        """Process workflow progress events from WebSocket"""
+        event_type = data.get("type")
+        
+        if event_type == "status":
+            status_data = data.get("data", {})
+            queue_size = status_data.get("status", {}).get("exec_info", {}).get("queue_remaining", 0)
+            if queue_size > 0:
+                print(f"📬 Workflow received - Queue position: {queue_size}")
+        
+        elif event_type == "executing":
+            node_data = data.get("data")
+            if node_data:
+                node_id = node_data.get("node")
+                if node_id:
+                    print(f"🔄 Executing: Node {node_id}")
+        
+        elif event_type == "executed":
+            node_data = data.get("data")
+            if node_data:
+                node_id = node_data.get("node")
+                if node_id:
+                    print(f"✅ Completed: Node {node_id}")
+        
+        elif event_type == "progress":
+            progress_data = data.get("data")
+            if progress_data:
+                value = progress_data.get("value", 0)
+                max_value = progress_data.get("max", 100)
+                node_id = progress_data.get("node", "?")
+                percentage = int((value / max_value) * 100) if max_value > 0 else 0
+                print(f"🔄 Progress: Node {node_id} - {percentage}% ({value}/{max_value})")
+        
+        elif event_type == "crystools.monitor":
+            # Show simplified system monitoring (only occasionally)
+            if hasattr(self, '_last_monitor_time'):
+                if time.time() - self._last_monitor_time < 30:  # Only show every 30 seconds
+                    return
+            self._last_monitor_time = time.time()
+            
+            data_info = data.get("data", {})
+            cpu = data_info.get("cpu_utilization", 0)
+            ram = data_info.get("ram_used_percent", 0)
+            gpu_info = data_info.get("gpus", [{}])[0] if data_info.get("gpus") else {}
+            gpu_util = gpu_info.get("gpu_utilization", 0)
+            gpu_temp = gpu_info.get("gpu_temperature", 0)
+            vram = gpu_info.get("vram_used_percent", 0)
+            print(f"📊 System: CPU {cpu:.1f}% | RAM {ram:.1f}% | GPU {gpu_util}% ({gpu_temp}°C) | VRAM {vram:.1f}%")
+        
+        # Skip all other message types (reduces noise)
+    
+    async def _handle_shutdown_request(self, state: DevServerState):
+        """Handle user request to shutdown monitoring and server"""
+        try:
+            print("\n🤔 What would you like to do?")
+            print("1. Stop monitoring but keep server running")
+            print("2. Shutdown server and stop monitoring")
+            
+            choice = input("Enter your choice (1 or 2): ").strip()
+            
+            if choice == "2":
+                print("🛑 Shutting down development server...")
+                await self.shutdown_server()
+            else:
+                print("📡 Monitoring stopped, server still running")
+                print(f"💡 Server URL: {state.base_url}")
+                print("💡 Use --status to check server later")
+                
+        except Exception as e:
+            print(f"❌ Error during shutdown: {e}")
 
 
 async def main():
@@ -393,7 +609,9 @@ async def main():
                 duration=args.duration,
                 interactive=interactive
             )
-            sys.exit(0 if success else 1)
+            # Note: launch_server now includes monitoring, so we don't exit immediately
+            if not success:
+                sys.exit(1)
             
     except KeyboardInterrupt:
         print("\\n🛑 Operation cancelled by user")

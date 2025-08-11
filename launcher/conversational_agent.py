@@ -167,6 +167,11 @@ class ConversationalAgent:
         if self._turn_start_time is None:
             self._turn_start_time = time.time()
         
+        # NEW LOGIC: If this is a user response to an existing agent message,
+        # it should trigger backend analysis. If it's a new user request,
+        # we need to wait for the agent to respond first.
+        print(f"🔍 Current agent message present: {self.current_turn['agent_message'] is not None}")
+        
         # Check if we have a complete turn (user + agent) to send to backend
         self._check_turn_completion()
     
@@ -185,17 +190,30 @@ class ConversationalAgent:
             self._turn_start_time = time.time()
         
         # Check if we have a complete turn (user + agent) to send to backend
+        # Note: With new logic, this will only prepare the turn but not send it yet
         self._check_turn_completion()
     
     def _check_turn_completion(self):
         """Check if current turn is complete (has both user and agent messages)."""
+        # NEW LOGIC: Only send to backend when user responds to agent's question
+        # This makes the flow: Agent asks → User responds → Backend analyzes complete turn
+        
         if (self.current_turn["user_message"] is not None and 
             self.current_turn["agent_message"] is not None and 
             not self.current_turn["turn_complete"]):
             
-            print("✅ CONVERSATION TURN COMPLETE - Sending to Backend Agent")
-            self._send_complete_turn_to_backend()
-            self.current_turn["turn_complete"] = True
+            # Only trigger on user message completion (when user responds to agent)
+            # Check if this was called from _add_user_message by checking call stack
+            import inspect
+            calling_function = inspect.stack()[1].function
+            
+            if calling_function == "_add_user_message":
+                print("✅ CONVERSATION TURN COMPLETE - User responded to agent question")
+                print("🎯 Sending complete turn to Backend Agent for analysis...")
+                self._send_complete_turn_to_backend()
+                self.current_turn["turn_complete"] = True
+            else:
+                print("📝 Turn has both messages but waiting for user response to send to backend")
     
     def _send_complete_turn_to_backend(self):
         """Send complete conversation turn to backend agent."""
@@ -206,8 +224,8 @@ class ConversationalAgent:
             print("⚠️ Cannot send incomplete turn to backend agent")
             return
         
-        # Format the complete conversation turn
-        conversation_turn = f"User: {user_msg}\nAgent: {agent_msg}"
+        # Format the complete conversation turn (Agent question → User response)
+        conversation_turn = f"Agent: {agent_msg}\nUser: {user_msg}"
         
         print("\n" + "="*60)
         print("🎯 SENDING COMPLETE TURN TO BACKEND AGENT")
