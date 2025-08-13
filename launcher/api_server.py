@@ -576,7 +576,9 @@ async def render_gesture_camera():
 
 @app.post("/blender/import_mesh", response_model=APIResponse)
 async def import_mesh(request: MeshImportRequest):
-    """Import and process mesh from PartPacker results."""
+    """Import and process mesh from generation results (PartPacker local or RunComfy cloud).
+    - Local mode: Handles pre-segmented meshes from PartPacker
+    - Cloud mode: Automatically separates single mesh from RunComfy into loose parts"""
     try:
         print(f"📦 MESH IMPORT API: Request received")
         print(f"   📁 Mesh path: {request.mesh_path}")

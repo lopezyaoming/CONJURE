@@ -57,12 +57,14 @@ class CONJURE_OT_render_gesture_camera(bpy.types.Operator):
         return {'FINISHED'}
 
 class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
-    """Import and process mesh from PartPacker results"""
+    """Import and process mesh from generation results (PartPacker local or RunComfy cloud)
+    - Local mode: Handles pre-segmented meshes from PartPacker
+    - Cloud mode: Separates single mesh from RunComfy into loose parts for segmentation"""
     bl_idname = "conjure.import_and_process_mesh"
     bl_label = "Import and Process Mesh"
     
     def execute(self, context):
-        print("📦 Starting mesh import and processing...")
+        print("📦 Starting mesh import and processing (supports both local and cloud generation)...")
         
         # Wrap entire execution in try-catch to prevent crashes
         try:
@@ -90,6 +92,14 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
             
             print(f"📦 Importing mesh from: {full_path}")
             print(f"📊 File size: {full_path.stat().st_size / 1024:.1f} KB")
+            
+            # Detect generation mode based on file path
+            if "partpacker_result" in str(full_path):
+                print("🏠 LOCAL MODE: PartPacker-generated mesh (pre-segmented)")
+            elif "genMesh" in str(full_path):
+                print("☁️ CLOUD MODE: RunComfy-generated mesh (single object - will be separated)") 
+            else:
+                print("❓ UNKNOWN MODE: Generic GLB mesh")
             
             # Create placeholder "Mesh" empty to prevent console errors
             print("📍 Creating placeholder mesh...")
@@ -123,6 +133,24 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
                 print(f"🔍 All objects in scene: {all_objects}")
                 self.report({'ERROR'}, "No valid meshes found after import")
                 return {'CANCELLED'}
+            
+            # Handle cloud mode: separate single mesh into loose parts
+            is_cloud_mode = "genMesh" in str(full_path)
+            
+            if is_cloud_mode:
+                print("☁️ CLOUD MODE detected")
+                if len(mesh_objects) == 1:
+                    print("🔧 Single mesh found - separating into loose parts...")
+                    separated_objects = self.separate_mesh_by_loose_parts(mesh_objects[0])
+                    if separated_objects and len(separated_objects) > 1:
+                        print(f"✅ Successfully separated into {len(separated_objects)} parts")
+                        mesh_objects = separated_objects
+                    else:
+                        print("⚠️ Separation did not create multiple parts - keeping as single mesh")
+                else:
+                    print(f"📊 Found {len(mesh_objects)} objects - no separation needed")
+            else:
+                print("🏠 LOCAL MODE: Using pre-segmented meshes from PartPacker")
             
             # Filter by volume and rename
             print("🔍 Filtering meshes by volume...")
@@ -161,6 +189,99 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
             print(f"🔍 Full error traceback:\n{traceback.format_exc()}")
             self.report({'ERROR'}, f"Critical error during import: {e}")
             return {'CANCELLED'}
+    
+    def separate_mesh_by_loose_parts(self, mesh_obj):
+        """
+        Separate a single mesh object into multiple objects based on loose parts.
+        This is used for cloud-generated meshes that come as a single merged object.
+        """
+        try:
+            print(f"🔧 Separating mesh: {mesh_obj.name}")
+            
+            # Ensure the mesh is selected and active
+            bpy.context.view_layer.objects.active = mesh_obj
+            bpy.ops.object.select_all(action='DESELECT')
+            mesh_obj.select_set(True)
+            
+            # Store the original name for numbering
+            original_name = mesh_obj.name
+            
+            # Switch to Edit Mode
+            bpy.ops.object.mode_set(mode='EDIT')
+            
+            # Select all geometry
+            bpy.ops.mesh.select_all(action='SELECT')
+            
+            # Check if mesh has disconnected parts before separation
+            import bmesh
+            bm = bmesh.from_edit_mesh(mesh_obj.data)
+            
+            # Count islands (disconnected parts)
+            islands = []
+            faces_visited = set()
+            
+            for face in bm.faces:
+                if face.index not in faces_visited:
+                    island = []
+                    stack = [face]
+                    while stack:
+                        current_face = stack.pop()
+                        if current_face.index in faces_visited:
+                            continue
+                        faces_visited.add(current_face.index)
+                        island.append(current_face)
+                        
+                        for edge in current_face.edges:
+                            for linked_face in edge.link_faces:
+                                if linked_face.index not in faces_visited:
+                                    stack.append(linked_face)
+                    
+                    if island:
+                        islands.append(island)
+            
+            print(f"🔍 Detected {len(islands)} disconnected parts in mesh")
+            
+            if len(islands) <= 1:
+                print("⚠️ Mesh appears to be a single connected component - separation may not be needed")
+            
+            # Separate by loose parts
+            print("🔨 Executing separate by loose parts...")
+            result = bpy.ops.mesh.separate(type='LOOSE')
+            
+            if result != {'FINISHED'}:
+                print(f"⚠️ Separation operation returned: {result}")
+            
+            # Switch back to Object Mode
+            bpy.ops.object.mode_set(mode='OBJECT')
+            
+            # Get all selected objects (these are the separated parts)
+            separated_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+            
+            print(f"📊 Separation resulted in {len(separated_objects)} objects")
+            
+            # Rename the separated objects to follow our naming convention
+            for i, obj in enumerate(separated_objects):
+                # Name them as seg_0, seg_1, etc. like PartPacker does
+                obj.name = f"seg_{i}"
+                print(f"🏷️ Renamed {obj.name}")
+            
+            # Deselect all objects
+            bpy.ops.object.select_all(action='DESELECT')
+            
+            return separated_objects
+            
+        except Exception as e:
+            print(f"❌ Error during mesh separation: {e}")
+            import traceback
+            print(f"🔍 Separation error traceback:\n{traceback.format_exc()}")
+            
+            # Make sure we're back in Object Mode
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except:
+                pass
+                
+            return []
     
     def setup_selection_materials(self):
         """Get existing materials for default and selected states"""

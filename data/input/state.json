@@ -17,6 +17,6 @@
     "flux_seed": null,
     "min_volume_threshold": 0.01,
     "generation_mode": "cloud",
-    "prompt": "Single sculptural subject: a sleek futuristic helmet with flowing aerodynamic plates and subtle organic seams, high-resolution hard-surface and soft rounded forms. Render in photorealistic style inspired by Syd Mead, matte gunmetal and brushed chrome materials, fine engraved details. Framed center foreground on a neutral studio background with soft studio lighting, shallow depth of field, 50mm lens, f/5.6, dramatic but controlled highlights, high-definition, crisp edge detail.",
+    "prompt": "Highly detailed photoreal alien head centered on a neutral studio background with soft studio lighting. Sculptural anatomy: elongated cranium, subtle asymmetry, three delicate forehead crests, faint bioluminescent veins beneath smooth matte skin, small ventral mandibles, large reflective almond eyes with glossy corneal highlights. Directly generated organic high-resolution mesh with fine pores and soft subsurface scattering, shallow depth of field, 50mm lens, f/5.6, high-definition, crisp detail, minimalist product-photography composition.",
     "seed": 1337
 }

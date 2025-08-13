@@ -1,44 +1,33 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[11:25:40] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-[11:25:45] [AGENT_TURN] MESSAGE: Awesome.
-USER (Whisper): Hey, uh, I want to create a-
-[11:25:45] [USER_TURN] MESSAGE: Hey, uh, I want to create a-
-[11:25:46] [AGENT_TURN] MESSAGE: What kind of alien head are you imagining? Sleek and elegant or gnarly and textured?
-[11:25:47] [AGENT_TURN] MESSAGE: Think about skull shape, eye size and count, mouth or mandibles, and overall vibe.
-[11:25:48] [AGENT_TURN] MESSAGE: Would you like me to start you with a simple primitive to roughen the shape, or would you prefer to verbally describe it and I generate it directly?
-USER (Whisper): So just generate the head, and I don't want to create the body.
-[11:26:14] [USER_TURN] MESSAGE: So just generate the head, and I don't want to create the body.
-[11:26:17] [AGENT_TURN] MESSAGE: Perfect
-USER (Whisper): You
-[11:26:18] [USER_TURN] MESSAGE: You
-[11:26:18] [AGENT_TURN] MESSAGE: Tell me, overall silhouette and proportions, elongated cranium, wide cheekbones, narrow chin, or something else?
-[11:26:18] [AGENT_TURN] MESSAGE: Describe your alien head and I'll turn it into a clear generative brief.
-[11:26:19] [AGENT_TURN] MESSAGE: Eyes, how many, size, placement, glow, or no glow.
-[11:26:19] [AGENT_TURN] MESSAGE: Mouth, slit, fanged, mandibles, beak, or none?
-[11:26:19] [AGENT_TURN] MESSAGE: Skin and surface, smooth bony plates, ridges, tendrils, bioluminescent patterns, scars.
-[11:26:20] [AGENT_TURN] MESSAGE: Color and finish, matte, glossy, translucent, pearlescent, or metallic accents.
-[11:26:21] [AGENT_TURN] MESSAGE: Once I have this, I'll say, back end, let's generate the initial mesh.
-[11:26:21] [AGENT_TURN] MESSAGE: Style and vibe. Elegant, menacing, ancient, biotech, aquatic, insectoid, or ethereal?
-[11:26:21] [AGENT_TURN] MESSAGE: Please share as much as you like in one go.
-[11:26:47] [AGENT_TURN] MESSAGE: Got it!
-USER (Whisper): What's up? What is?
-[11:26:50] [USER_TURN] MESSAGE: What's up? What is?
-[11:26:57] [AGENT_TURN] MESSAGE: Got it.
-[11:26:57] [AGENT_TURN] MESSAGE: I'll craft a strong first pass.
-[11:26:58] [AGENT_TURN] MESSAGE: subtle rear crest.
-[11:26:58] [AGENT_TURN] MESSAGE: Find Inner Glow. Find Vallejo.
-[11:26:58] [AGENT_TURN] MESSAGE: Three large almond eyes set in a tree.
-[11:26:58] [AGENT_TURN] MESSAGE: Here's the concept I'll generate.
-[11:26:58] [AGENT_TURN] MESSAGE: SLEEK ELONGATED
-[11:26:58] [AGENT_TURN] MESSAGE: cranium with a high crown and
-[11:26:58] [AGENT_TURN] MESSAGE: vertical slit mouth.
-[11:26:59] [AGENT_TURN] MESSAGE: Triangular layout with a faint
-[11:27:00] [AGENT_TURN] MESSAGE: Back end, let's generate the initial mesh.
-[11:27:00] [AGENT_TURN] MESSAGE: Please hold a moment while it processes.
-[11:27:00] [AGENT_TURN] MESSAGE: with hidden needle teeth, smooth semi-translucent skin with gentle ribbing and bony subsurface ridges, faint bioluminescent lines that trace the skull, overall elegant and slightly unsettling.
-[11:27:36] [AGENT_TURN] MESSAGE: Thanks for waiting.
-[11:27:37] [AGENT_TURN] MESSAGE: Do you want to use the whole mesh as is, or would you like to select a specific segment to work on?
-[11:27:37] [AGENT_TURN] MESSAGE: The initial mesh is in.
-[11:27:41] [AGENT_TURN] MESSAGE: I can either fuse everything into one piece or enter segment selection so you can pick parts.
-[11:27:57] [AGENT_TURN] MESSAGE: Are you still with me?
-[11:27:58] [AGENT_TURN] MESSAGE: Would you like me to fuse the mesh into one piece or switch to segment selection so you can pick parts to focus on?
+[15:40:11] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
+USER (Whisper): What are you doing?
+[15:40:16] [USER_TURN] MESSAGE: What are you doing?
+[15:40:21] [AGENT_TURN] MESSAGE: I did not catch that.
+[15:40:23] [AGENT_TURN] MESSAGE: Tell me what you want to create, and whether you want to start with a simple, primitive shape, or describe it verbally.
+[15:40:25] [AGENT_TURN] MESSAGE: Are you still there?
+[15:40:33] [AGENT_TURN] MESSAGE: Great.
+[15:40:33] [AGENT_TURN] MESSAGE: A cube is a solid start for blocking proportions.
+[15:40:35] [AGENT_TURN] MESSAGE: Would you like me to spawn a cube now, centered and scaled to a comfortable one meter unit for sculpting, or do you prefer a different size?
+[15:40:36] [AGENT_TURN] MESSAGE: Once it appears, go ahead and roughen your form with gestures and tell me when you are done.
+[15:40:44] [AGENT_TURN] MESSAGE: Backend, please spawn a cube primitive centered at origin. Scale to a comfortable one meter unit for sculpting.
+[15:40:44] [AGENT_TURN] MESSAGE: Cube coming in.
+[15:40:47] [AGENT_TURN] MESSAGE: Perfect.
+[15:40:47] [AGENT_TURN] MESSAGE: I will spawn a cube centered at origin, scaled for comfortable sculpting.
+[15:40:48] [AGENT_TURN] MESSAGE: When you're done with your rough blockout, say I am done and we will move to the next step.
+[15:40:48] [AGENT_TURN] MESSAGE: Please wait a moment while it appears, then you can start shaping.
+[15:41:03] [AGENT_TURN] MESSAGE: You are welcome.
+[15:41:03] [AGENT_TURN] MESSAGE: The cube is in place at the origin, sized for easy sculpting.
+[15:41:03] [AGENT_TURN] MESSAGE: Take your time shaping it with your gestures.
+[15:41:04] [AGENT_TURN] MESSAGE: When you are done with the rough block out, just say, I am done, and we will move on to describing the final piece for generation.
+USER (Whisper): Yeah. Okay.
+[15:41:37] [USER_TURN] MESSAGE: Yeah. Okay.
+[15:41:52] [AGENT_TURN] MESSAGE: Nice.
+[15:41:52] [AGENT_TURN] MESSAGE: Take your time to finish the block out.
+[15:41:53] [AGENT_TURN] MESSAGE: As you wrap up, start thinking about the final intent. What is this object, its overall style, and any key features?
+[15:41:53] [AGENT_TURN] MESSAGE: When you are done, say I am done, and I will guide you through a quick description so we can generate the first mesh pass.
+USER (Whisper): I'm not here to like...
+[15:42:24] [USER_TURN] MESSAGE: I'm not here to like...
+[15:42:31] [AGENT_TURN] MESSAGE: All good.
+[15:42:31] [AGENT_TURN] MESSAGE: I am here to make this easy and keep you moving.
+[15:42:33] [AGENT_TURN] MESSAGE: When you are ready, just say, I am done, and I will ask a few quick focused questions to generate your first mesh pass.
+[15:42:34] [AGENT_TURN] MESSAGE: If you're still shaping, I will wait.

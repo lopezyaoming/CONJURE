@@ -209,7 +209,7 @@ class InstructionManager:
     # def mesh_import(self, params: dict):
     #     """
     #     Handles the 'mesh_import' instruction. Import and process a mesh file,
-    #     typically from PartPacker results.
+    #     typically from PartPacker (local) or RunComfy (cloud) results.
     #     """
     #     mesh_path = params.get("mesh_path")
     #     if not mesh_path:
