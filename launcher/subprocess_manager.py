@@ -53,12 +53,32 @@ class SubprocessManager:
         blender_scene_dir = self.project_root / "blender"
         scene_path = blender_scene_dir / "scene.blend"
 
-        # --- Simplified Command ---
-        # We are temporarily removing the --python-expr for debugging.
-        # This will require the user to manually enable the addon and start the operator.
+        # --- Enhanced Command with Auto-Enable Addon ---
+        # Enable the CONJURE addon automatically when Blender starts
+        addon_path = self.project_root / "scripts" / "addons"
+        python_expr = f"""
+import bpy
+import sys
+import os
+
+# Add addon path to Blender's Python path
+addon_path = r"{addon_path}"
+if addon_path not in sys.path:
+    sys.path.insert(0, addon_path)
+
+# Enable CONJURE addon
+try:
+    print("🚀 Auto-enabling CONJURE addon...")
+    bpy.ops.preferences.addon_enable(module="conjure")
+    print("✅ CONJURE addon enabled successfully!")
+except Exception as e:
+    print(f"❌ Failed to enable CONJURE addon: {{e}}")
+"""
+        
         command = [
             str(BLENDER_EXECUTABLE_PATH),
             str(scene_path),
+            "--python-expr", python_expr
         ]
         
         # We run Blender with its UI visible for interaction, not in the background.

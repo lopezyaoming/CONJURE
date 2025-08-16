@@ -154,9 +154,50 @@ class ConjureApp:
         self.agent_thread.start()
         print("Conversational agent is now listening in a background thread...")
         
+        # Start the UI system in a separate thread
+        self.start_ui_system()
+        
         # 🚦 Mark initialization as complete
         self.initialization_complete = True
         print("✅ CONJURE initialization complete - ready to process requests")
+
+    def start_ui_system(self):
+        """Start the CONJURE UI overlay as a separate process (simplest approach)"""
+        print("🖥️  Starting CONJURE UI overlay...")
+        
+        try:
+            import subprocess
+            import platform
+            
+            # Path to the UI script (launch directly, not through launcher)
+            ui_script = self.project_root / "Agent" / "conjure_ui_direct.py"
+            python_exe = sys.executable
+            
+            # Launch UI as completely separate process
+            if platform.system() == "Windows":
+                # On Windows, create detached process that won't interfere
+                self.ui_process = subprocess.Popen(
+                    [python_exe, str(ui_script)],
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            else:
+                # On other systems
+                self.ui_process = subprocess.Popen(
+                    [python_exe, str(ui_script)],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            
+            print("✅ CONJURE UI overlay launched as separate process")
+            
+        except Exception as e:
+            print(f"⚠️  UI system error: {e}")
+            import traceback
+            traceback.print_exc()
 
     def check_for_requests(self):
         """Checks the state file for requests from Blender and triggers workflows."""
@@ -228,6 +269,46 @@ class ConjureApp:
             print("🎯 DEBUG: Selection request detected!")
             self.handle_selection_request(state_data, generation_mode)
             self.state_manager.clear_specific_requests(["selection_request", "selection_status"])
+
+    def check_for_shutdown_signal(self):
+        """Check for shutdown signal file from UI overlay"""
+        try:
+            shutdown_file = self.project_root / "shutdown_signal.txt"
+            
+            # Add occasional debug info (every 30 checks)
+            if not hasattr(self, '_shutdown_check_count'):
+                self._shutdown_check_count = 0
+            self._shutdown_check_count += 1
+            
+            if self._shutdown_check_count % 10 == 0:  # More frequent debugging
+                print(f"🔍 DEBUG: Checking for shutdown signal at: {shutdown_file}")
+            
+            if shutdown_file.exists():
+                print("🛑 Shutdown signal detected from UI overlay")
+                
+                # Read the signal file for details
+                try:
+                    with open(shutdown_file, 'r') as f:
+                        signal_content = f.read()
+                    print(f"📄 Shutdown signal content: {signal_content.strip()}")
+                except:
+                    pass
+                
+                # Remove the signal file
+                try:
+                    shutdown_file.unlink()
+                    print("🗑️  Shutdown signal file removed")
+                except:
+                    pass
+                
+                # Trigger graceful shutdown
+                print("🛑 Initiating graceful CONJURE shutdown...")
+                self.state_manager.set_state("app_status", "shutting_down")
+                
+        except Exception as e:
+            # Occasionally print errors for debugging
+            if hasattr(self, '_shutdown_check_count') and self._shutdown_check_count % 60 == 0:
+                print(f"⚠️ DEBUG: Shutdown signal check error: {e}")
 
     def _monitor_backend_agent_activity(self, state_data):
         """Monitor and report backend agent activity and outputs."""
@@ -695,6 +776,10 @@ class ConjureApp:
                         print("💓 Main loop heartbeat - application running normally")
                 
                 self.check_for_requests()
+                
+                # Check for UI shutdown signal
+                self.check_for_shutdown_signal()
+                
                 time.sleep(1)
                 debug_counter += 1
                 
@@ -724,6 +809,20 @@ class ConjureApp:
         if hasattr(self, 'conversational_agent'):
             print("🎤 Stopping conversational agent...")
             self.conversational_agent.stop()
+        
+        # Stop UI system
+        if hasattr(self, 'ui_process'):
+            print("🖥️  Stopping UI overlay process...")
+            try:
+                self.ui_process.terminate()
+                self.ui_process.wait(timeout=5)
+                print("✅ UI overlay process stopped")
+            except Exception as e:
+                print(f"⚠️  Error stopping UI overlay: {e}")
+                try:
+                    self.ui_process.kill()
+                except:
+                    pass
         
         print("✅ CONJURE shutdown complete")
 

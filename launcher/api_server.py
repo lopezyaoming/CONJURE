@@ -129,6 +129,49 @@ async def shutdown_event():
 async def health_check():
     return {"status": "healthy", "service": "CONJURE API Server"}
 
+# System shutdown endpoint
+@app.post("/shutdown")
+async def shutdown_system():
+    """Trigger shutdown of the entire CONJURE system"""
+    try:
+        print("🛑 API Server: Received shutdown request from UI")
+        
+        # Import here to avoid circular imports
+        import signal
+        import os
+        import threading
+        
+        def delayed_shutdown():
+            """Shutdown the system after a brief delay"""
+            import time
+            time.sleep(1)  # Give time for API response to be sent
+            print("🛑 API Server: Initiating system shutdown...")
+            
+            # Send SIGTERM to the main process
+            try:
+                # Get the parent process ID (main CONJURE process)
+                parent_pid = os.getppid()
+                if parent_pid != 1:  # Not init process
+                    os.kill(parent_pid, signal.SIGTERM)
+                    print(f"✅ Sent shutdown signal to main process (PID: {parent_pid})")
+                else:
+                    # Fallback: kill current process
+                    os.kill(os.getpid(), signal.SIGTERM)
+            except Exception as e:
+                print(f"⚠️ Error sending shutdown signal: {e}")
+                # Fallback: force exit
+                os._exit(0)
+        
+        # Start shutdown in background thread to allow API response to complete
+        shutdown_thread = threading.Thread(target=delayed_shutdown, daemon=True)
+        shutdown_thread.start()
+        
+        return {"status": "success", "message": "CONJURE system shutdown initiated"}
+        
+    except Exception as e:
+        print(f"❌ Error during shutdown: {e}")
+        return {"status": "error", "message": f"Shutdown failed: {str(e)}"}
+
 # Progress tracking endpoints
 @app.get("/workflow/progress/{prompt_id}")
 async def get_workflow_progress(prompt_id: str):

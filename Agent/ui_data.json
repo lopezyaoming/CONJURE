@@ -1,0 +1,48 @@
+{
+  "conversation": [
+    {
+      "timestamp": "08:01:46",
+      "speaker": "AGENT",
+      "message": "Welcome to Conjure, what do you want to create today?",
+      "source": "debug"
+    },
+    {
+      "timestamp": "08:01:56",
+      "speaker": "AGENT",
+      "message": "I did not catch that.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "08:01:57",
+      "speaker": "AGENT",
+      "message": "What would you like to create?",
+      "source": "debug"
+    },
+    {
+      "timestamp": "08:01:58",
+      "speaker": "AGENT",
+      "message": "You can start with a quick primitive shape, or just describe it in words and I will generate it.",
+      "source": "debug"
+    }
+  ],
+  "current_command": {
+    "command": null,
+    "parameters": null,
+    "status": "initializing",
+    "phase": "I",
+    "timestamp": "08:38:12"
+  },
+  "brush_info": {
+    "active_command": "none",
+    "active_hand": null,
+    "scale_axis": "XYZ",
+    "fingertip_count": 0
+  },
+  "workflow_progress": {
+    "active": false,
+    "overall_progress": 0.0,
+    "current_stage": "Idle",
+    "current_node": "None",
+    "estimated_time_remaining": "N/A"
+  }
+}

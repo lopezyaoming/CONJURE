@@ -1,0 +1,24 @@
+{
+  "conversation_history": [],
+  "latest_messages": [],
+  "current_phase": "Mesh Generation",
+  "current_command": "generate_flux_mesh",
+  "command_status": "waiting",
+  "command_parameters": {
+    "primitive_type": "Sphere"
+  },
+  "active_brush": "GRAB",
+  "brush_parameters": {
+    "scale_axis": "XYZ"
+  },
+  "hand_tracking_active": true,
+  "workflow_active": true,
+  "workflow_name": "Mesh Generation",
+  "workflow_progress": 0.5,
+  "workflow_stage": "Text Encoding",
+  "workflow_stage_description": "Encoding text prompts and conditioning",
+  "app_status": "running",
+  "blender_status": "running",
+  "hand_tracker_status": "running",
+  "last_updated": "2025-08-16T03:28:20.278574"
+}

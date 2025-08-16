@@ -6,17 +6,15 @@
     "generation_request": null,
     "selection_request": null,
     "import_request": null,
-    "command": "spawn_primitive",
+    "command": null,
     "text": null,
     "selection_mode": null,
     "selected_segment": null,
     "flux_pipeline_status": null,
     "mesh_path": null,
-    "primitive_type": "Cube",
+    "primitive_type": null,
     "flux_prompt": null,
     "flux_seed": null,
-    "min_volume_threshold": 0.01,
-    "generation_mode": "cloud",
-    "prompt": "Highly detailed photoreal alien head centered on a neutral studio background with soft studio lighting. Sculptural anatomy: elongated cranium, subtle asymmetry, three delicate forehead crests, faint bioluminescent veins beneath smooth matte skin, small ventral mandibles, large reflective almond eyes with glossy corneal highlights. Directly generated organic high-resolution mesh with fine pores and soft subsurface scattering, shallow depth of field, 50mm lens, f/5.6, high-definition, crisp detail, minimalist product-photography composition.",
-    "seed": 1337
+    "min_volume_threshold": null,
+    "generation_mode": "local"
 }

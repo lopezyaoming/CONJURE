@@ -1,0 +1,198 @@
+CONJURE UI IMPLEMENTATION PLAN
+=====================================
+
+OVERVIEW:
+This plan outlines the implementation of a comprehensive informational UI for the CONJURE project. The UI is read-only, displaying system status and activity while the user interacts via voice/camera exclusively.
+
+DESIGN PRINCIPLES:
+- Transparent overlay design (based on UI.py reference)
+- Excellent formatting and screen composition
+- Self-contained scripts with minimal dependencies
+- PyQt5-based implementation
+- Real-time data visualization
+
+CORE INFORMATION DISPLAY:
+1. Transcription between user and agent (conversation history)
+2. Current command being executed by agent
+3. Current stage/phase of the process
+4. Active brush/tool information from fingertip tracking
+5. Workflow progress overlay during mesh generation
+
+ARCHITECTURE:
+==============
+
+SCRIPT STRUCTURE:
+1. ui_data_generator.py - Generates UI JSON from state files
+2. conjure_ui.py - Main UI application (transparent overlay)
+3. workflow_overlay.py - Semi-transparent workflow progress overlay
+4. ui_config.py - Configuration and constants
+
+DATA SOURCES:
+- data/input/state.json - Main application state
+- data/input/fingertips.json - Hand tracking and brush data
+- transcript_debug.txt - Conversation transcriptions
+- elevenlabs_transcript_log.txt - Agent responses
+- runcomfy/dev_server_state.json - Workflow progress
+- runcomfy/workflow_progress_tracker.py - Detailed progress tracking
+
+IMPLEMENTATION DETAILS:
+=======================
+
+1. UI_DATA_GENERATOR.PY:
+   Purpose: Aggregates data from multiple sources into unified UI JSON
+   Functions:
+   - load_state_data() - Load main state.json
+   - load_conversation_data() - Parse transcript files
+   - load_fingertip_data() - Extract brush/tool info
+   - load_workflow_progress() - Get runcomfy status
+   - generate_ui_json() - Create unified data structure
+   - monitor_data_changes() - File watching for real-time updates
+
+2. CONJURE_UI.PY:
+   Purpose: Main transparent overlay UI (adapted from UI.py)
+   Components:
+   - TransparentMainWindow - Main overlay window
+   - ConversationPanel - Scrollable chat display
+   - StatusPanel - Current command and phase
+   - BrushPanel - Active tool/brush indicator
+   - Automatic refresh system (5-second intervals)
+   
+   Layout:
+   - Top-right: Current phase and status
+   - Center-right: Conversation transcript
+   - Bottom-right: Active brush/tool
+   - Full-screen transparent background
+
+3. WORKFLOW_OVERLAY.PY:
+   Purpose: Semi-transparent mesh generation progress
+   Components:
+   - WorkflowProgressOverlay - Full-screen overlay
+   - ProgressBar - Animated progress indicator
+   - StatusText - Current node/stage being processed
+   - Integration with runcomfy workflow progress tracker
+
+4. UI_CONFIG.PY:
+   Purpose: Central configuration
+   Constants:
+   - File paths for data sources
+   - UI styling and colors
+   - Refresh intervals
+   - Window positioning
+
+FEATURES FROM UI.PY REFERENCE:
+==============================
+- Frameless, transparent window (Qt.FramelessWindowHint)
+- Always on top (Qt.WindowStaysOnTopHint)
+- Translucent background (Qt.WA_TranslucentBackground)
+- Drop shadow effects on UI elements
+- Minimal button styling with hover effects
+- Automatic positioning and sizing
+- Escape key to close
+- Mouse dragging for repositioning
+
+SPECIFIC ADAPTATIONS:
+=====================
+
+CONVERSATION DISPLAY:
+- Scrollable text area showing recent conversation
+- User messages in one color, agent responses in another
+- Timestamps for each message
+- Auto-scroll to latest messages
+- Maximum message history (last 50 exchanges)
+
+COMMAND STATUS:
+- Large, prominent display of current backend command
+- Phase indicator (I, II, III, etc.)
+- Color-coded status (idle, processing, completed, error)
+- Last command execution timestamp
+
+BRUSH/TOOL DISPLAY:
+- Parse fingertips.json for active command
+- Visual indicator of current tool mode
+- Hand tracking status (left/right hand active)
+- Scale axis information for deform operations
+
+WORKFLOW PROGRESS:
+- Triggered when state.json shows "generate_flux_mesh" command
+- Semi-transparent full-screen overlay
+- "MESH GENERATION" text with animated dots
+- Real-time progress bar from runcomfy status
+- Current node execution details
+- Estimated time remaining (if available)
+
+DATA FLOW:
+==========
+1. ui_data_generator.py monitors all source files
+2. When changes detected, regenerates ui_data.json
+3. conjure_ui.py polls ui_data.json every 5 seconds
+4. UI elements update based on new data
+5. workflow_overlay.py activates when mesh generation starts
+
+JSON STRUCTURE (ui_data.json):
+==============================
+{
+  "conversation": [
+    {
+      "timestamp": "14:30:15",
+      "speaker": "USER",
+      "message": "I want to create an alien head",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "14:30:20", 
+      "speaker": "AGENT",
+      "message": "Perfect! Let me generate that for you...",
+      "source": "elevenlabs"
+    }
+  ],
+  "current_command": {
+    "command": "generate_flux_mesh",
+    "parameters": {
+      "prompt": "alien head"
+    },
+    "status": "processing",
+    "phase": "I",
+    "timestamp": "14:30:25"
+  },
+  "brush_info": {
+    "active_command": "deform",
+    "active_hand": "right",
+    "scale_axis": "XYZ",
+    "fingertip_count": 1
+  },
+  "workflow_progress": {
+    "active": true,
+    "overall_progress": 45.2,
+    "current_stage": "FLUX Generation",
+    "current_node": "KSampler",
+    "estimated_time_remaining": "2m 15s"
+  }
+}
+
+STYLING CONSISTENCY:
+===================
+- Use same color scheme as UI.py reference
+- rgba(40, 40, 40, 180) for backgrounds
+- White text on dark backgrounds
+- Drop shadows on all elements
+- 4px border radius for modern look
+- Segoe UI font on Windows
+- Minimal, clean aesthetic
+
+ERROR HANDLING:
+===============
+- Graceful degradation if data files missing
+- Default values for all display elements
+- File corruption handling
+- Network timeout handling for runcomfy status
+- Logging to conjure_ui.log for debugging
+
+DEPLOYMENT:
+===========
+- All scripts in Agent/ directory
+- Self-contained with minimal external dependencies
+- Can be launched independently or via main.py
+- Automatic startup with CONJURE system
+- Clean shutdown procedures
+
+This plan ensures a comprehensive, professional UI that provides real-time visibility into CONJURE's operation while maintaining the excellent transparent overlay design from the reference implementation.
