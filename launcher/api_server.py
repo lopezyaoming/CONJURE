@@ -256,8 +256,9 @@ async def process_conversation(request: ConversationRequest):
         print(f"🔍 Full conversation length: {len(request.conversation_history)} chars")
         print(f"🖼️ Include image: {request.include_image}")
         
-        # Call existing backend agent method (NO CHANGES to backend_agent.py)
-        result = backend_agent.get_response(request.conversation_history)
+        # 🎬 HARDCORE DEMO: Don't call backend agent for conversations
+        print("🎬 HARDCORE DEMO: Conversation received but IGNORING backend agent processing")
+        result = None
         
         print(f"✅ Backend agent processed conversation successfully")
         print(f"📊 Result type: {type(result)}, Content preview: {str(result)[:200]}...")
@@ -302,9 +303,14 @@ async def process_conversation(request: ConversationRequest):
         print("🔚 END BACKEND AGENT RESPONSE ANALYSIS")
         print("="*80 + "\n")
         
+        # 🎬 HARDCORE DEMO: Always return success, ignore tool execution
+        # Backend agent processes conversation and writes user prompts
+        # But we're forcing the sequence in main.py instead of executing tools
+        print("🎬 HARDCORE DEMO: Backend agent processed conversation - ignoring tool execution")
+        
         return APIResponse(
             success=True,
-            message="Conversation processed successfully",
+            message="Conversation processed successfully (demo mode - tools ignored)",
             data={"instruction": result} if result else None
         )
     except Exception as e:
@@ -374,15 +380,13 @@ async def execute_instruction(request: InstructionRequest):
         else:
             print(f"✅ API: Unknown operation {tool_name} allowed (no API-level deduplication)")
         
-        # Call existing instruction manager method (NO CHANGES to instruction_manager.py)
-        instruction_manager.execute_instruction(request.instruction)
-        
-        print(f"✅ Instruction executed successfully: {tool_name}")
+        # 🎬 HARDCORE DEMO: Don't execute tools - main.py forces the sequence
+        print(f"🎬 HARDCORE DEMO: Ignoring tool execution '{tool_name}' - using forced sequence")
         
         return APIResponse(
             success=True,
-            message="Instruction executed successfully",
-            data={"instruction": request.instruction}
+            message=f"Tool '{tool_name}' ignored in demo mode - using forced sequence",
+            data={"tool_name": tool_name, "demo_mode": True}
         )
     except Exception as e:
         print(f"❌ Error executing instruction: {e}")

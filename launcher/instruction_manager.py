@@ -238,14 +238,15 @@ class InstructionManager:
         
         print(f"INFO: Starting FLUX mesh generation with prompt: {prompt[:100]}...")
         
-        # Set state to trigger the FLUX mesh generation pipeline
-        command_data = {
-            "command": "generate_flux_mesh",
-            "prompt": prompt,
-            "seed": params.get("seed", 0),
+        # Set state to trigger the FLUX pipeline (this triggers handle_flux_pipeline_request in main.py)
+        flux_pipeline_data = {
+            "flux_pipeline_request": "new",
+            "flux_prompt": prompt,
+            "flux_seed": params.get("seed", 0),
             "min_volume_threshold": params.get("min_volume_threshold", 0.001)
         }
-        self.state_manager.update_state(command_data)
+        self.state_manager.update_state(flux_pipeline_data)
+        print(f"✅ FLUX pipeline request set with seed: {params.get('seed', 0)}")
 
     def fuse_mesh(self, params: dict):
         """

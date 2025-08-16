@@ -28,6 +28,7 @@ import uuid
 from pathlib import Path
 import shutil
 import threading
+import requests
 
 from subprocess_manager import SubprocessManager
 from state_manager import StateManager
@@ -39,7 +40,7 @@ from instruction_manager import InstructionManager
 
 def select_generation_mode():
     """
-    Prompt user to select generation mode: local or cloud.
+    Prompt user to select generation mode: local, cloud, or debug.
     Returns the selected mode and updates config.
     """
     print("\n" + "="*60)
@@ -57,11 +58,18 @@ def select_generation_mode():
     print("   • Faster generation with high-end GPUs")
     print("   • Requires: runComfy account and credits")
     print()
+    print("3. DEBUG  - Automated testing mode (cloud + automated workflow)")
+    print("   • Tests all backend agent functions sequentially")
+    print("   • spawn_primitive → generate_flux_mesh → segment_selection → fuse_mesh")
+    print("   • Uses runComfy cloud services for mesh generation")
+    print("   • Uses user_prompt.txt and current screenshot")
+    print("   • Recursive segmentation loop for comprehensive testing")
+    print()
     print("="*60)
     
     while True:
         try:
-            choice = input("Enter your choice (1 for LOCAL, 2 for CLOUD): ").strip()
+            choice = input("Enter your choice (1 for LOCAL, 2 for CLOUD, 3 for DEBUG): ").strip()
             
             if choice == "1" or choice.lower() == "local":
                 selected_mode = "local"
@@ -72,8 +80,13 @@ def select_generation_mode():
                 print(f"✅ Selected: CLOUD mode (runComfy services)")
                 print("⚠️  NOTE: Cloud mode implementation is in progress")
                 break
+            elif choice == "3" or choice.lower() == "debug":
+                selected_mode = "debug"
+                print(f"✅ Selected: DEBUG mode (automated testing)")
+                print("🔬 DEBUG: Will test all backend agent functions automatically")
+                break
             else:
-                print("❌ Invalid choice. Please enter '1' for LOCAL or '2' for CLOUD.")
+                print("❌ Invalid choice. Please enter '1' for LOCAL, '2' for CLOUD, or '3' for DEBUG.")
                 continue
                 
         except KeyboardInterrupt:
@@ -99,7 +112,14 @@ class ConjureApp:
         self.generation_mode = generation_mode
         config.GENERATION_MODE = generation_mode  # Ensure config is updated
         
-        print(f"🔧 Running in {generation_mode.upper()} mode")
+        # Debug mode handling
+        self.is_debug_mode = (generation_mode == "debug")
+        if self.is_debug_mode:
+            # Set to cloud mode for actual operations (runComfy)
+            config.GENERATION_MODE = "cloud"
+            print(f"🔧 Running in DEBUG mode (using CLOUD backend via runComfy)")
+        else:
+            print(f"🔧 Running in {generation_mode.upper()} mode")
         
         self.state_manager = StateManager()
         
@@ -107,8 +127,9 @@ class ConjureApp:
         self.state_manager.reset_to_clean_state()
         
         # 🔧 Store generation mode in state file for API server access
-        self.state_manager.set_state("generation_mode", generation_mode)
-        print(f"🔧 Generation mode stored in state file: {generation_mode}")
+        actual_mode = "cloud" if self.is_debug_mode else generation_mode
+        self.state_manager.set_state("generation_mode", actual_mode)
+        print(f"🔧 Generation mode stored in state file: {actual_mode}")
         
         self.subprocess_manager = SubprocessManager()
         self.instruction_manager = InstructionManager(self.state_manager)
@@ -123,6 +144,15 @@ class ConjureApp:
         self.startup_time = time.time()
         self.initialization_complete = False
         self.startup_grace_period = 10  # seconds
+        
+        # 🎬 Demo automation timers
+        self.demo_start_time = None
+        self.last_mesh_import_time = None
+        self.demo_flux_triggered = False
+        
+        # 📝 User prompt monitoring
+        self.last_user_prompt = None
+        self.user_prompt_path = self.project_root / "data" / "generated_text" / "userPrompt.txt"
         
         atexit.register(self.stop)
         
@@ -149,10 +179,13 @@ class ConjureApp:
 
         print("\nCONJURE is now running. Close the Blender window or press Ctrl+C here to exit.")
 
-        # Start the conversational agent in a separate thread
-        self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
-        self.agent_thread.start()
-        print("Conversational agent is now listening in a background thread...")
+        # Start the conversational agent in a separate thread (unless debug mode)
+        if not self.is_debug_mode:
+            self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
+            self.agent_thread.start()
+            print("Conversational agent is now listening in a background thread...")
+        else:
+            print("🔬 DEBUG MODE: Conversational agent disabled for automated testing")
         
         # Start the UI system in a separate thread
         self.start_ui_system()
@@ -160,6 +193,40 @@ class ConjureApp:
         # 🚦 Mark initialization as complete
         self.initialization_complete = True
         print("✅ CONJURE initialization complete - ready to process requests")
+        
+        # 🔬 DEBUG MODE: Start automated testing
+        if self.is_debug_mode:
+            print("🔬 Initializing debug test mode...")
+            self._ensure_runcomfy_dev_server()
+            self.debug_test = DebugTestMode(self)
+            # Wait a bit for systems to fully initialize
+            threading.Timer(15.0, self.debug_test.start_debug_mode).start()
+            print("🔬 Debug test mode will start in 15 seconds...")
+
+    def _ensure_runcomfy_dev_server(self):
+        """Ensure runComfy dev server is running for debug mode"""
+        try:
+            print("☁️ Checking runComfy dev server status...")
+            
+            # Try to import and check dev server state
+            from runcomfy.dev_server_state import DevServerStateManager
+            
+            dev_manager = DevServerStateManager()
+            server_state = dev_manager.load_server_state()
+            
+            if server_state and server_state.status == "running":
+                print(f"✅ runComfy dev server is running (Server ID: {server_state.server_id})")
+                return
+            
+            print("⚠️ runComfy dev server not running. Starting dev server...")
+            print("🔬 DEBUG: You may need to manually start the runComfy dev server:")
+            print("   python runcomfy/dev_server_startup.py")
+            print("   Then restart debug mode")
+            
+        except ImportError:
+            print("❌ runComfy components not available - cannot use cloud mode")
+        except Exception as e:
+            print(f"❌ Error checking runComfy dev server: {e}")
 
     def start_ui_system(self):
         """Start the CONJURE UI overlay as a separate process (simplest approach)"""
@@ -212,9 +279,46 @@ class ConjureApp:
                 print(f"⏳ Startup grace period: {remaining:.1f}s remaining before processing requests")
             return
         
+        # 🎬 DEMO AUTOMATION: Set demo start time after grace period
+        if self.demo_start_time is None:
+            self.demo_start_time = time.time()
+            print("🎬 DEMO AUTOMATION: Started timing for automatic triggers")
+        
         state_data = self.state_manager.get_state()
         if not state_data:
             return
+
+        # 🎬 HARDCORE DEMO AUTOMATION: 30s cycles
+        time_since_demo_start = time.time() - self.demo_start_time
+        
+        # First cycle: 30s → generate_flux_mesh
+        if not self.demo_flux_triggered and time_since_demo_start >= 30:
+            print("🎬 HARDCORE DEMO: 30 seconds elapsed - FORCING generate_flux_mesh!")
+            self._force_generate_flux_mesh()
+            self.demo_flux_triggered = True
+        
+        # After mesh import: immediate segment_selection
+        if self.last_mesh_import_time is not None:
+            time_since_import = time.time() - self.last_mesh_import_time
+            print(f"🎬 DEBUG: Checking mesh import trigger - {time_since_import:.1f}s since import")
+            if time_since_import >= 2:  # Just 2 seconds for immediate transition
+                print("🎬 HARDCORE DEMO: Mesh imported - FORCING segment_selection!")
+                self._force_segment_selection()
+                self.last_mesh_import_time = None  # Reset to avoid repeated triggers
+        
+        # Recursive cycle: Every 30s in segment mode, generate new mesh
+        if hasattr(self, '_last_segment_time') and self._last_segment_time is not None:
+            time_since_segment = time.time() - self._last_segment_time
+            if time_since_segment >= 30:
+                print("🎬 HARDCORE DEMO: 30s in segment mode - RECURSIVE generate_flux_mesh!")
+                self._force_generate_flux_mesh()
+                self._last_segment_time = None  # Reset
+
+        # 📝 Monitor userPrompt.txt for updates
+        self._monitor_user_prompt_updates()
+        
+        # 🎬 BACKUP: Check for completed mesh files if API import failed
+        self._check_for_completed_meshes()
 
         command = state_data.get("command")
         generation_mode = state_data.get("generation_mode", "standard")
@@ -269,6 +373,114 @@ class ConjureApp:
             print("🎯 DEBUG: Selection request detected!")
             self.handle_selection_request(state_data, generation_mode)
             self.state_manager.clear_specific_requests(["selection_request", "selection_status"])
+
+    def _monitor_user_prompt_updates(self):
+        """📝 Monitor userPrompt.txt for updates and display in console"""
+        try:
+            if self.user_prompt_path.exists():
+                with open(self.user_prompt_path, 'r', encoding='utf-8') as f:
+                    current_prompt = f.read().strip()
+                
+                # Check if prompt has changed
+                if current_prompt != self.last_user_prompt and current_prompt:
+                    print("\n" + "🎨" + "="*80)
+                    print("🎨 USER PROMPT UPDATED!")
+                    print("🎨" + "="*80)
+                    print(f"📝 NEW PROMPT: {current_prompt}")
+                    print("🎨" + "="*80 + "\n")
+                    
+                    self.last_user_prompt = current_prompt
+        except Exception as e:
+            # Silently handle errors to avoid spam
+            pass
+
+    def _check_for_completed_meshes(self):
+        """🎬 BACKUP: Check for newly generated mesh files and trigger import if needed"""
+        try:
+            mesh_dir = self.project_root / "data" / "generated_models" / "partpacker_results"
+            if mesh_dir.exists():
+                # Look for the most recent partpacker_result_0.glb file
+                mesh_file = mesh_dir / "partpacker_result_0.glb"
+                if mesh_file.exists():
+                    # Check if this is a new file (modified in last 2 minutes)
+                    import time
+                    file_age = time.time() - mesh_file.stat().st_mtime
+                    
+                    if file_age < 120 and not hasattr(self, '_processed_backup_mesh'):  # 2 minutes
+                        print("🎬 BACKUP DETECTION: Found fresh mesh file, triggering import and segment selection!")
+                        
+                        # Mark as processed to avoid repeated triggers
+                        self._processed_backup_mesh = True
+                        
+                        # Directly call import API
+                        try:
+                            import httpx
+                            with httpx.Client(timeout=30.0) as client:
+                                response = client.post(
+                                    "http://127.0.0.1:8000/blender/import_mesh",
+                                    json={
+                                        "mesh_path": str(mesh_file),
+                                        "min_volume_threshold": 0.01
+                                    }
+                                )
+                                if response.status_code == 200:
+                                    print("✅ BACKUP: Mesh import API call successful!")
+                                    # Trigger segment selection immediately
+                                    time.sleep(3)  # Give import time to complete
+                                    self._force_segment_selection()
+                        except Exception as e:
+                            print(f"❌ BACKUP: Import failed: {e}")
+        except Exception as e:
+            # Silently handle errors
+            pass
+
+    def _force_generate_flux_mesh(self):
+        """🎬 DEMO AUTOMATION: Force generate_flux_mesh with user prompt"""
+        try:
+            # Read prompt from user_prompt.txt
+            prompt_path = self.project_root / "data" / "generated_text" / "userPrompt.txt"
+            if prompt_path.exists():
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    prompt = f.read().strip()
+                print(f"📄 Using prompt from userPrompt.txt: {prompt[:100]}...")
+            else:
+                # Fallback prompt
+                prompt = "A detailed futuristic robot head with metallic surfaces, studio lighting, high definition, professional photography"
+                print("⚠️  userPrompt.txt not found, using fallback prompt")
+            
+            # Create instruction and execute it
+            instruction = {
+                "tool_name": "generate_flux_mesh",
+                "parameters": {
+                    "prompt": prompt,
+                    "seed": 1337,
+                    "min_volume_threshold": 0.01
+                }
+            }
+            
+            print("🎬 DEMO: Executing generate_flux_mesh instruction...")
+            self.instruction_manager.execute_instruction(instruction)
+            
+        except Exception as e:
+            print(f"❌ DEMO AUTOMATION: Error forcing generate_flux_mesh: {e}")
+    
+    def _force_segment_selection(self):
+        """🎬 DEMO AUTOMATION: Force segment_selection mode"""
+        try:
+            instruction = {
+                "tool_name": "segment_selection",
+                "parameters": {}
+            }
+            
+            print("🎬 DEMO: Executing segment_selection instruction...")
+            self.instruction_manager.execute_instruction(instruction)
+            
+            # Track when segment selection starts for recursive timing
+            self._last_segment_time = time.time()
+            print("🎬 HARDCORE DEMO: Segment selection started - next mesh generation in 30s")
+            
+        except Exception as e:
+            print(f"❌ DEMO AUTOMATION: Error forcing segment_selection: {e}")
 
     def check_for_shutdown_signal(self):
         """Check for shutdown signal file from UI overlay"""
@@ -585,6 +797,12 @@ class ConjureApp:
                 return
             
             print("✅ Mesh import completed")
+            
+            # 🎬 DEMO AUTOMATION: Record mesh import time for segment selection trigger
+            self.last_mesh_import_time = time.time()
+            print("🎬 DEMO AUTOMATION: Mesh import completed - segment selection will trigger in 2s")
+            print(f"🎬 DEMO AUTOMATION: Current time: {time.time()}, Import time: {self.last_mesh_import_time}")
+            
             print("🎉 --- FLUX Pipeline Completed Successfully ---")
             self.reset_state_file({"flux_pipeline_status": "completed"})
             
@@ -796,6 +1014,11 @@ class ConjureApp:
         """Stops all components and cleans up resources."""
         print("\n🛑 CONJURE is shutting down...")
         
+        # 🔬 DEBUG MODE: Stop debug testing
+        if self.is_debug_mode and hasattr(self, 'debug_test'):
+            print("🔬 Stopping debug test mode...")
+            self.debug_test.stop_debug_mode()
+        
         # 🧹 SHUTDOWN CLEANUP: Clear all pending requests to prevent issues on next startup
         print("🧹 Cleaning up state before shutdown...")
         self.state_manager.clear_all_requests()
@@ -825,6 +1048,198 @@ class ConjureApp:
                     pass
         
         print("✅ CONJURE shutdown complete")
+
+
+class DebugTestMode:
+    """
+    Automated debug testing mode that cycles through all backend agent functions.
+    Tests the complete workflow: spawn_primitive → generate_flux_mesh → segment_selection → fuse_mesh
+    """
+    
+    def __init__(self, conjure_app):
+        self.app = conjure_app
+        self.step_delay = 15  # seconds between steps
+        self.segment_selection_duration = 10  # seconds to stay in segment selection
+        self.current_cycle = 0
+        self.max_cycles = 3  # Maximum number of recursive cycles
+        
+        # Test sequence steps
+        self.test_sequence = [
+            ("spawn_primitive", self.test_spawn_primitive),
+            ("generate_flux_mesh", self.test_generate_flux_mesh),
+            ("segment_selection", self.test_segment_selection),
+            ("fuse_mesh", self.test_fuse_mesh),
+        ]
+        self.current_step = 0
+        self.debug_running = False
+        
+    def start_debug_mode(self):
+        """Start the automated debug testing sequence"""
+        print("\n" + "🔬" + "="*70)
+        print("🔬 STARTING DEBUG TEST MODE")
+        print("🔬" + "="*70)
+        print("📋 Test Sequence:")
+        print("   1. spawn_primitive (Sphere)")
+        print("   2. generate_flux_mesh (from user_prompt.txt)")
+        print("   3. segment_selection (10s interactive mode)")
+        print("   4. fuse_mesh (combine segments)")
+        print("   5. [RECURSIVE] - Repeat from segment_selection")
+        print(f"🔄 Will run {self.max_cycles} complete cycles")
+        print("🔬" + "="*70 + "\n")
+        
+        self.debug_running = True
+        # Start the debug sequence in a separate thread
+        debug_thread = threading.Thread(target=self._run_debug_sequence, daemon=True)
+        debug_thread.start()
+        
+    def _run_debug_sequence(self):
+        """Run the complete debug test sequence"""
+        try:
+            while self.debug_running and self.current_cycle < self.max_cycles:
+                self.current_cycle += 1
+                print(f"\n🔬 === DEBUG CYCLE {self.current_cycle}/{self.max_cycles} ===")
+                
+                for step_name, step_function in self.test_sequence:
+                    if not self.debug_running:
+                        break
+                        
+                    print(f"\n🔬 Step {self.current_step + 1}: {step_name}")
+                    print("⏳ Executing...")
+                    
+                    try:
+                        step_function()
+                        print(f"✅ {step_name} completed successfully")
+                    except Exception as e:
+                        print(f"❌ {step_name} failed: {e}")
+                    
+                    self.current_step = (self.current_step + 1) % len(self.test_sequence)
+                    
+                    # Wait before next step
+                    if self.debug_running:
+                        print(f"⏱️  Waiting {self.step_delay}s before next step...")
+                        time.sleep(self.step_delay)
+                
+                if self.current_cycle < self.max_cycles:
+                    print(f"\n🔄 Cycle {self.current_cycle} complete. Starting recursive cycle...")
+                    time.sleep(5)
+            
+            print(f"\n🔬 === DEBUG TESTING COMPLETE ===")
+            print(f"✅ Completed {self.current_cycle} cycles successfully")
+            print("🔬 Debug mode finished. Regular operation continues...\n")
+            
+        except Exception as e:
+            print(f"❌ Debug sequence error: {e}")
+            import traceback
+            print(f"🔍 Debug traceback:\n{traceback.format_exc()}")
+        finally:
+            self.debug_running = False
+    
+    def test_spawn_primitive(self):
+        """Test spawn_primitive with Sphere"""
+        print("🔮 Testing spawn_primitive: Creating Sphere...")
+        
+        instruction = {
+            "tool_name": "spawn_primitive",
+            "parameters": {"primitive_type": "Sphere"}
+        }
+        
+        # Send via API
+        import requests
+        response = requests.post("http://127.0.0.1:8000/execute_instruction",
+                               json={"instruction": instruction},
+                               timeout=30)
+        
+        if response.status_code == 200:
+            print("✅ spawn_primitive API call successful")
+        else:
+            raise Exception(f"spawn_primitive API call failed: {response.status_code}")
+    
+    def test_generate_flux_mesh(self):
+        """Test generate_flux_mesh using user_prompt.txt"""
+        print("🎨 Testing generate_flux_mesh: Using user_prompt.txt...")
+        
+        # Read prompt from user_prompt.txt
+        prompt_path = Path(__file__).parent.parent / "data" / "generated_text" / "userPrompt.txt"
+        if prompt_path.exists():
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompt = f.read().strip()
+            print(f"📄 Using prompt: {prompt[:100]}...")
+        else:
+            # Fallback prompt
+            prompt = "A detailed futuristic robot head with metallic surfaces, studio lighting, high definition, professional photography"
+            print("⚠️  user_prompt.txt not found, using fallback prompt")
+        
+        instruction = {
+            "tool_name": "generate_flux_mesh",
+            "parameters": {
+                "prompt": prompt,
+                "seed": 1337 + self.current_cycle,  # Different seed each cycle
+                "min_volume_threshold": 0.01
+            }
+        }
+        
+        # Send via API
+        import requests
+        response = requests.post("http://127.0.0.1:8000/execute_instruction",
+                               json={"instruction": instruction},
+                               timeout=120)  # Longer timeout for generation
+        
+        if response.status_code == 200:
+            print("✅ generate_flux_mesh API call successful")
+            print("⏳ Waiting for mesh generation and import to complete...")
+            # Wait extra time for the full pipeline
+            time.sleep(30)
+        else:
+            raise Exception(f"generate_flux_mesh API call failed: {response.status_code}")
+    
+    def test_segment_selection(self):
+        """Test segment_selection mode"""
+        print("👆 Testing segment_selection: Entering interactive selection mode...")
+        
+        instruction = {
+            "tool_name": "segment_selection",
+            "parameters": {}
+        }
+        
+        # Send via API
+        import requests
+        response = requests.post("http://127.0.0.1:8000/execute_instruction",
+                               json={"instruction": instruction},
+                               timeout=30)
+        
+        if response.status_code == 200:
+            print("✅ segment_selection API call successful")
+            print(f"⏱️  Staying in segment selection mode for {self.segment_selection_duration}s...")
+            print("👆 Point at mesh segments with your finger during this time!")
+            time.sleep(self.segment_selection_duration)
+        else:
+            raise Exception(f"segment_selection API call failed: {response.status_code}")
+    
+    def test_fuse_mesh(self):
+        """Test fuse_mesh operation"""
+        print("🔗 Testing fuse_mesh: Combining all segments...")
+        
+        instruction = {
+            "tool_name": "fuse_mesh",
+            "parameters": {}
+        }
+        
+        # Send via API
+        import requests
+        response = requests.post("http://127.0.0.1:8000/execute_instruction",
+                               json={"instruction": instruction},
+                               timeout=30)
+        
+        if response.status_code == 200:
+            print("✅ fuse_mesh API call successful")
+        else:
+            raise Exception(f"fuse_mesh API call failed: {response.status_code}")
+    
+    def stop_debug_mode(self):
+        """Stop the debug testing sequence"""
+        print("🛑 Stopping debug test mode...")
+        self.debug_running = False
+
 
 if __name__ == "__main__":
     # First, let user select generation mode
