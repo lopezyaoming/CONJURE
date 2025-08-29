@@ -927,101 +927,137 @@ class ConjureFingertipOperator(bpy.types.Operator):
         blf.position(font_id, 15, 60, 0)
         blf.size(font_id, 20)
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
-        active_brush = config.BRUSH_TYPES[self._current_brush_index]
+        try:
+            active_brush = config.BRUSH_TYPES[self._current_brush_index]
+        except (ReferenceError, AttributeError):
+            active_brush = "UNKNOWN"
         blf.draw(font_id, f"Brush: {active_brush}")
 
         # Draw Radius Size
         blf.position(font_id, 15, 30, 0)
         blf.size(font_id, 20)
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
-        active_radius = config.RADIUS_LEVELS[self._current_radius_index]['name'].upper()
+        try:
+            active_radius = config.RADIUS_LEVELS[self._current_radius_index]['name'].upper()
+        except (ReferenceError, AttributeError):
+            active_radius = "UNKNOWN"
         blf.draw(font_id, f"Radius: {active_radius}")
     
     def handle_segment_selection(self, context, finger_positions_3d, region, rv3d, depsgraph):
         """Handle segment selection with immediate selection on pointing"""
-        # Initialize selection state if not exists
-        if not hasattr(self, '_selection_state'):
-            self._selection_state = {
-                'current_selected_segment': None,
-                'stability_counter': 0,
-                'stability_threshold': 15,  # Frames to wait before changing selection
-                'candidate_segment': None
-            }
-            print("🎯 Initialized segment selection state")
-        
-        # Restore selected segment from scene materials if state was lost
-        if not self._selection_state['current_selected_segment']:
-            self.restore_selected_segment_from_scene()
-        
-        # Get segment objects
-        segment_objects = [obj for obj in bpy.data.objects 
-                          if obj.type == 'MESH' and obj.name.startswith('seg_')]
-        
-        if not segment_objects:
+        try:
+            # Initialize selection state if not exists
+            if not hasattr(self, '_selection_state'):
+                self._selection_state = {
+                    'current_selected_segment': None,
+                    'stability_counter': 0,
+                    'stability_threshold': 15,  # Frames to wait before changing selection
+                    'candidate_segment': None
+                }
+                print("🎯 Initialized segment selection state")
+        except (ReferenceError, AttributeError) as e:
+            print(f"⚠️ Segment selection error (operator removed): {e}")
             return
         
-        # Get materials
-        default_mat = bpy.data.materials.get("default_material")
-        selected_mat = bpy.data.materials.get("selected_material")
-        
-        if not default_mat or not selected_mat:
-            print("❌ Required materials not found in scene")
-            return
-        
-        # Check if we have right hand index finger (finger 6)
-        if len(finger_positions_3d) <= 6 or not finger_positions_3d[6]:
-            # No finger detected - keep current selection unchanged
-            return
-        
-        index_finger_pos = finger_positions_3d[6]
-        
-        # Cast ray from index finger to detect segment
-        detected_segment = self.detect_segment_under_finger(
-            index_finger_pos, segment_objects, context, region, rv3d, depsgraph
-        )
-        
-        # Stability system: only change selection after consistent detection
-        if detected_segment == self._selection_state['candidate_segment']:
-            # Same segment detected - increment stability counter
-            self._selection_state['stability_counter'] += 1
-        else:
-            # Different segment detected - reset counter
-            self._selection_state['candidate_segment'] = detected_segment
-            self._selection_state['stability_counter'] = 0
-        
-        # Only change selection if we've had stable detection and it's different from current
-        if (self._selection_state['stability_counter'] >= self._selection_state['stability_threshold'] and 
-            self._selection_state['candidate_segment'] != self._selection_state['current_selected_segment']):
+        try:
+            # Restore selected segment from scene materials if state was lost
+            if not self._selection_state['current_selected_segment']:
+                self.restore_selected_segment_from_scene()
             
-            # Clear previous selection
-            if self._selection_state['current_selected_segment']:
-                self.apply_material_to_segment(self._selection_state['current_selected_segment'], default_mat)
+            # Get segment objects
+            segment_objects = [obj for obj in bpy.data.objects 
+                              if obj.type == 'MESH' and obj.name.startswith('seg_')]
             
-            # Apply new selection
-            new_selected_segment = self._selection_state['candidate_segment']
-            if new_selected_segment:
-                self.apply_material_to_segment(new_selected_segment, selected_mat)
-                print(f"🎯 Selected segment: {new_selected_segment.name}")
+            if not segment_objects:
+                return
+            
+            # Get materials
+            default_mat = bpy.data.materials.get("default_material")
+            selected_mat = bpy.data.materials.get("selected_material")
+            
+            if not default_mat or not selected_mat:
+                print("❌ Required materials not found in scene")
+                return
+            
+            # Check if we have right hand index finger (finger 6)
+            if len(finger_positions_3d) <= 6 or not finger_positions_3d[6]:
+                # No finger detected - keep current selection unchanged
+                return
+            
+            index_finger_pos = finger_positions_3d[6]
+            
+            # Cast ray from index finger to detect segment
+            detected_segment = self.detect_segment_under_finger(
+                index_finger_pos, segment_objects, context, region, rv3d, depsgraph
+            )
+        except (ReferenceError, AttributeError) as e:
+            print(f"⚠️ Segment selection data access error (operator removed): {e}")
+            return
+        except Exception as e:
+            print(f"⚠️ Unexpected error in segment selection setup: {e}")
+            return
+        
+        try:
+            # Stability system: only change selection after consistent detection
+            if detected_segment == self._selection_state['candidate_segment']:
+                # Same segment detected - increment stability counter
+                self._selection_state['stability_counter'] += 1
             else:
-                print("🌌 Deselected - pointing at empty space")
+                # Different segment detected - reset counter
+                self._selection_state['candidate_segment'] = detected_segment
+                self._selection_state['stability_counter'] = 0
             
-            # Update current selection
-            self._selection_state['current_selected_segment'] = new_selected_segment
+            # Only change selection if we've had stable detection and it's different from current
+            if (self._selection_state['stability_counter'] >= self._selection_state['stability_threshold'] and 
+                self._selection_state['candidate_segment'] != self._selection_state['current_selected_segment']):
+                
+                # Clear previous selection
+                if self._selection_state['current_selected_segment']:
+                    self.apply_material_to_segment(self._selection_state['current_selected_segment'], default_mat)
+                
+                # Apply new selection
+                new_selected_segment = self._selection_state['candidate_segment']
+                if new_selected_segment:
+                    self.apply_material_to_segment(new_selected_segment, selected_mat)
+                    print(f"🎯 Selected segment: {new_selected_segment.name}")
+                else:
+                    print("🌌 Deselected - pointing at empty space")
+                
+                # Update current selection
+                self._selection_state['current_selected_segment'] = new_selected_segment
+                self._selection_state['stability_counter'] = 0  # Reset counter
+        except (ReferenceError, AttributeError) as e:
+            print(f"⚠️ Segment selection update error (operator removed): {e}")
+            return
+        except Exception as e:
+            print(f"⚠️ Unexpected error in segment selection update: {e}")
+            return
     
     def restore_selected_segment_from_scene(self):
         """Restore the selected segment by checking which segment has the selected material"""
-        selected_mat = bpy.data.materials.get("selected_material")
-        if not selected_mat:
-            return
+        try:
+            selected_mat = bpy.data.materials.get("selected_material")
+            if not selected_mat:
+                return
+                
+            segment_objects = [obj for obj in bpy.data.objects 
+                              if obj.type == 'MESH' and obj.name.startswith('seg_')]
             
-        segment_objects = [obj for obj in bpy.data.objects 
-                          if obj.type == 'MESH' and obj.name.startswith('seg_')]
-        
-        # Find all segments with selected material
-        selected_segments = []
-        for obj in segment_objects:
-            if obj.data.materials and obj.data.materials[0] == selected_mat:
-                selected_segments.append(obj)
+            # Find all segments with selected material
+            selected_segments = []
+            for obj in segment_objects:
+                try:
+                    if obj.data.materials and obj.data.materials[0] == selected_mat:
+                        selected_segments.append(obj)
+                except (ReferenceError, AttributeError):
+                    # Skip objects that have been removed
+                    continue
+        except (ReferenceError, AttributeError) as e:
+            print(f"⚠️ Error restoring segment selection (operator removed): {e}")
+            return
+        except Exception as e:
+            print(f"⚠️ Unexpected error restoring segment selection: {e}")
+            return
         
         if len(selected_segments) == 0:
             # No selection found - that's fine
@@ -1043,22 +1079,32 @@ class ConjureFingertipOperator(bpy.types.Operator):
     
     def detect_segment_under_finger(self, finger_pos, segment_objects, context, region, rv3d, depsgraph):
         """Cast ray from finger position to detect which segment is being touched"""
-        if not region or not rv3d:
+        try:
+            if not region or not rv3d:
+                return None
+            
+            # Convert 3D finger position to 2D screen coordinates
+            finger_2d = location_3d_to_region_2d(region, rv3d, finger_pos)
+            if not finger_2d:
+                return None
+            
+            # Cast ray from camera through finger position
+            ray_origin = region_2d_to_origin_3d(region, rv3d, finger_2d)
+            ray_direction = region_2d_to_vector_3d(region, rv3d, finger_2d)
+            
+            if not ray_origin or not ray_direction:
+                return None
+            
+            # Single raycast to find what's under the finger
+            hit, loc, normal, _, hit_obj, _ = context.scene.ray_cast(
+                depsgraph, ray_origin, ray_direction
+            )
+        except (ReferenceError, AttributeError) as e:
+            print(f"⚠️ Ray casting error (operator removed): {e}")
             return None
-        
-        # Convert 3D finger position to 2D screen coordinates
-        finger_2d = location_3d_to_region_2d(region, rv3d, finger_pos)
-        if not finger_2d:
+        except Exception as e:
+            print(f"⚠️ Unexpected ray casting error: {e}")
             return None
-        
-        # Cast ray from camera through finger position
-        ray_origin = region_2d_to_origin_3d(region, rv3d, finger_2d)
-        ray_direction = region_2d_to_vector_3d(region, rv3d, finger_2d)
-        
-        # Single raycast to find what's under the finger
-        hit, loc, normal, _, hit_obj, _ = context.scene.ray_cast(
-            depsgraph, ray_origin, ray_direction
-        )
         
         # Return the hit segment
         if hit and hit_obj in segment_objects:
@@ -1347,7 +1393,12 @@ class ConjureFingertipOperator(bpy.types.Operator):
             
             if selection_mode == "active" or state_command == "segment_selection":
                 # print("🎯 DEBUG: segment_selection mode ACTIVE - calling handler")
-                self.handle_segment_selection(context, finger_positions_3d, region, rv3d, depsgraph)
+                try:
+                    self.handle_segment_selection(context, finger_positions_3d, region, rv3d, depsgraph)
+                except (ReferenceError, AttributeError) as e:
+                    print(f"⚠️ Segment selection handler error (operator removed): {e}")
+                except Exception as e:
+                    print(f"⚠️ Unexpected error in segment selection handler: {e}")
             elif command == "deform":
                 # Safety check: ensure mesh object has valid mesh data
                 if not mesh_obj or not mesh_obj.data or not hasattr(mesh_obj.data, 'vertices'):

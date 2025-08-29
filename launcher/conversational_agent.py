@@ -820,7 +820,7 @@ class ConversationalAgent:
                 response = client.post(
                     "http://127.0.0.1:8000/process_conversation",
                     json=payload,
-                    timeout=30.0
+                    timeout=5.0  # Reduced timeout - fail fast and use fallback
                 )
                 
                 print(f"📥 API response status: {response.status_code}")
@@ -837,9 +837,39 @@ class ConversationalAgent:
             print(f"🔍 API call error traceback:\n{traceback.format_exc()}")
             
             # Fallback to direct call if API is unavailable
-            print("🔄 Falling back to direct backend agent call")
+            print("🔄 FALLING BACK TO DIRECT BACKEND AGENT CALL")
+            print(f"🔍 Has backend_agent: {hasattr(self, 'backend_agent')}")
+            print(f"🔍 Backend agent exists: {self.backend_agent is not None if hasattr(self, 'backend_agent') else 'No attribute'}")
+            
             if hasattr(self, 'backend_agent') and self.backend_agent:
-                self.backend_agent.get_response(conversation_turn)
+                print("✅ Calling backend agent directly...")
+                try:
+                    result = self.backend_agent.get_response(conversation_turn)
+                    print(f"✅ Direct backend call successful: {result}")
+                except Exception as backend_error:
+                    print(f"❌ Direct backend call also failed: {backend_error}")
+            else:
+                print("❌ No backend agent available for fallback")
+                print("🆘 CREATING EMERGENCY BACKEND AGENT...")
+                try:
+                    # Emergency fallback - create a new backend agent
+                    from instruction_manager import InstructionManager
+                    from state_manager import StateManager
+                    from backend_agent import BackendAgent
+                    
+                    state_manager = StateManager()
+                    instruction_manager = InstructionManager(state_manager)
+                    emergency_backend = BackendAgent(instruction_manager)
+                    
+                    print("🚑 Emergency backend agent created!")
+                    result = emergency_backend.get_response(conversation_turn)
+                    print(f"✅ Emergency backend call successful: {result}")
+                    
+                    # Store for future use
+                    self.backend_agent = emergency_backend
+                    
+                except Exception as emergency_error:
+                    print(f"❌ Emergency backend creation failed: {emergency_error}")
 
     def _on_user_transcript(self, transcript):
         """Callback for user transcript - should be called by ElevenLabs SDK."""

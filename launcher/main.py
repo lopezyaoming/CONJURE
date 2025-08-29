@@ -58,11 +58,11 @@ def select_generation_mode():
     print("   • Faster generation with high-end GPUs")
     print("   • Requires: runComfy account and credits")
     print()
-    print("3. DEBUG  - Automated testing mode (cloud + automated workflow)")
+    print("3. DEBUG  - Automated testing mode (cloud + speech input)")
     print("   • Tests all backend agent functions sequentially")
     print("   • spawn_primitive → generate_flux_mesh → segment_selection → fuse_mesh")
     print("   • Uses runComfy cloud services for mesh generation")
-    print("   • Uses user_prompt.txt and current screenshot")
+    print("   • Conversational agent enabled - speak to update prompts contextually")
     print("   • Recursive segmentation loop for comprehensive testing")
     print()
     print("="*60)
@@ -149,6 +149,8 @@ class ConjureApp:
         self.demo_start_time = None
         self.last_mesh_import_time = None
         self.demo_flux_triggered = False
+        self.last_flux_trigger_time = None
+        self.segment_selection_forced = False
         
         # 📝 User prompt monitoring
         self.last_user_prompt = None
@@ -179,13 +181,13 @@ class ConjureApp:
 
         print("\nCONJURE is now running. Close the Blender window or press Ctrl+C here to exit.")
 
-        # Start the conversational agent in a separate thread (unless debug mode)
-        if not self.is_debug_mode:
-            self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
-            self.agent_thread.start()
-            print("Conversational agent is now listening in a background thread...")
+        # Start the conversational agent in a separate thread (ALWAYS - even in debug mode)
+        self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
+        self.agent_thread.start()
+        if self.is_debug_mode:
+            print("🔬 DEBUG MODE: Conversational agent enabled for speech input + automated testing")
         else:
-            print("🔬 DEBUG MODE: Conversational agent disabled for automated testing")
+            print("Conversational agent is now listening in a background thread...")
         
         # Start the UI system in a separate thread
         self.start_ui_system()
@@ -296,6 +298,7 @@ class ConjureApp:
             print("🎬 HARDCORE DEMO: 30 seconds elapsed - FORCING generate_flux_mesh!")
             self._force_generate_flux_mesh()
             self.demo_flux_triggered = True
+            self.last_flux_trigger_time = time.time()  # Track when we triggered flux
         
         # After mesh import: immediate segment_selection
         if self.last_mesh_import_time is not None:
@@ -316,9 +319,16 @@ class ConjureApp:
 
         # 📝 Monitor userPrompt.txt for updates
         self._monitor_user_prompt_updates()
-        
         # 🎬 BACKUP: Check for completed mesh files if API import failed
         self._check_for_completed_meshes()
+        
+        # 🎬 NUCLEAR OPTION: If 60s since flux trigger and no segment selection yet, FORCE IT
+        if (self.last_flux_trigger_time is not None and 
+            not self.segment_selection_forced and 
+            time.time() - self.last_flux_trigger_time >= 60):
+            print("🎬 NUCLEAR OPTION: 60s since flux trigger - FORCING SEGMENT SELECTION NO MATTER WHAT!")
+            self._force_segment_selection()
+            self.segment_selection_forced = True
 
         command = state_data.get("command")
         generation_mode = state_data.get("generation_mode", "standard")
@@ -425,8 +435,17 @@ class ConjureApp:
                                 )
                                 if response.status_code == 200:
                                     print("✅ BACKUP: Mesh import API call successful!")
+                                    print("🎬 FORCING SEGMENT SELECTION IN 3 SECONDS...")
                                     # Trigger segment selection immediately
                                     time.sleep(3)  # Give import time to complete
+                                    self._force_segment_selection()
+                                    print("🎬 BACKUP: SEGMENT SELECTION FORCED!")
+                                    # Track this as successful import for main automation
+                                    self.last_mesh_import_time = time.time()
+                                else:
+                                    print(f"❌ BACKUP: Import API failed with {response.status_code}")
+                                    # FUCK IT - FORCE SEGMENT SELECTION ANYWAY
+                                    print("🎬 FUCK IT - FORCING SEGMENT SELECTION ANYWAY!")
                                     self._force_segment_selection()
                         except Exception as e:
                             print(f"❌ BACKUP: Import failed: {e}")
@@ -477,6 +496,7 @@ class ConjureApp:
             
             # Track when segment selection starts for recursive timing
             self._last_segment_time = time.time()
+            self.segment_selection_forced = True  # Mark that we've achieved segment selection
             print("🎬 HARDCORE DEMO: Segment selection started - next mesh generation in 30s")
             
         except Exception as e:

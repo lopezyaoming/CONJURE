@@ -325,17 +325,30 @@ class TransparentWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        # Set window flags for transparency and always on top - ENHANCED FOR BLENDER
+        # Set window flags for transparency and always on top - BULLETPROOF FOR BLENDER
         self.setWindowFlags(
             Qt.FramelessWindowHint | 
             Qt.WindowStaysOnTopHint |
-            Qt.Tool  # This helps keep it above other app windows
+            Qt.Tool |  # This helps keep it above other app windows
+            Qt.X11BypassWindowManagerHint  # Bypass window manager on Linux
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_AlwaysShowToolTips)  # Ensure tooltips work
+        
+        # Set the window level to be above all other windows
+        self.setWindowState(Qt.WindowActive)
         
         # Ensure it's always at the top level
         self.raise_()
         self.activateWindow()
+        
+        # Set a timer to periodically ensure we stay on top
+        self.top_timer = QTimer()
+        self.top_timer.timeout.connect(self.stay_on_top)
+        self.top_timer.start(2000)  # Check every 2 seconds
+        
+        # Prevent minimization and ensure visibility
+        self.setMinimumSize(100, 100)  # Prevent complete minimization
         
         # Data generator
         self.data_generator = UIDataGenerator() if UIDataGenerator else None
@@ -508,6 +521,16 @@ class TransparentWindow(QMainWindow):
             print(f"❌ Error during system shutdown: {e}")
             # Fallback: just close the UI
             self.close()
+    
+    def stay_on_top(self):
+        """Ensure the window stays on top"""
+        try:
+            if not self.isActiveWindow():
+                self.raise_()
+                self.activateWindow()
+        except Exception as e:
+            # Silently handle any errors
+            pass
     
     def load_data(self):
         """Load CONJURE data for the new UI layout"""

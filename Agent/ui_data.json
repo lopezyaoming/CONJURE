@@ -1,144 +1,312 @@
 {
   "conversation": [
     {
-      "timestamp": "10:56:23",
-      "speaker": "AGENT",
-      "message": "Welcome to Conjure, what do you want to create today?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:56:34",
-      "speaker": "AGENT",
-      "message": "That sounds like a fun project.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:56:35",
-      "speaker": "AGENT",
-      "message": "Are you leaning towards something modern and minimalist or perhaps more classic and ornate?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:56:35",
-      "speaker": "AGENT",
-      "message": "To get started, what style of chair are you envisioning?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:56:48",
-      "speaker": "AGENT",
-      "message": "Think dramatic curves, rich details, and a sense of grandeur.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:56:48",
-      "speaker": "AGENT",
-      "message": "Baroque! I love it!",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:56:49",
-      "speaker": "AGENT",
-      "message": "Now tell me, are there any specific features or materials that come to mind for this Baroque chair? Perhaps intricate carvings, plush velvet upholstery, or maybe gilded accents.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:09",
-      "speaker": "AGENT",
-      "message": "Wonderful.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:10",
-      "speaker": "AGENT",
-      "message": "So we're picturing a chair with all the Baroque hallmarks, elaborate carvings, luxurious velvet, and touches of gold.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:11",
-      "speaker": "AGENT",
-      "message": "To really capture that opulent feel, what kind of mood or atmosphere do you want this chair to evoke? Should it feel grand and formal, or perhaps a bit more intimate and cozy despite its ornate nature?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:32",
-      "speaker": "AGENT",
-      "message": "That's an interesting twist, a Baroque chair that feels intimate and cozy.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:32",
-      "speaker": "AGENT",
-      "message": "We can definitely achieve that.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:33",
-      "speaker": "AGENT",
-      "message": "Perhaps we can focus on the plushness of the velvet and the warmth of the wood, while still keeping those beautiful, ornate details.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:33",
-      "speaker": "AGENT",
-      "message": "What do you think about a deep, rich color for the velvet, like a burgundy or a forest green, to enhance that cozy feeling?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:58",
-      "speaker": "AGENT",
-      "message": "Are you still there?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:57:59",
-      "speaker": "AGENT",
-      "message": "Let me know if you need a moment to think about the colors or anything else.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:58:07",
-      "speaker": "AGENT",
-      "message": "Great.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:58:07",
-      "speaker": "AGENT",
-      "message": "So we've got a Baroque chair in mind with intricate carvings, plush velvet, and gilded accents aiming for an intimate and cozy feel.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:58:07",
-      "speaker": "AGENT",
-      "message": "How about we explore the shape a bit more?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:58:08",
-      "speaker": "AGENT",
-      "message": "Should the chair have a high back for a sense of regal enclosure or perhaps a slightly lower, more open design to encourage a feeling of relaxed conversation?",
-      "source": "debug"
-    },
-    {
-      "timestamp": "10:58:30",
+      "timestamp": "00:33:17",
       "speaker": "USER",
-      "message": "you",
+      "message": "Thank you for watching and I'll see you in my next video!",
       "source": "debug"
     },
     {
-      "timestamp": "10:58:46",
+      "timestamp": "00:33:40",
       "speaker": "USER",
-      "message": "you",
+      "message": "I'll catch you in the next one.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:34:54",
+      "speaker": "USER",
+      "message": "All right.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:37:31",
+      "speaker": "USER",
+      "message": "You owe it to me.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:38:21",
+      "speaker": "USER",
+      "message": "all over the place.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:43:18",
+      "speaker": "USER",
+      "message": "What?",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:43:46",
+      "speaker": "USER",
+      "message": "Yeah, I like using these.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:44:40",
+      "speaker": "USER",
+      "message": "No!",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:47:01",
+      "speaker": "USER",
+      "message": "for",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:49:45",
+      "speaker": "USER",
+      "message": "Judy.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:50:14",
+      "speaker": "USER",
+      "message": "Yes.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:54:13",
+      "speaker": "USER",
+      "message": "Oh",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:55:54",
+      "speaker": "USER",
+      "message": "No. Wait, no. Oh my god.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:56:00",
+      "speaker": "USER",
+      "message": "No, no, no, no, I won't, because you took the whole thing.",
+      "source": "debug"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I was supposed to write a poem. Okay. Be careful. Okay. Thank you. Uh.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Wait, again, again, again. Oh, you see? Do you see how it changes? How it becomes way better when there is only one hand? Like, one hand is so good.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Okay, let me, let me actually start the video.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "More, more, more, more. This is gonna be cool. Ready?",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Huh? What was that? I don't know. It sounded like Satan. It's just a straight up man. Like, you know how Casey does?",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "you're tired. No, see, I'm good enough. How much you want to go?",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "You think that you're the only one?",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I think the UI is pretty shit, right? Like, all the things on the right, background, it kind of looks like this, like everything kind of looks good. No, no, this is good. Obviously, I will change the emojis, but it's good. Yeah, this is just, they don't work anymore. Okay, I'm leaving. I'm sorry, I'm sorry, I'm sorry. Let me just take like two more pictures. But you take, I'll go home. Okay, I think that's fine. But we do need to move, uh, we do need to move everything out of the way. Then I'll move my stuff. I'm literally bored.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Maybe sometime I'll do it. Go with it. Don't worry about it. I'll be there in half an hour. Don't worry.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "It's just, I need, really, honestly, I really need to hone in on this, like, like, this is actually working for me.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I'm sorry that I'm making way.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I don't know. The thing is, I didn't want to be messy. I didn't want to move it. I think I'll do it. Not today. Then you can do it. I don't want you to rush it. I don't know. I think there is no other way. Yeah, do it now. Do it now. Then I'll move my stuff. Do you think there are one or two shows that are good that I can use?",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Oh, bro.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "If you're listening, I would highly recommend listening to this video. It's really good.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "You're welcome. You're welcome.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Yeah.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I don't care about the existence of people that I want to ignore.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I'll do the water, I'll do the water.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Let's do the intro, yeah.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "We didn't like",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "You",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I mean, we can use a LED light, we can use one LED light, because I think, like, actually, that would take a long time to get out. But we can use one LED light. No, I think that there is a couple pictures I want to take, but I really need, like, to get out there. So I don't, so I don't really need, so I don't really need, uh, I don't really need to be here anymore. Uh, I think it's fine. Let me just, huh? Uh, no, no, no. Why did I do that? Fine, I will do it. I'm with you here. Uh.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Thank you for watching and I'll see you in my next video!",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "I'll catch you in the next one.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "All right.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "You owe it to me.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "all over the place.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "What?",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Yeah, I like using these.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "No!",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "for",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Judy.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Yes.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "Oh",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "No. Wait, no. Oh my god.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "00:56:24",
+      "speaker": "USER",
+      "message": "No, no, no, no, I won't, because you took the whole thing.",
       "source": "whisper"
     }
   ],
   "current_command": {
     "command": null,
-    "parameters": "new",
+    "parameters": null,
     "status": "running",
     "phase": "I",
-    "timestamp": "10:58:46"
+    "timestamp": "00:56:24"
   },
   "brush_info": {
     "active_command": "none",

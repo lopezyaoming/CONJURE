@@ -256,9 +256,14 @@ async def process_conversation(request: ConversationRequest):
         print(f"🔍 Full conversation length: {len(request.conversation_history)} chars")
         print(f"🖼️ Include image: {request.include_image}")
         
-        # 🎬 HARDCORE DEMO: Don't call backend agent for conversations
-        print("🎬 HARDCORE DEMO: Conversation received but IGNORING backend agent processing")
-        result = None
+        # 🎬 HARDCORE DEMO: ALLOW backend agent for conversations to generate contextual prompts
+        print("🎬 HARDCORE DEMO: Processing conversation through backend agent for contextual prompts")
+        
+        # Call the backend agent to process the conversation
+        result = backend_agent.get_response(
+            conversation_history=request.conversation_history,
+            include_image=request.include_image
+        )
         
         print(f"✅ Backend agent processed conversation successfully")
         print(f"📊 Result type: {type(result)}, Content preview: {str(result)[:200]}...")
@@ -310,7 +315,7 @@ async def process_conversation(request: ConversationRequest):
         
         return APIResponse(
             success=True,
-            message="Conversation processed successfully (demo mode - tools ignored)",
+            message="Conversation processed successfully (demo mode - backend agent analyzes but tools are forced)",
             data={"instruction": result} if result else None
         )
     except Exception as e:

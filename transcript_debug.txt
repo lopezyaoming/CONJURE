@@ -1,26 +1,74 @@
 === CONJURE TRANSCRIPT DEBUG LOG WITH WHISPER ===
-[10:56:23] [AGENT_TURN] MESSAGE: Welcome to Conjure, what do you want to create today?
-[10:56:34] [AGENT_TURN] MESSAGE: That sounds like a fun project.
-[10:56:35] [AGENT_TURN] MESSAGE: Are you leaning towards something modern and minimalist or perhaps more classic and ornate?
-[10:56:35] [AGENT_TURN] MESSAGE: To get started, what style of chair are you envisioning?
-[10:56:48] [AGENT_TURN] MESSAGE: Think dramatic curves, rich details, and a sense of grandeur.
-[10:56:48] [AGENT_TURN] MESSAGE: Baroque! I love it!
-[10:56:49] [AGENT_TURN] MESSAGE: Now tell me, are there any specific features or materials that come to mind for this Baroque chair? Perhaps intricate carvings, plush velvet upholstery, or maybe gilded accents.
-[10:57:09] [AGENT_TURN] MESSAGE: Wonderful.
-[10:57:10] [AGENT_TURN] MESSAGE: So we're picturing a chair with all the Baroque hallmarks, elaborate carvings, luxurious velvet, and touches of gold.
-[10:57:11] [AGENT_TURN] MESSAGE: To really capture that opulent feel, what kind of mood or atmosphere do you want this chair to evoke? Should it feel grand and formal, or perhaps a bit more intimate and cozy despite its ornate nature?
-[10:57:32] [AGENT_TURN] MESSAGE: That's an interesting twist, a Baroque chair that feels intimate and cozy.
-[10:57:32] [AGENT_TURN] MESSAGE: We can definitely achieve that.
-[10:57:33] [AGENT_TURN] MESSAGE: Perhaps we can focus on the plushness of the velvet and the warmth of the wood, while still keeping those beautiful, ornate details.
-[10:57:33] [AGENT_TURN] MESSAGE: What do you think about a deep, rich color for the velvet, like a burgundy or a forest green, to enhance that cozy feeling?
-[10:57:58] [AGENT_TURN] MESSAGE: Are you still there?
-[10:57:59] [AGENT_TURN] MESSAGE: Let me know if you need a moment to think about the colors or anything else.
-[10:58:07] [AGENT_TURN] MESSAGE: Great.
-[10:58:07] [AGENT_TURN] MESSAGE: So we've got a Baroque chair in mind with intricate carvings, plush velvet, and gilded accents aiming for an intimate and cozy feel.
-[10:58:07] [AGENT_TURN] MESSAGE: How about we explore the shape a bit more?
-[10:58:08] [AGENT_TURN] MESSAGE: Should the chair have a high back for a sense of regal enclosure or perhaps a slightly lower, more open design to encourage a feeling of relaxed conversation?
-USER (Whisper): you
-[10:58:30] [USER_TURN] MESSAGE: you
-[10:58:47] [AGENT_TURN] MESSAGE: Can you tell me more about it?
-[10:58:47] [AGENT_TURN] MESSAGE: What do you like or dislike about its presence, and how do you see it fitting with the Baroque style we've discussed?
-[10:58:47] [AGENT_TURN] MESSAGE: It sounds like you're noticing a box in the design.
+[00:21:00] [AGENT_TURN] MESSAGE: Welcome to Vibe3D. What do you want to create today?
+USER (Whisper): I was supposed to write a poem. Okay. Be careful. Okay. Thank you. Uh.
+[00:21:23] [USER_TURN] MESSAGE: I was supposed to write a poem. Okay. Be careful. Okay. Thank you. Uh.
+USER (Whisper): Wait, again, again, again. Oh, you see? Do you see how it changes? How it becomes way better when there is only one hand? Like, one hand is so good.
+[00:21:58] [USER_TURN] MESSAGE: Wait, again, again, again. Oh, you see? Do you see how it changes? How it becomes way better when there is only one hand? Like, one hand is so good.
+USER (Whisper): Okay, let me, let me actually start the video.
+[00:22:04] [USER_TURN] MESSAGE: Okay, let me, let me actually start the video.
+USER (Whisper): More, more, more, more. This is gonna be cool. Ready?
+[00:22:24] [USER_TURN] MESSAGE: More, more, more, more. This is gonna be cool. Ready?
+USER (Whisper): Huh? What was that? I don't know. It sounded like Satan. It's just a straight up man. Like, you know how Casey does?
+[00:22:47] [USER_TURN] MESSAGE: Huh? What was that? I don't know. It sounded like Satan. It's just a straight up man. Like, you know how Casey does?
+USER (Whisper): you're tired. No, see, I'm good enough. How much you want to go?
+[00:22:57] [USER_TURN] MESSAGE: you're tired. No, see, I'm good enough. How much you want to go?
+USER (Whisper): You think that you're the only one?
+[00:23:04] [USER_TURN] MESSAGE: You think that you're the only one?
+USER (Whisper): I think the UI is pretty shit, right? Like, all the things on the right, background, it kind of looks like this, like everything kind of looks good. No, no, this is good. Obviously, I will change the emojis, but it's good. Yeah, this is just, they don't work anymore. Okay, I'm leaving. I'm sorry, I'm sorry, I'm sorry. Let me just take like two more pictures. But you take, I'll go home. Okay, I think that's fine. But we do need to move, uh, we do need to move everything out of the way. Then I'll move my stuff. I'm literally bored. 
+[00:24:03] [USER_TURN] MESSAGE: I think the UI is pretty shit, right? Like, all the things on the right, background, it kind of looks like this, like everything kind of looks good. No, no, this is good. Obviously, I will change the emojis, but it's good. Yeah, this is just, they don't work anymore. Okay, I'm leaving. I'm sorry, I'm sorry, I'm sorry. Let me just take like two more pictures. But you take, I'll go home. Okay, I think that's fine. But we do need to move, uh, we do need to move everything out of the way. Then I'll move my stuff. I'm literally bored. 
+USER (Whisper): Maybe sometime I'll do it. Go with it. Don't worry about it. I'll be there in half an hour. Don't worry.
+[00:24:22] [USER_TURN] MESSAGE: Maybe sometime I'll do it. Go with it. Don't worry about it. I'll be there in half an hour. Don't worry.
+USER (Whisper): It's just, I need, really, honestly, I really need to hone in on this, like, like, this is actually working for me.
+[00:24:40] [USER_TURN] MESSAGE: It's just, I need, really, honestly, I really need to hone in on this, like, like, this is actually working for me.
+USER (Whisper): I'm sorry that I'm making way.
+[00:26:07] [USER_TURN] MESSAGE: I'm sorry that I'm making way.
+USER (Whisper): I don't know. The thing is, I didn't want to be messy. I didn't want to move it. I think I'll do it. Not today. Then you can do it. I don't want you to rush it. I don't know. I think there is no other way. Yeah, do it now. Do it now. Then I'll move my stuff. Do you think there are one or two shows that are good that I can use? 
+[00:26:56] [USER_TURN] MESSAGE: I don't know. The thing is, I didn't want to be messy. I didn't want to move it. I think I'll do it. Not today. Then you can do it. I don't want you to rush it. I don't know. I think there is no other way. Yeah, do it now. Do it now. Then I'll move my stuff. Do you think there are one or two shows that are good that I can use? 
+USER (Whisper): Oh, bro.
+[00:27:01] [USER_TURN] MESSAGE: Oh, bro.
+USER (Whisper): If you're listening, I would highly recommend listening to this video. It's really good.
+[00:28:02] [USER_TURN] MESSAGE: If you're listening, I would highly recommend listening to this video. It's really good.
+USER (Whisper): You're welcome. You're welcome. 
+[00:29:19] [USER_TURN] MESSAGE: You're welcome. You're welcome. 
+USER (Whisper): Yeah.
+[00:29:48] [USER_TURN] MESSAGE: Yeah.
+USER (Whisper): I don't care about the existence of people that I want to ignore.
+[00:30:19] [USER_TURN] MESSAGE: I don't care about the existence of people that I want to ignore.
+USER (Whisper): I'll do the water, I'll do the water.
+[00:30:40] [USER_TURN] MESSAGE: I'll do the water, I'll do the water.
+USER (Whisper): Let's do the intro, yeah.
+[00:30:47] [USER_TURN] MESSAGE: Let's do the intro, yeah.
+USER (Whisper): We didn't like
+[00:31:01] [USER_TURN] MESSAGE: We didn't like
+USER (Whisper): You
+[00:31:07] [USER_TURN] MESSAGE: You
+USER (Whisper): I mean, we can use a LED light, we can use one LED light, because I think, like, actually, that would take a long time to get out. But we can use one LED light. No, I think that there is a couple pictures I want to take, but I really need, like, to get out there. So I don't, so I don't really need, so I don't really need, uh, I don't really need to be here anymore. Uh, I think it's fine. Let me just, huh? Uh, no, no, no. Why did I do that? Fine, I will do it. I'm with you here. Uh.
+[00:31:59] [USER_TURN] MESSAGE: I mean, we can use a LED light, we can use one LED light, because I think, like, actually, that would take a long time to get out. But we can use one LED light. No, I think that there is a couple pictures I want to take, but I really need, like, to get out there. So I don't, so I don't really need, so I don't really need, uh, I don't really need to be here anymore. Uh, I think it's fine. Let me just, huh? Uh, no, no, no. Why did I do that? Fine, I will do it. I'm with you here. Uh.
+USER (Whisper): Thank you for watching and I'll see you in my next video!
+[00:33:17] [USER_TURN] MESSAGE: Thank you for watching and I'll see you in my next video!
+USER (Whisper): I'll catch you in the next one.
+[00:33:40] [USER_TURN] MESSAGE: I'll catch you in the next one.
+USER (Whisper): All right.
+[00:34:54] [USER_TURN] MESSAGE: All right.
+USER (Whisper): You owe it to me.
+[00:37:31] [USER_TURN] MESSAGE: You owe it to me.
+USER (Whisper): all over the place.
+[00:38:21] [USER_TURN] MESSAGE: all over the place.
+USER (Whisper): What? 
+[00:43:18] [USER_TURN] MESSAGE: What? 
+USER (Whisper): Yeah, I like using these.
+[00:43:46] [USER_TURN] MESSAGE: Yeah, I like using these.
+USER (Whisper): No!
+[00:44:40] [USER_TURN] MESSAGE: No!
+USER (Whisper): for
+[00:47:01] [USER_TURN] MESSAGE: for
+USER (Whisper): Judy.
+[00:49:45] [USER_TURN] MESSAGE: Judy.
+USER (Whisper): Yes.
+[00:50:14] [USER_TURN] MESSAGE: Yes.
+USER (Whisper): Oh
+[00:54:13] [USER_TURN] MESSAGE: Oh
+USER (Whisper): No. Wait, no. Oh my god.
+[00:55:54] [USER_TURN] MESSAGE: No. Wait, no. Oh my god.
+USER (Whisper): No, no, no, no, I won't, because you took the whole thing.
+[00:56:00] [USER_TURN] MESSAGE: No, no, no, no, I won't, because you took the whole thing.

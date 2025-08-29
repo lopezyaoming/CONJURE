@@ -143,51 +143,16 @@ def setup_conjure_workspace():
                 print(f"⚠️ Error setting up GestureCamera: {camera_error}")
                 print("   Continuing with default viewport setup...")
             
-            # 9. THEN: Make the 3D viewport area fullscreen (AFTER camera lock)
-            try:
-                # Override context to the new window and 3D area
-                with bpy.context.temp_override(window=new_window, area=area_3d):
-                    bpy.ops.screen.screen_full_area()
-                print("✅ Made 3D viewport fullscreen")
-            except Exception as fullscreen_error:
-                print(f"⚠️ Could not make viewport fullscreen: {fullscreen_error}")
-                # Try alternative method - maximize the area
-                try:
-                    # First, try to join areas to make this one larger
-                    original_area_count = len(screen.areas)
-                    if original_area_count > 1:
-                        # There are other areas, try to maximize this one
-                        with bpy.context.temp_override(window=new_window, area=area_3d, screen=screen):
-                            # This will make the current area take up more space
-                            for other_area in screen.areas:
-                                if other_area != area_3d and other_area.type != 'VIEW_3D':
-                                    try:
-                                        # Try to minimize other areas
-                                        other_area.type = 'EMPTY'
-                                        break
-                                    except:
-                                        pass
-                        print("✅ Maximized 3D viewport by minimizing other areas")
-                except Exception as alt_error:
-                    print(f"⚠️ Alternative fullscreen method also failed: {alt_error}")
-                    print("   Continuing with regular viewport...")
+            # 9. SKIP FULLSCREEN: Keep Blender windowed to avoid UI overlay conflicts
+            print("✅ Keeping Blender in windowed mode for better UI overlay compatibility")
             
-            # 10. FINALLY: Make the entire Blender window fullscreen
-            try:
-                with bpy.context.temp_override(window=new_window):
-                    bpy.ops.wm.window_fullscreen_toggle()
-                print("✅ Made Blender window fullscreen")
-            except Exception as window_fullscreen_error:
-                print(f"⚠️ Could not make window fullscreen: {window_fullscreen_error}")
-                print("   Viewport will remain in windowed mode")
-            
-            # 11. Verify camera lock is still active after fullscreen operations
+            # 10. Verify camera lock is still active
             try:
                 current_camera = bpy.context.scene.camera
                 if current_camera and current_camera.name == "GestureCamera":
-                    print("✅ GestureCamera lock verified after fullscreen setup")
+                    print("✅ GestureCamera lock verified after setup")
                 else:
-                    print("⚠️ GestureCamera lock may have been lost during fullscreen setup")
+                    print("⚠️ GestureCamera lock may have been lost during setup")
                     # Try to re-establish the lock
                     gesture_camera = bpy.data.objects.get("GestureCamera")
                     if gesture_camera:
