@@ -1,312 +1,138 @@
 {
   "conversation": [
     {
-      "timestamp": "00:33:17",
-      "speaker": "USER",
-      "message": "Thank you for watching and I'll see you in my next video!",
+      "timestamp": "19:51:47",
+      "speaker": "AGENT",
+      "message": "Welcome to Vibe3D, what do you want to create today?",
       "source": "debug"
     },
     {
-      "timestamp": "00:33:40",
+      "timestamp": "19:51:54",
       "speaker": "USER",
-      "message": "I'll catch you in the next one.",
+      "message": "S.O.B.",
       "source": "debug"
     },
     {
-      "timestamp": "00:34:54",
+      "timestamp": "19:51:57",
       "speaker": "USER",
-      "message": "All right.",
+      "message": "suck",
       "source": "debug"
     },
     {
-      "timestamp": "00:37:31",
+      "timestamp": "19:52:04",
       "speaker": "USER",
-      "message": "You owe it to me.",
+      "message": "stuff.",
       "source": "debug"
     },
     {
-      "timestamp": "00:38:21",
+      "timestamp": "19:52:12",
       "speaker": "USER",
-      "message": "all over the place.",
+      "message": "You",
       "source": "debug"
     },
     {
-      "timestamp": "00:43:18",
+      "timestamp": "19:52:57",
       "speaker": "USER",
-      "message": "What?",
+      "message": "Bye.",
       "source": "debug"
     },
     {
-      "timestamp": "00:43:46",
+      "timestamp": "19:54:05",
       "speaker": "USER",
-      "message": "Yeah, I like using these.",
+      "message": "You",
       "source": "debug"
     },
     {
-      "timestamp": "00:44:40",
+      "timestamp": "19:55:51",
       "speaker": "USER",
-      "message": "No!",
+      "message": "Thanks for watching!",
       "source": "debug"
     },
     {
-      "timestamp": "00:47:01",
+      "timestamp": "19:56:38",
       "speaker": "USER",
-      "message": "for",
+      "message": "you",
       "source": "debug"
     },
     {
-      "timestamp": "00:49:45",
+      "timestamp": "19:56:51",
       "speaker": "USER",
-      "message": "Judy.",
+      "message": "Bye.",
       "source": "debug"
     },
     {
-      "timestamp": "00:50:14",
+      "timestamp": "19:57:10",
       "speaker": "USER",
-      "message": "Yes.",
+      "message": "You",
       "source": "debug"
     },
     {
-      "timestamp": "00:54:13",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "Oh",
-      "source": "debug"
-    },
-    {
-      "timestamp": "00:55:54",
-      "speaker": "USER",
-      "message": "No. Wait, no. Oh my god.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "00:56:00",
-      "speaker": "USER",
-      "message": "No, no, no, no, I won't, because you took the whole thing.",
-      "source": "debug"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "I was supposed to write a poem. Okay. Be careful. Okay. Thank you. Uh.",
+      "message": "S.O.B.",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "Wait, again, again, again. Oh, you see? Do you see how it changes? How it becomes way better when there is only one hand? Like, one hand is so good.",
+      "message": "suck",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "Okay, let me, let me actually start the video.",
+      "message": "stuff.",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "More, more, more, more. This is gonna be cool. Ready?",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Huh? What was that? I don't know. It sounded like Satan. It's just a straight up man. Like, you know how Casey does?",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "you're tired. No, see, I'm good enough. How much you want to go?",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "You think that you're the only one?",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "I think the UI is pretty shit, right? Like, all the things on the right, background, it kind of looks like this, like everything kind of looks good. No, no, this is good. Obviously, I will change the emojis, but it's good. Yeah, this is just, they don't work anymore. Okay, I'm leaving. I'm sorry, I'm sorry, I'm sorry. Let me just take like two more pictures. But you take, I'll go home. Okay, I think that's fine. But we do need to move, uh, we do need to move everything out of the way. Then I'll move my stuff. I'm literally bored.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Maybe sometime I'll do it. Go with it. Don't worry about it. I'll be there in half an hour. Don't worry.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "It's just, I need, really, honestly, I really need to hone in on this, like, like, this is actually working for me.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "I'm sorry that I'm making way.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "I don't know. The thing is, I didn't want to be messy. I didn't want to move it. I think I'll do it. Not today. Then you can do it. I don't want you to rush it. I don't know. I think there is no other way. Yeah, do it now. Do it now. Then I'll move my stuff. Do you think there are one or two shows that are good that I can use?",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Oh, bro.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "If you're listening, I would highly recommend listening to this video. It's really good.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "You're welcome. You're welcome.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Yeah.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "I don't care about the existence of people that I want to ignore.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "I'll do the water, I'll do the water.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Let's do the intro, yeah.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "We didn't like",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
       "message": "You",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "I mean, we can use a LED light, we can use one LED light, because I think, like, actually, that would take a long time to get out. But we can use one LED light. No, I think that there is a couple pictures I want to take, but I really need, like, to get out there. So I don't, so I don't really need, so I don't really need, uh, I don't really need to be here anymore. Uh, I think it's fine. Let me just, huh? Uh, no, no, no. Why did I do that? Fine, I will do it. I'm with you here. Uh.",
+      "message": "Bye.",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "Thank you for watching and I'll see you in my next video!",
+      "message": "You",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "I'll catch you in the next one.",
+      "message": "Thanks for watching!",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "All right.",
+      "message": "you",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "You owe it to me.",
+      "message": "Bye.",
       "source": "whisper"
     },
     {
-      "timestamp": "00:56:24",
+      "timestamp": "19:57:49",
       "speaker": "USER",
-      "message": "all over the place.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "What?",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Yeah, I like using these.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "No!",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "for",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Judy.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Yes.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "Oh",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "No. Wait, no. Oh my god.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "00:56:24",
-      "speaker": "USER",
-      "message": "No, no, no, no, I won't, because you took the whole thing.",
+      "message": "You",
       "source": "whisper"
     }
   ],
   "current_command": {
-    "command": null,
-    "parameters": null,
+    "command": "segment_selection",
+    "parameters": "new",
     "status": "running",
     "phase": "I",
-    "timestamp": "00:56:24"
+    "timestamp": "19:57:49"
   },
   "brush_info": {
     "active_command": "none",
