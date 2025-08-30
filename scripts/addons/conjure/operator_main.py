@@ -647,24 +647,21 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 # Clear the command (same pattern as existing code)
                 state_data["command"] = None
                 print(f"🧹 BLENDER: Cleared spawn_primitive command from state file")
-                with open(state_file_path, 'w') as f:
-                    json.dump(state_data, f, indent=4)
+                self.safe_write_state_file(state_data)
             
             elif command == "render_gesture_camera":
                 # Trigger GestureCamera render for FLUX1.DEPTH
                 bpy.ops.conjure.render_gesture_camera()
                 # Clear the command
                 state_data["command"] = None
-                with open(state_file_path, 'w') as f:
-                    json.dump(state_data, f, indent=4)
+                self.safe_write_state_file(state_data)
             
             elif command == "generate_flux_mesh":
                 # Handle the FLUX1.DEPTH -> PartPacker pipeline
                 self.handle_flux_mesh_generation(context, state_data)
                 # Clear the command
                 state_data["command"] = None
-                with open(state_file_path, 'w') as f:
-                    json.dump(state_data, f, indent=4)
+                self.safe_write_state_file(state_data)
             
             elif command == "import_and_process_mesh":
                 # Import and process PartPacker results
@@ -695,29 +692,25 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     from pathlib import Path
                     import tempfile
                     
-                    # Use temp file approach similar to StateManager
-                    temp_file = Path(state_file_path).with_suffix('.tmp')
+                    # Clear the command safely
                     state_data["command"] = None
-                    
-                    with open(temp_file, 'w') as f:
-                        json.dump(state_data, f, indent=4)
-                    temp_file.replace(state_file_path)
-                    print(f"✅ BLENDER: Command cleared safely")
+                    if self.safe_write_state_file(state_data):
+                        print(f"✅ BLENDER: Command cleared safely")
+                    else:
+                        print(f"❌ BLENDER: Failed to clear command")
                     
                 except Exception as clear_error:
                     print(f"❌ BLENDER: Error clearing command: {clear_error}")
-                    # Fallback to direct write
+                    # Still try to clear the command
                     state_data["command"] = None
-                    with open(state_file_path, 'w') as f:
-                        json.dump(state_data, f, indent=4)
+                    self.safe_write_state_file(state_data)
             
             elif command == "fuse_mesh":
                 # Boolean union all segments
                 bpy.ops.conjure.fuse_mesh()
                 # Clear the command
                 state_data["command"] = None
-                with open(state_file_path, 'w') as f:
-                    json.dump(state_data, f, indent=4)
+                self.safe_write_state_file(state_data)
             
             elif command == "segment_selection":
                 # Check if segments exist before entering selection mode
@@ -741,17 +734,16 @@ class ConjureFingertipOperator(bpy.types.Operator):
                         temp_file = Path(state_file_path).with_suffix('.tmp')
                         state_data["command"] = None
                         
-                        with open(temp_file, 'w') as f:
-                            json.dump(state_data, f, indent=4)
-                        temp_file.replace(state_file_path)
-                        print(f"✅ BLENDER: segment_selection command cleared safely")
+                        if self.safe_write_state_file(state_data):
+                            print(f"✅ BLENDER: segment_selection command cleared safely")
+                        else:
+                            print(f"❌ BLENDER: Failed to clear segment_selection command")
                         
                     except Exception as clear_error:
                         print(f"❌ BLENDER: Error clearing segment_selection command: {clear_error}")
-                        # Fallback to direct write
+                        # Still try to clear the command
                         state_data["command"] = None
-                        with open(state_file_path, 'w') as f:
-                            json.dump(state_data, f, indent=4)
+                        self.safe_write_state_file(state_data)
                 else:
                     # No segments found - try to import mesh first
                     print("⚠️ DEBUG: No segments found for selection - attempting to import mesh first")
@@ -764,8 +756,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                         # Clear the command to prevent repeated attempts
                         state_data["command"] = None
                         state_data["selection_mode"] = "inactive"
-                        with open(state_file_path, 'w') as f:
-                            json.dump(state_data, f, indent=4)
+                        self.safe_write_state_file(state_data)
         
         # Check for import requests (existing functionality)
         import_request = state_data.get("import_request")
@@ -779,8 +770,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                         bpy.ops.conjure.import_model('EXEC_DEFAULT')
                     # Clear the import request
                     state_data["import_request"] = "done"
-                    with open(state_file_path, 'w') as f:
-                        json.dump(state_data, f, indent=4)
+                    self.safe_write_state_file(state_data)
                 except Exception as e:
                     print(f"ERROR: Failed to execute conjure.import_model operator: {e}")
             else:
@@ -811,13 +801,8 @@ class ConjureFingertipOperator(bpy.types.Operator):
         print("🔄 Step 3: Triggering API pipeline...")
         
         # DEBUG: Read current state before update
-        try:
-            with open(config.STATE_JSON_PATH, 'r') as f:
-                current_state = json.load(f)
-            print(f"🔍 BLENDER: Read state file, current flux_pipeline_request = '{current_state.get('flux_pipeline_request', 'missing')}'")
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"🔍 BLENDER: Error reading state file: {e}")
-            current_state = {}
+        current_state = self.safe_read_state_file()
+        print(f"🔍 BLENDER: Read state file, current flux_pipeline_request = '{current_state.get('flux_pipeline_request', 'missing')}')")
         
         # Update state file with flux pipeline request
         print(f"🔧 BLENDER: Writing flux_pipeline_request = 'new' to state file...")
@@ -828,24 +813,19 @@ class ConjureFingertipOperator(bpy.types.Operator):
             "min_volume_threshold": min_volume_threshold
         })
         
-        with open(config.STATE_JSON_PATH, 'w') as f:
-            json.dump(current_state, f, indent=4)
+        self.safe_write_state_file(current_state)
         
         # DEBUG: Verify the write was successful
-        try:
-            with open(config.STATE_JSON_PATH, 'r') as f:
-                verify_state = json.load(f)
-            written_value = verify_state.get('flux_pipeline_request', 'missing')
-            print(f"✅ BLENDER: Verified write - flux_pipeline_request = '{written_value}'")
-            if written_value != "new":
-                print(f"❌ BLENDER: Write verification FAILED! Expected 'new', got '{written_value}'")
-            else:
-                print(f"⏳ BLENDER: Waiting 1 second for main launcher to detect...")
-                import time
-                time.sleep(1.0)  # Give main launcher time to detect the change
-                print(f"🔍 BLENDER: Step 3 completed - main launcher should have detected the request")
-        except Exception as e:
-            print(f"❌ BLENDER: Failed to verify write: {e}")
+        verify_state = self.safe_read_state_file()
+        written_value = verify_state.get('flux_pipeline_request', 'missing')
+        print(f"✅ BLENDER: Verified write - flux_pipeline_request = '{written_value}'")
+        if written_value != "new":
+            print(f"❌ BLENDER: Write verification FAILED! Expected 'new', got '{written_value}'")
+        else:
+            print(f"⏳ BLENDER: Waiting 1 second for main launcher to detect...")
+            import time
+            time.sleep(1.0)  # Give main launcher time to detect the change
+            print(f"🔍 BLENDER: Step 3 completed - main launcher should have detected the request")
     
     def save_prompt_to_file(self, prompt):
         """Save the prompt to userPrompt.txt for the generation pipeline"""
@@ -1156,14 +1136,61 @@ class ConjureFingertipOperator(bpy.types.Operator):
         
         print(f"🧹 Cleared selection from all {len(segment_objects)} segments")
 
+    def safe_read_state_file(self):
+        """Safely read state.json with retry mechanism for permission errors."""
+        max_retries = 3
+        retry_delay = 0.1  # 100ms
+        
+        for attempt in range(max_retries):
+            try:
+                with open(config.STATE_JSON_PATH, 'r') as f:
+                    return json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                return {}  # File not found or invalid JSON, return empty dict
+            except PermissionError as e:
+                if attempt < max_retries - 1:
+                    print(f"Permission error reading state.json (attempt {attempt + 1}/{max_retries}): {e}")
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    print(f"Failed to read state.json after {max_retries} attempts: {e}")
+                    return {}
+            except Exception as e:
+                print(f"Unexpected error reading state.json: {e}")
+                return {}
+
+    def safe_write_state_file(self, state_data):
+        """Safely write to state.json with retry mechanism for permission errors."""
+        max_retries = 3
+        retry_delay = 0.1  # 100ms
+        
+        for attempt in range(max_retries):
+            try:
+                with open(config.STATE_JSON_PATH, 'w') as f:
+                    json.dump(state_data, f, indent=4)
+                return True  # Success
+            except PermissionError as e:
+                if attempt < max_retries - 1:
+                    print(f"Permission error writing state.json (attempt {attempt + 1}/{max_retries}): {e}")
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    print(f"Failed to write state.json after {max_retries} attempts: {e}")
+                    return False
+            except Exception as e:
+                print(f"Unexpected error writing state.json: {e}")
+                return False
+
     def check_for_launcher_requests(self):
         """Checks state.json for commands from the launcher/agent."""
-        # Read the state file
-        try:
-            with open(config.STATE_JSON_PATH, 'r') as f:
-                state_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return # File not found or invalid JSON, nothing to do
+        # Read the state file safely
+        state_data = self.safe_read_state_file()
+        if not state_data:
+            return  # No valid state data available
 
         command = state_data.get("command")
 
@@ -1175,8 +1202,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 print(f"DEBUG: Clearing command '{command}' from state file.")
                 state_data["command"] = None
                 state_data["primitive_type"] = None
-                with open(config.STATE_JSON_PATH, 'w') as f:
-                    json.dump(state_data, f, indent=4)
+                self.safe_write_state_file(state_data)
         
         # We can add more command handlers here with elif blocks
         elif command == "import_last_model":
@@ -1195,8 +1221,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
             # Clear the command
             print(f"DEBUG: Clearing command '{command}' from state file.")
             state_data["command"] = None
-            with open(config.STATE_JSON_PATH, 'w') as f:
-                json.dump(state_data, f, indent=4)
+            self.safe_write_state_file(state_data)
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop

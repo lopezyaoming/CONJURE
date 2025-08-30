@@ -1,0 +1,309 @@
+# CONJURE Simplification Implementation Plan
+
+## Overview
+This document outlines the implementation plan for simplifying CONJURE based on user feedback. The goal is to eliminate the conversational agent complexity and create a streamlined, continuous creative workflow.
+
+---
+
+## Key Changes Summary
+
+### What We're Removing
+- ✂️ **ElevenLabs Conversational Agent (Agent A)**: No more synthetic personality or conversation management
+- ✂️ **Complex Workflow Phases**: No more Phase I-IV decision points and user prompts
+- ✂️ **Agent-Triggered Actions**: No more waiting for agent commands to execute functions
+- ✂️ **Conversation UI Elements**: No more chat interface for back-and-forth with AI
+
+### What We're Keeping & Enhancing
+- ✅ **Voice Input**: Whisper speech-to-text (but direct to prompt, not conversation)
+- ✅ **Backend Agent (Agent B)**: Simplified to pure prompt processing
+- ✅ **Gesture Controls**: All existing hand tracking and mesh deformation
+- ✅ **FLUX Generation Pipeline**: Core AI mesh generation functionality
+- ✅ **Blender Integration**: All existing 3D workspace functionality
+
+### What We're Adding
+- 🆕 **30-Second Automatic Loop**: Continuous generation cycles
+- 🆕 **Real-Time Prompt Display**: Live updates of current model description
+- 🆕 **Streamlined UI**: Minimal interface showing only essential information
+- 🆕 **Structured FLUX Prompts**: JSON schema for consistent, high-quality generation
+
+---
+
+## Implementation Tasks
+
+### Phase 1: Remove Conversational Agent System
+
+#### 1.1 Disable ElevenLabs Integration
+**Files to modify:**
+- `launcher/main.py` - Remove ConversationalAgent initialization and management
+- `launcher/conversational_agent.py` - Mark as deprecated/unused
+- Remove ElevenLabs API calls and WebSocket connections
+
+**Actions:**
+- Comment out or remove ConversationalAgent class instantiation
+- Remove conversation loop and audio processing threads
+- Remove ElevenLabs API key requirements from startup
+
+#### 1.2 Simplify Backend Agent (Agent B)
+**Files to modify:**
+- `launcher/backend_agent.py` - Drastically simplify system prompt and functionality
+
+**New Backend Agent Role:**
+```
+INPUT: 
+- Current userPrompt.txt content
+- gestureRender.png (base64 encoded)
+- Latest user speech transcript
+
+OUTPUT:
+- JSON schema with structured FLUX prompt only
+- No conversation, no questions, no tool execution decisions
+```
+
+**New System Prompt:**
+```
+You are a FLUX prompt specialist. Your only job is to analyze user voice input and current 3D model state, then output a structured JSON prompt for optimal 3D mesh generation.
+
+INPUT:
+- User speech transcript (what they just said)
+- Current prompt state (userPrompt.txt)
+- Visual context (gestureRender.png)
+
+OUTPUT FORMAT (JSON only):
+{
+  "subject": {
+    "name": "string",
+    "form_keywords": ["string"],
+    "material_keywords": ["string"], 
+    "color_keywords": ["string"]
+  }
+}
+
+Rules:
+- Always maintain continuity with existing prompt
+- Incorporate new speech input naturally
+- Focus on product design terminology
+- Optimize for 3D mesh generation quality
+- No conversation, no questions, just structured output
+```
+
+#### 1.3 Remove Instruction Manager Complexity
+**Files to modify:**
+- `launcher/instruction_manager.py` - Simplify to only handle generate_flux_mesh
+
+**Actions:**
+- Remove all tool mapping except generate_flux_mesh
+- Remove conversation-triggered execution logic
+- Remove duplicate instruction prevention (not needed for automatic cycles)
+
+### Phase 2: Implement Continuous Loop System
+
+#### 2.1 Create 30-Second Generation Loop
+**Files to modify:**
+- `launcher/main.py` - Add timer-based generation loop
+
+**New Main Loop Logic:**
+```python
+def continuous_generation_loop():
+    while True:
+        # 1. Check for new voice input (non-blocking)
+        if new_speech_detected():
+            update_prompt_with_speech()
+        
+        # 2. Trigger gesture camera render
+        render_gesture_camera()
+        
+        # 3. Execute generate_flux_mesh
+        execute_flux_generation()
+        
+        # 4. Wait 30 seconds
+        time.sleep(30)
+```
+
+#### 2.2 Implement Real-Time Voice Processing
+**Files to modify:**
+- Create new `launcher/voice_processor.py`
+
+**Functionality:**
+- Continuous Whisper transcription in background thread
+- Immediate prompt updates when speech detected
+- No conversation management, just direct prompt modification
+
+#### 2.3 Update State Management
+**Files to modify:**
+- `launcher/state_manager.py` - Simplify state tracking
+
+**New State Structure:**
+```json
+{
+  "current_prompt": "structured FLUX prompt",
+  "generation_status": "idle|processing|complete",
+  "last_generation_time": "timestamp",
+  "active_brush": "PINCH|GRAB|SMOOTH|INFLATE|FLATTEN",
+  "brush_size": "small|medium|large"
+}
+```
+
+### Phase 3: Streamline User Interface
+
+#### 3.1 Simplify CONJURE UI
+**Files to modify:**
+- `Agent/conjure_ui.py` - Remove conversation elements, add prompt display
+
+**New UI Components:**
+- **Prompt Display Panel**: Shows current structured prompt in readable format
+- **Brush Status Panel**: Current tool and size
+- **Generation Status**: Simple progress indicator
+- **Remove**: All conversation history, chat input, agent response displays
+
+#### 3.2 Update Blender Panel
+**Files to modify:**
+- `scripts/addons/conjure/panel_ui.py` - Simplify to essential controls only
+
+**New Panel Layout:**
+```
+CONJURE Control
+├── [Initiate/Stop CONJURE] (button)
+├── Generation Status: [Active/Idle]
+├── Current Prompt: [display text]
+├── Active Brush: [PINCH] Size: [Medium]
+└── Last Generation: [timestamp]
+```
+
+### Phase 4: Optimize Generation Pipeline
+
+#### 4.1 Enhance FLUX Prompt Processing
+**Files to modify:**
+- `launcher/backend_agent.py` - Implement structured prompt generation
+
+**Prompt Template System:**
+```python
+def generate_flux_prompt(structured_data):
+    subject = structured_data["subject"]
+    
+    # Build descriptive prompt
+    form_desc = ", ".join(subject["form_keywords"])
+    material_desc = ", ".join(subject["material_keywords"])
+    color_desc = ", ".join(subject["color_keywords"])
+    
+    # Standard photography setup
+    photography_setup = """Shown in a three-quarter view and centered in frame, set against a clean studio background in neutral mid-gray. The {name} sits under soft studio lighting with a large key softbox at 45 degrees, gentle fill, and a subtle rim to control reflections. Shot on a 35mm lens at f/5.6, ISO 100—product-catalog clarity, no clutter or props, no text or people, avoid pure white backgrounds."""
+    
+    return f"{subject['name']} with {form_desc} form, {material_desc} materials, {color_desc} colors. {photography_setup.format(name=subject['name'])}"
+```
+
+#### 4.2 Improve Mesh Import Process
+**Files to modify:**
+- `scripts/addons/conjure/ops_phase1.py` - Enhance import handling
+
+**Future Enhancements (noted for later):**
+- Advanced mesh processing
+- Better segmentation
+- Material preservation
+- Improved centering and scaling
+
+### Phase 5: Testing & Integration
+
+#### 5.1 Create Test Scripts
+**New files to create:**
+- `test_simplified_workflow.py` - Test the continuous loop
+- `test_voice_processing.py` - Test real-time voice input
+- `test_prompt_generation.py` - Test structured prompt creation
+
+#### 5.2 Update Documentation
+**Files to modify:**
+- `README.md` - ✅ Already updated
+- Update all existing documentation to reflect simplified workflow
+- Create user guide for new streamlined interface
+
+---
+
+## Implementation Priority Order
+
+### Week 1: Core Simplification
+1. Remove ElevenLabs conversational agent
+2. Simplify backend agent to prompt-only processing
+3. Remove complex instruction manager logic
+4. Test basic voice → prompt → generation flow
+
+### Week 2: Continuous Loop
+1. Implement 30-second generation timer
+2. Add real-time voice processing
+3. Update state management
+4. Test continuous generation cycles
+
+### Week 3: UI Streamlining
+1. Simplify CONJURE overlay UI
+2. Update Blender panel
+3. Remove conversation elements
+4. Add prompt display functionality
+
+### Week 4: Polish & Testing
+1. Optimize FLUX prompt generation
+2. Enhance mesh import process
+3. Comprehensive testing
+4. Documentation updates
+
+---
+
+## Technical Considerations
+
+### Performance Optimizations
+- **Background Processing**: Voice processing and AI generation in separate threads
+- **Non-Blocking UI**: Interface remains responsive during generation
+- **Memory Management**: Clear old meshes and data to prevent memory leaks
+- **Error Handling**: Graceful degradation if generation fails
+
+### User Experience Improvements
+- **Visual Feedback**: Clear indication when generation is processing
+- **Prompt Clarity**: Show exactly what description is being used
+- **Gesture Responsiveness**: Maintain smooth hand tracking during AI processing
+- **Automatic Recovery**: System continues working even if individual generations fail
+
+### API Integration
+- **Rate Limiting**: Respect API limits with 30-second cycles
+- **Error Recovery**: Fallback strategies for API failures
+- **Cost Management**: Efficient use of AI services
+- **Quality Consistency**: Structured prompts for reliable results
+
+---
+
+## Success Metrics
+
+### User Experience Goals
+- ✅ **Instinctive Feel**: Users don't feel like they're talking to a salesperson
+- ✅ **Visual Feedback**: Always know what prompt is being used
+- ✅ **Continuous Flow**: No interruptions or complex decisions
+- ✅ **Natural Interaction**: Voice and gesture feel integrated and smooth
+
+### Technical Goals
+- ✅ **30-Second Cycles**: Reliable automatic generation every 30 seconds
+- ✅ **Real-Time Voice**: Immediate prompt updates when speaking
+- ✅ **Stable Performance**: System runs continuously without crashes
+- ✅ **Quality Output**: Consistent, high-quality 3D mesh generation
+
+---
+
+## Risk Mitigation
+
+### Potential Issues
+1. **30-Second Timing**: May be too fast/slow for some users
+   - **Solution**: Make timer configurable in settings
+   
+2. **Voice Processing Lag**: Delay between speech and prompt update
+   - **Solution**: Optimize Whisper processing and use streaming
+   
+3. **Generation Failures**: AI services may fail or timeout
+   - **Solution**: Robust error handling and retry logic
+   
+4. **User Confusion**: New workflow may be unclear initially
+   - **Solution**: Clear visual feedback and simple onboarding
+
+### Fallback Strategies
+- Manual generation trigger if automatic fails
+- Text input option if voice processing fails
+- Previous mesh preservation if new generation fails
+- Clear error messages and recovery instructions
+
+---
+
+This implementation plan transforms CONJURE from a complex conversational system into a streamlined, continuous creative tool that feels natural and instinctive to use.
