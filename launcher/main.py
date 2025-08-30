@@ -30,13 +30,15 @@ import shutil
 import threading
 import requests
 
-from subprocess_manager import SubprocessManager
-from state_manager import StateManager
+from launcher.subprocess_manager import SubprocessManager
+from launcher.state_manager import StateManager
 from comfyui.api_wrapper import load_workflow, run_workflow, modify_workflow_paths
 import launcher.config as config
-from backend_agent import BackendAgent
-from conversational_agent import ConversationalAgent
-from instruction_manager import InstructionManager
+from launcher.backend_agent import BackendAgent
+# PHASE 1 SIMPLIFICATION: Removed conversational agent
+# from conversational_agent import ConversationalAgent
+from launcher.instruction_manager import InstructionManager
+from launcher.voice_processor import VoiceProcessor
 
 def select_generation_mode():
     """
@@ -135,9 +137,11 @@ class ConjureApp:
         self.instruction_manager = InstructionManager(self.state_manager)
         self.backend_agent = BackendAgent(instruction_manager=self.instruction_manager)
         
-        # Note: ConversationalAgent no longer needs direct backend_agent reference
-        # It will communicate via API
-        self.conversational_agent = ConversationalAgent(backend_agent=None)
+        # PHASE 2: Initialize voice processor for continuous prompt updates
+        self.voice_processor = VoiceProcessor(backend_agent=self.backend_agent)
+        
+        # PHASE 1 SIMPLIFICATION: Removed conversational agent initialization
+        # self.conversational_agent = ConversationalAgent(backend_agent=None)
         self.project_root = Path(__file__).parent.parent.resolve()
         
         # 🚦 Initialization tracking
@@ -181,13 +185,13 @@ class ConjureApp:
 
         print("\nCONJURE is now running. Close the Blender window or press Ctrl+C here to exit.")
 
-        # Start the conversational agent in a separate thread (ALWAYS - even in debug mode)
-        self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
-        self.agent_thread.start()
+        # PHASE 1 SIMPLIFICATION: Removed conversational agent startup
+        # self.agent_thread = threading.Thread(target=self.conversational_agent.start, daemon=True)
+        # self.agent_thread.start()
         if self.is_debug_mode:
-            print("🔬 DEBUG MODE: Conversational agent enabled for speech input + automated testing")
+            print("🔬 DEBUG MODE: Simplified workflow without conversational agent")
         else:
-            print("Conversational agent is now listening in a background thread...")
+            print("✅ CONJURE simplified workflow ready (no conversational agent)")
         
         # Start the UI system in a separate thread
         self.start_ui_system()
@@ -195,6 +199,9 @@ class ConjureApp:
         # 🚦 Mark initialization as complete
         self.initialization_complete = True
         print("✅ CONJURE initialization complete - ready to process requests")
+        
+        # 🔄 PHASE 2: Start voice processor for continuous prompt updates
+        self.voice_processor.start()
         
         # 🔬 DEBUG MODE: Start automated testing
         if self.is_debug_mode:
@@ -281,24 +288,33 @@ class ConjureApp:
                 print(f"⏳ Startup grace period: {remaining:.1f}s remaining before processing requests")
             return
         
-        # 🎬 DEMO AUTOMATION: Set demo start time after grace period
+        # 🔄 PHASE 2: Continuous 30-second generation loop
         if self.demo_start_time is None:
             self.demo_start_time = time.time()
-            print("🎬 DEMO AUTOMATION: Started timing for automatic triggers")
+            print("🔄 PHASE 2: Started continuous generation loop (30s cycles)")
         
         state_data = self.state_manager.get_state()
         if not state_data:
             return
 
-        # 🎬 HARDCORE DEMO AUTOMATION: 30s cycles
+        # 🔄 PHASE 2: Continuous 30s cycles for generate_flux_mesh
         time_since_demo_start = time.time() - self.demo_start_time
         
-        # First cycle: 30s → generate_flux_mesh
+        # Trigger generate_flux_mesh every 30 seconds
+        should_trigger_flux = False
         if not self.demo_flux_triggered and time_since_demo_start >= 30:
-            print("🎬 HARDCORE DEMO: 30 seconds elapsed - FORCING generate_flux_mesh!")
+            # First trigger after 30s
+            should_trigger_flux = True
+            print("🔄 PHASE 2: Initial 30 seconds elapsed - Starting generation loop!")
+        elif self.last_flux_trigger_time and time.time() - self.last_flux_trigger_time >= 30:
+            # Subsequent triggers every 30s after last one
+            should_trigger_flux = True
+            print("🔄 PHASE 2: 30 seconds since last generation - Continuing loop!")
+        
+        if should_trigger_flux:
             self._force_generate_flux_mesh()
             self.demo_flux_triggered = True
-            self.last_flux_trigger_time = time.time()  # Track when we triggered flux
+            self.last_flux_trigger_time = time.time()
         
         # After mesh import: immediate segment_selection
         if self.last_mesh_import_time is not None:
@@ -454,7 +470,7 @@ class ConjureApp:
             pass
 
     def _force_generate_flux_mesh(self):
-        """🎬 DEMO AUTOMATION: Force generate_flux_mesh with user prompt"""
+        """🔄 PHASE 2: Trigger generate_flux_mesh with current user prompt"""
         try:
             # Read prompt from user_prompt.txt
             prompt_path = self.project_root / "data" / "generated_text" / "userPrompt.txt"
@@ -477,11 +493,11 @@ class ConjureApp:
                 }
             }
             
-            print("🎬 DEMO: Executing generate_flux_mesh instruction...")
+            print("🔄 PHASE 2: Executing generate_flux_mesh instruction...")
             self.instruction_manager.execute_instruction(instruction)
             
         except Exception as e:
-            print(f"❌ DEMO AUTOMATION: Error forcing generate_flux_mesh: {e}")
+            print(f"❌ PHASE 2: Error triggering generate_flux_mesh: {e}")
     
     def _force_segment_selection(self):
         """🎬 DEMO AUTOMATION: Force segment_selection mode"""
@@ -1048,10 +1064,15 @@ class ConjureApp:
             print("🔌 Stopping all subprocesses...")
             self.subprocess_manager.stop_all()
         
-        # Stop conversational agent
-        if hasattr(self, 'conversational_agent'):
-            print("🎤 Stopping conversational agent...")
-            self.conversational_agent.stop()
+        # 🔄 PHASE 2: Stop voice processor
+        if hasattr(self, 'voice_processor'):
+            print("🎤 Stopping voice processor...")
+            self.voice_processor.stop()
+        
+        # PHASE 1 SIMPLIFICATION: No conversational agent to stop
+        # if hasattr(self, 'conversational_agent'):
+        #     print("🎤 Stopping conversational agent...")
+        #     self.conversational_agent.stop()
         
         # Stop UI system
         if hasattr(self, 'ui_process'):

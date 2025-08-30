@@ -24,121 +24,63 @@ class BackendAgent:
         
 
         
-        # Enhanced system prompt with full RAG knowledge from agentToolset.txt and fluxGuide.txt
-        self.system_prompt = """You are VIBE Backend, the specialized AI assistant for the CONJURE 3D modeling system. You analyze conversations between users and the conversational agent, then decide what technical actions should be performed based on user intent.
+        # PHASE 1 SIMPLIFICATION: Streamlined system prompt for pure FLUX prompt processing
+        self.system_prompt = """You are a FLUX prompt specialist for the CONJURE 3D modeling system. Your ONLY job is to analyze user voice input and current 3D model state, then output a structured JSON prompt optimized for high-quality 3D mesh generation.
 
 CORE ROLE:
-1. **ANALYZE USER INTENT**: Read conversations and understand what the user wants to create or accomplish
-2. **AUTONOMOUS DECISION MAKING**: Decide when to spawn objects, generate meshes, or perform other actions based on user needs  
-3. **VISUAL PROMPT CREATION**: Generate detailed FLUX.1-optimized prompts for AI image/model generation
+You receive three inputs:
+1. User speech transcript (what they just said)
+2. Current prompt state (userPrompt.txt content)
+3. Visual context (gestureRender.png - current 3D model view)
 
-IMPORTANT: You are NOT receiving direct commands. You analyze natural conversations and decide what should happen next.
+Your output must be ONLY a JSON structure with this exact format:
+
+{
+  "subject": {
+    "name": "string",                 // e.g., "stackable chair", "wireless headset"
+    "form_keywords": ["string"],      // shape descriptors: "curved shell", "mono-block", "faceted"
+    "material_keywords": ["string"],  // CMF: "brushed aluminum", "matte ABS", "polished steel"
+    "color_keywords": ["string"]      // palette: "graphite gray", "satin sand", "electric blue"
+  }
+}
+
+PROCESSING RULES:
+1. **MAINTAIN CONTINUITY**: Always build upon the existing prompt state - don't completely replace unless user explicitly requests
+2. **INCORPORATE NEW INPUT**: Seamlessly integrate new speech input into the existing description
+3. **PRODUCT DESIGN FOCUS**: Use professional product design and industrial design terminology
+4. **3D MESH OPTIMIZATION**: Prioritize descriptions that will generate clean, manufacturable 3D geometry
+5. **NO CONVERSATION**: Never ask questions, never respond conversationally - output JSON only
 
 TRANSCRIPTION ERROR HANDLING:
-You may receive incomplete, garbled, or incoherent conversations due to speech-to-text transcription errors. When this happens:
-1. **INFER CONTEXT**: Use logical reasoning to guess what the user or agent likely said based on context
-2. **FILL GAPS**: If words are missing or unclear, infer the most probable meaning from surrounding words
-3. **COMMON PATTERNS**: Recognize common 3D modeling requests even if transcribed incorrectly:
-   - "cube" might become "cub", "qube", "cube", "cubes"
-   - "sphere" might become "spear", "sfeer", "sphear" 
-   - "create" might become "great", "crate", "creative"
-   - "generate" might become "generator", "general", "gin rate"
-   - "mesh" might become "mash", "mesh", "fresh"
-4. **CONTEXT CLUES**: Use previous conversation context and visual prompts to understand intent
-5. **BE FORGIVING**: Execute commands even if transcription is imperfect, as long as creative intent is clear
+- Infer meaning from garbled speech (e.g., "qube" = "cube", "spear" = "sphere")
+- Use visual context to understand unclear audio
+- Default to subtle refinements if speech is unintelligible
 
-WHEN TO EXECUTE COMMANDS:
-You should be AGGRESSIVE about executing commands when you detect user creative intent. Execute when ANY of these conditions are met:
-1. The user mentions wanting to create, make, spawn, generate, or build something
-2. The user expresses interest in 3D modeling or object creation
-3. The user asks questions that indicate they want to start creating ("can you make a cube?", "I want a sphere")
-4. The user responds positively to suggestions about creating objects
-5. The conversation indicates the user is ready to begin 3D work
+EXAMPLES:
 
-EXAMPLES OF WHEN TO EXECUTE:
-- User: "I want to create a cube" → EXECUTE spawn_primitive with primitive_type: "Cube"
-- User: "Let's start with a cube" → EXECUTE spawn_primitive with primitive_type: "Cube"  
-- User: "Can you make a sphere?" → EXECUTE spawn_primitive with primitive_type: "Sphere"
-- User: "Hey, I want to create a cube. Let's start with a cube." → EXECUTE spawn_primitive with primitive_type: "Cube"
-- User: "Okay, let's create a cube" → EXECUTE spawn_primitive with primitive_type: "Cube"
-- User mentions: "cube", "sphere", "create", "make", "spawn", "build", "start with" → EXECUTE appropriate command
-- Agent asks about creating something + User responds with: "yes", "ok", "sure", "do it", "go ahead", "please", "create it" → EXECUTE
+User says: "make it more curved"
+Current: {"name": "chair", "form_keywords": ["angular"], ...}
+Output: {"subject": {"name": "chair", "form_keywords": ["curved", "flowing"], ...}}
 
-TRANSCRIPTION ERROR EXAMPLES:
-- User: "I want to great a qube" → INFER: "I want to create a cube" → EXECUTE spawn_primitive with primitive_type: "Cube"
-- User: "Can you mash a spear?" → INFER: "Can you make a sphere?" → EXECUTE spawn_primitive with primitive_type: "Sphere"
-- User: "Let's generator fresh" → INFER: "Let's generate mesh" → EXECUTE generate_flux_mesh
-- User: "Crate some... uh... cub thing" → INFER: "Create some cube thing" → EXECUTE spawn_primitive with primitive_type: "Cube"
-- User: "I want alien... head or whatever" → INFER: User wants alien head → EXECUTE spawn_primitive with primitive_type: "Head"
+User says: "I want a blue metallic finish"
+Current: {"name": "device", "material_keywords": ["plastic"], "color_keywords": ["gray"]}
+Output: {"subject": {"name": "device", "material_keywords": ["brushed metal", "aluminum"], "color_keywords": ["electric blue", "metallic"]}}
 
-WHEN NOT TO EXECUTE (return null instruction):
-- User gives unclear/confused responses: "what?", "huh?", "what's up?", "I don't understand"
-- User asks questions about the system itself: "how does this work?", "what can you do?"
-- User makes random conversation: "hello", "how are you?", "what's happening?"
-- Agent is explaining something and user just acknowledges: "ok", "got it", "I see"
-
-BE RESPONSIVE: If there's any doubt about creation intent, EXECUTE the command rather than returning null.
-
-You follow the strict order: SPAWN_PRIMITIVE, GENERATE_FLUX_MESH, FUSE_MESH, SEGMENT_SELECTION, SELECT_CONCEPT.
+REMEMBER: Output ONLY the JSON structure. No explanations, no conversation, no questions.
 
 
-AGENT OUTPUT STRUCTURE
-Your response for every turn MUST be a JSON object with this exact structure. Never include any kind of conversational text beyond the raw JSON format:
+OUTPUT FORMAT:
+You must respond with ONLY the JSON structure - no explanations, no conversation, no additional text.
 
-You **always** respond with a single, complete JSON object:
-
-```json
+Example output:
 {
-  "instruction": {
-    "tool_name": "The backend function to trigger.",
-    "parameters": {
-      "param1": "value1",
-      "param2": "value2"
-    }
-  },
-  "user_prompt": "A Flux/SDXL-ready prompt derived from the user's conversation."
+  "subject": {
+    "name": "ergonomic office chair",
+    "form_keywords": ["curved", "streamlined", "ergonomic"],
+    "material_keywords": ["brushed aluminum", "mesh fabric"],
+    "color_keywords": ["charcoal gray", "metallic accents"]
+  }
 }
-```
- 
-- `instruction` → Triggers a backend tool. If no action is needed, return `null`.
-- `user_prompt` → A long-form visual prompt (between 60–75 words) for generating images/models. ONLY create visual prompts when there's clear creative intent in the conversation. If instruction is null or user is confused/asking questions, create a simple placeholder prompt like "neutral studio background with soft lighting". 
-
-**CONTEXT BUILDING**: If you receive a "PREVIOUS CONTEXT" with a previous user_prompt, BUILD UPON IT coherently. Don't start from scratch - evolve, refine, or add details to the existing prompt. This maintains visual consistency across conversation turns.
-
-To make a good user prompt when appropriate, follow these steps:
-
-Be specific and detailed. Describe the subject, style, composition, lighting, and mood. The more precise you are, the better the results. Break down the scene into layers like foreground, middle ground, and background. Describe each part in order for clear guidance. Use artistic references. Mention specific artists or art movements to guide the model's output. Include technical details if needed, like camera settings, lens type, or aperture. Describe the mood or atmosphere of the image to influence the tone. Avoid chaotic or disorganized prompts. Break the description into clear, logical elements like subject, text, tone, and style. Always use a neutral studio background with soft studio lighting, professional photography standards, and high-definition quality. Avoid abstract language and focus on precise descriptions, emphasizing details like form, shape, and texture. Refer to only one element in the scene at a time. Keep the description simple by avoiding complex scenes with multiple objects.
-
-By following these steps, you can create effective FLUX.1 prompts for high-quality and creative images.
-
-If no backend action is required, set `"instruction"` to `null`.
-Never return anything without this structure, as it will catastrophically crash the system.
-Always return a valid JSON object with the correct structure.
-Always stick to the structure, and do not add any other text or comments.
-
-AVAILABLE INSTRUCTIONS,
- in order of operational usage. NOTE: there are some optional instructions that can be skipped, or options (either of them). these are explicitly refered as such,and the user might choose to skip it or trigger one instead of the other.
-[OPTIONAL]
-spawn_primitive [OPTIONAL]
-- Description: Creates a new primitive mesh object in Blender, replacing existing mesh
-- Parameters: primitive_type (string) INCLUDED PRIMITIVES: "Sphere", "Cube", "Cone", "Cylinder", "Disk", "Torus", "Head", "Body"
-generate_flux_mesh
-- Description: Triggers API generative pipeline that results in a mesh, that get’s imported
-- Parameters: prompt (string, required. this is same as [“user_prompt”]), seed (integer, optional, default=1337), min_volume_threshold (float, optional, default=0.01)
-[EITHER]
-fuse_mesh [EITHER this or segment_selection]
-- Description: Boolean union all mesh segments from largest to smallest into single 'Mesh' object
-- Parameters: None (operates on current segments in scene)
-[EITHER]
-segment_selection
-- Description: Enables gesture-based segment selection mode where user can point and select mesh segments
-- Parameters: None (enters interactive selection mode)
- 3.
-select_concept
-- Description: User chooses concept option, triggers multi-view rendering and mv2mv/mv23D workflows
-- Parameters: option_id (integer) - 1, 2, or 3
-Then the cycle goes back to generate_flux_mesh, either select_concept or generate_flux_mesh again. The cycle repeats until the user is satisfied with the result.
-
 """
 
     def _encode_image_to_base64(self, image_path):
@@ -203,25 +145,26 @@ Then the cycle goes back to generate_flux_mesh, either select_concept or generat
             print(f"❌ Error reading previous user prompt: {e}")
             return None
 
-    def get_response(self, conversation_history: str):
+    def process_voice_input(self, speech_transcript: str, current_prompt_state: str = None, gesture_render_path: str = None):
         """
-        Gets a structured response from the OpenAI Chat Completions API based on the conversation and image context.
+        PHASE 1 SIMPLIFICATION: Process voice input to generate structured FLUX prompts.
+        No conversation analysis, no tool execution - just prompt refinement.
         """
-        print(f"Received conversation for backend processing:\n{conversation_history}")
+        print(f"🎤 Processing voice input: {speech_transcript}")
         
-        # Read previous user_prompt as context
-        previous_prompt = self._read_previous_user_prompt()
-        if previous_prompt:
-            print(f"📝 Previous context: {previous_prompt[:100]}...")
-        else:
-            print("📝 No previous context found")
+        # Load current prompt state if not provided
+        if current_prompt_state is None:
+            current_prompt_state = self._read_previous_user_prompt() or "No previous prompt"
         
-        # Simple single-turn processing - fast and efficient
-        print(f"🧠 Sending single turn to {CUSTOM_GPT_MODEL} for intelligent processing")
-
-        # 1. IMAGE PROCESSING DISABLED - Text-only mode for better reliability
+        print(f"📝 Current prompt state: {current_prompt_state[:100] if current_prompt_state else 'None'}...")
+        
+        # Encode gesture render image if available
         image_base64 = None
-        print("🚫 Image processing disabled - using text-only mode")
+        if gesture_render_path and Path(gesture_render_path).exists():
+            image_base64 = self._encode_image_to_base64(gesture_render_path)
+            print(f"📸 Gesture render loaded: {gesture_render_path}")
+        else:
+            print("🚫 No gesture render available - using text-only mode")
 
         # 2. Prepare the messages for Chat Completions
         messages = [
@@ -231,7 +174,7 @@ Then the cycle goes back to generate_flux_mesh, either select_concept or generat
             }
         ]
         
-        # Add user message with conversation history and optional image
+        # Add user message for voice input processing
         if image_base64:
             # Message with both text and image
             messages.append({  # type: ignore
@@ -240,22 +183,12 @@ Then the cycle goes back to generate_flux_mesh, either select_concept or generat
                     {
                         "type": "text",
                         "text": (
-                            "The user has made a request in CONJURE. Based on this conversation, determine what action to take.\n\n"
-                                            "ANALYZE THE CONVERSATION:\n"
-                "BE AGGRESSIVE about executing commands! Look for ANY indication the user wants to create something.\n"
-                "- Agent mentions creating/spawning + User shows ANY positive response → EXECUTE\n"
-                "- User mentions any 3D modeling words → EXECUTE appropriate command\n"
-                "- User agrees to anything related to modeling → EXECUTE\n"
-                "- When in doubt, EXECUTE rather than returning null\n\n"
-                "EXAMPLES:\n"
-                "Agent: 'Would you like me to create a cube?' User: 'Yes' → spawn_primitive with primitive_type: 'Cube'\n"
-                "Agent: 'I can spawn a cube' User: 'Ok' → spawn_primitive with primitive_type: 'Cube'\n"
-                "Agent: 'I'll place a cube now' User: 'Sure' → spawn_primitive with primitive_type: 'Cube'\n"
-                "Agent: 'Should I create a sphere?' User: 'Do it' → spawn_primitive with primitive_type: 'Sphere'\n"
-                "Agent: 'Generate a mesh?' User: 'Go ahead' → generate_flux_mesh\n"
-                "User: 'Create a cube' → spawn_primitive with primitive_type: 'Cube'\n"
-                "User: 'Make something' → spawn_primitive with primitive_type: 'Cube'\n\n"
-                            f"--- CONVERSATION ---\n{conversation_history}"
+                            f"INPUTS:\n"
+                            f"1. User speech transcript: '{speech_transcript}'\n"
+                            f"2. Current prompt state: {current_prompt_state}\n"
+                            f"3. Visual context: [Gesture render image attached]\n\n"
+                            f"Please process this voice input and update the structured FLUX prompt accordingly. "
+                            f"Maintain continuity with the existing prompt while incorporating the new speech input."
                         )
                     },
                     {
@@ -267,23 +200,15 @@ Then the cycle goes back to generate_flux_mesh, either select_concept or generat
                 ]
             })
         else:
-            # Text-only message with context
+            # Text-only message for voice input processing
             user_content = (
-                "Here is the latest conversation turn between the user and the conversational AI. "
-                "The format is: Agent asks/suggests → User responds. "
-                "Based on this conversation, please provide the next action as a structured JSON response.\n\n"
+                f"INPUTS:\n"
+                f"1. User speech transcript: '{speech_transcript}'\n"
+                f"2. Current prompt state: {current_prompt_state}\n"
+                f"3. Visual context: No gesture render available\n\n"
+                f"Please process this voice input and update the structured FLUX prompt accordingly. "
+                f"Maintain continuity with the existing prompt while incorporating the new speech input."
             )
-            
-            # Add previous user_prompt as context if available
-            if previous_prompt:
-                user_content += (
-                    f"--- PREVIOUS CONTEXT ---\n"
-                    f"Previous user_prompt: {previous_prompt}\n"
-                    f"NOTE: This is the context from the previous turn. Build upon this coherently for any new user_prompt. "
-                    f"If generating a new creative prompt, evolve or refine the previous context rather than starting fresh.\n\n"
-                )
-            
-            user_content += f"--- CONVERSATION ---\n{conversation_history}"
             
             messages.append({  # type: ignore
                 "role": "user",
@@ -314,50 +239,58 @@ Then the cycle goes back to generate_flux_mesh, either select_concept or generat
             return None
 
     def _parse_and_process_response(self, response_str: str):
-        """Parses the JSON response from the agent and acts on it."""
-        print(f"AGENT B RESPONSE:\n{response_str}")
+        """PHASE 1 SIMPLIFICATION: Parse structured FLUX prompt and save to userPrompt.txt"""
+        print(f"🎨 FLUX PROMPT RESPONSE:\n{response_str}")
         try:
             # Parse the JSON response
             response_json = json.loads(response_str)
             
-            # Vision processing disabled - skip vision summary writing
-
-            # Write user prompt for AI generation
-            user_prompt = response_json.get("user_prompt")
-            if user_prompt:
-                prompt_path = Path(__file__).parent.parent / "data" / "generated_text" / "userPrompt.txt"
-                prompt_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(prompt_path, 'w', encoding='utf-8') as f:
-                    f.write(user_prompt)
-                print("✅ Updated userPrompt.txt")
-
-            # Execute instruction (new correct structure)
-            instruction = response_json.get("instruction")
-            
-            if instruction and isinstance(instruction, dict):
-                tool_name = instruction.get("tool_name")
-                parameters = instruction.get("parameters", {})
-                
-                if tool_name:
-                    print(f"🔧 Executing tool: {tool_name}")
-                    self._execute_instruction_via_api(instruction)
-                    return instruction
-                else:
-                    print("⚠️ Error: instruction object missing tool_name")
-                    return None
-            else:
-                print("⚠️ Error: Missing or invalid instruction object in response")
+            # Validate the structured prompt format
+            subject = response_json.get("subject")
+            if not subject or not isinstance(subject, dict):
+                print("⚠️ Error: Invalid response format - missing 'subject' object")
                 return None
-
-            return None
+            
+            # Extract components
+            name = subject.get("name", "")
+            form_keywords = subject.get("form_keywords", [])
+            material_keywords = subject.get("material_keywords", [])
+            color_keywords = subject.get("color_keywords", [])
+            
+            # Generate the full FLUX prompt from structured data
+            form_desc = ", ".join(form_keywords) if form_keywords else ""
+            material_desc = ", ".join(material_keywords) if material_keywords else ""
+            color_desc = ", ".join(color_keywords) if color_keywords else ""
+            
+            # Build the professional product photography prompt
+            flux_prompt = f"{name}"
+            if form_desc:
+                flux_prompt += f" with {form_desc} form"
+            if material_desc:
+                flux_prompt += f", {material_desc} materials"
+            if color_desc:
+                flux_prompt += f", {color_desc} colors"
+            
+            # Add the standard photography setup
+            photography_setup = f"Shown in a three-quarter view and centered in frame, set against a clean studio background in neutral mid-gray. The {name} sits under soft studio lighting with a large key softbox at 45 degrees, gentle fill, and a subtle rim to control reflections. Shot on a 35mm lens at f/5.6, ISO 100—product-catalog clarity, no clutter or props, no text or people, avoid pure white backgrounds."
+            
+            full_prompt = f"{flux_prompt}. {photography_setup}"
+            
+            # Save to userPrompt.txt
+            prompt_path = Path(__file__).parent.parent / "data" / "generated_text" / "userPrompt.txt"
+            prompt_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(prompt_path, 'w', encoding='utf-8') as f:
+                f.write(full_prompt)
+            
+            print(f"✅ Updated userPrompt.txt with structured FLUX prompt")
+            print(f"📝 Generated prompt: {full_prompt[:100]}...")
+            
+            return response_json
 
         except json.JSONDecodeError as e:
             print(f"❌ Error: Could not decode JSON from agent response: {e}")
             print(f"Raw response: {response_str}")
             return None
-        except KeyError as e:
-            print(f"❌ Error: Response JSON missing expected key: {e}")
-            return None
         except Exception as e:
-            print(f"❌ Error processing agent response: {e}")
+            print(f"❌ Error processing FLUX prompt response: {e}")
             return None 

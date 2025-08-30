@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 # Import the configured path from the config file.
-from config import BLENDER_EXECUTABLE_PATH
+from launcher.config import BLENDER_EXECUTABLE_PATH
 
 class SubprocessManager:
     def __init__(self):

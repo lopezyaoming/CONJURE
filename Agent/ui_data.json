@@ -1,6 +1,66 @@
 {
   "conversation": [
     {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "S.O.B.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "suck",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "stuff.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "You",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "Bye.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "You",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "Thanks for watching!",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "you",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "Bye.",
+      "source": "whisper"
+    },
+    {
+      "timestamp": "10:28:29",
+      "speaker": "USER",
+      "message": "You",
+      "source": "whisper"
+    },
+    {
       "timestamp": "19:51:47",
       "speaker": "AGENT",
       "message": "Welcome to Vibe3D, what do you want to create today?",
@@ -65,74 +125,14 @@
       "speaker": "USER",
       "message": "You",
       "source": "debug"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "S.O.B.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "suck",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "stuff.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "You",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "Bye.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "You",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "Thanks for watching!",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "you",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "Bye.",
-      "source": "whisper"
-    },
-    {
-      "timestamp": "19:57:49",
-      "speaker": "USER",
-      "message": "You",
-      "source": "whisper"
     }
   ],
   "current_command": {
-    "command": "segment_selection",
+    "command": null,
     "parameters": "new",
     "status": "running",
     "phase": "I",
-    "timestamp": "19:57:49"
+    "timestamp": "10:28:29"
   },
   "brush_info": {
     "active_command": "none",

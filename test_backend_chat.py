@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Backend Agent Console Chat - Direct testing tool for CONJURE Backend Agent
+Backend Agent Console Chat - Direct testing tool for CONJURE Backend Agent (Phase 2)
 
-This script allows you to directly test the backend agent's OpenAI API integration
+This script allows you to directly test the backend agent's voice input processing
 without running the full CONJURE application. Useful for debugging and testing.
+
+UPDATED FOR PHASE 1/2: Now tests process_voice_input() instead of get_response()
 
 Usage:
     python test_backend_chat.py
 
 Commands:
     - Type 'quit' or 'exit' to stop
-    - Type 'test' for a simple test conversation
+    - Type 'test' for a simple voice input test
     - Type 'apitest' to test OpenAI API directly
-    - Or type any conversation like: 'Agent: Let's spawn a cube. User: Yes'
+    - Or type any speech transcript like: 'make it more curved'
 """
 
 import os
@@ -29,115 +31,7 @@ from launcher.state_manager import StateManager
 from openai import OpenAI
 import re
 
-def parse_conversation_file(file_path):
-    """Parse the conversation file and extract Agent/User turns"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        print(f"🔍 File content length: {len(content)} characters")
-        print(f"🔍 First 200 chars: {content[:200]}...")
-        
-        # Extract conversation turns - handle sequential Agent/User pairs
-        lines = content.split('\n')
-        print(f"🔍 Total lines: {len(lines)}")
-        
-        turns = []
-        agent_messages = []
-        user_messages = []
-        
-        # First pass: collect all agent and user lines
-        for i, line in enumerate(lines):
-            original_line = line
-            line = line.strip()
-            if line.startswith('Agent:'):
-                agent_msg = line[6:].strip()  # Remove "Agent:"
-                agent_messages.append(agent_msg)
-                print(f"🔍 Line {i}: Found Agent: {agent_msg[:50]}...")
-            elif line.startswith('User:'):
-                user_msg = line[5:].strip()  # Remove "User:"
-                user_messages.append(user_msg)
-                print(f"🔍 Line {i}: Found User: {user_msg}")
-        
-        print(f"🔍 Debug: Found {len(agent_messages)} agent messages, {len(user_messages)} user messages")
-        
-        # Second pass: create meaningful turns by pairing them intelligently
-        for i, user_msg in enumerate(user_messages):
-            # Skip meaningless user responses
-            if user_msg in ['...', '', 'J-J-', 'J-J-', '...']:
-                continue
-                
-            # Find the most recent agent message before this user response
-            # For simplicity, use the agent message at the same index or previous
-            if i < len(agent_messages):
-                agent_msg = agent_messages[i]
-            elif len(agent_messages) > 0:
-                agent_msg = agent_messages[-1]  # Use last agent message
-            else:
-                continue
-                
-            # Create a meaningful turn
-            turn = f"Agent: {agent_msg} User: {user_msg}"
-            turns.append(turn)
-            print(f"🔍 Created turn: Agent: {agent_msg[:50]}... User: {user_msg}")
-        
-        print(f"🔍 Debug: Created {len(turns)} total turns")
-        return turns
-        
-    except Exception as e:
-        print(f"❌ Error parsing conversation file: {e}")
-        import traceback
-        print(f"🔍 Traceback: {traceback.format_exc()}")
-        return []
-
-def test_baked_conversation(backend_agent, file_path):
-    """Test the backend agent with pre-baked conversation"""
-    print("🧪 Testing Pre-baked Conversation")
-    print("=" * 50)
-    
-    turns = parse_conversation_file(file_path)
-    if not turns:
-        print("❌ No valid conversation turns found")
-        return
-    
-    print(f"📋 Found {len(turns)} valid conversation turns")
-    print("\n🎯 Testing each turn:")
-    
-    for i, turn in enumerate(turns, 1):
-        print(f"\n--- Turn {i}/{len(turns)} ---")
-        print(f"📝 Input: {turn}")
-        
-        # Extract just the user response for analysis
-        user_response = turn.split('User:')[1].strip()
-        if len(user_response) < 3:
-            print("⏭️ Skipping very short user response")
-            continue
-        
-        try:
-            result = backend_agent.get_response(turn)
-            
-            if result:
-                tool_name = result.get('tool_name', 'null')
-                print(f"✅ Result: {tool_name}")
-                
-                if tool_name != 'null' and 'parameters' in result:
-                    print(f"⚙️ Parameters: {result['parameters']}")
-                    
-                # Show generated prompt snippet
-                if 'user_prompt' in result and result['user_prompt']:
-                    prompt_snippet = result['user_prompt'][:100] + "..." if len(result['user_prompt']) > 100 else result['user_prompt']
-                    print(f"🎨 FLUX Prompt: {prompt_snippet}")
-            else:
-                print("❌ No result")
-                
-        except Exception as e:
-            print(f"❌ Error: {e}")
-        
-        # Pause between turns for readability
-        if i < len(turns):
-            input("Press Enter to continue to next turn...")
-    
-    print("\n🎯 Pre-baked conversation test completed!")
+# Removed old conversation parsing functions - no longer needed for Phase 2 voice input testing
 
 def main():
     print("🤖 Backend Agent Console Chat")
@@ -169,49 +63,26 @@ def main():
         print(f"🔍 Traceback: {traceback.format_exc()}")
         return
 
-    print("\n🎯 Chat Commands:")
+    print("\n🎯 Voice Input Commands:")
     print("  Type 'quit' or 'exit' to stop")
-    print("  Type 'test' for a simple test conversation")
-    print("  Type 'baked' to test with pre-baked conversation from Agent/exampleconversation.txt")
+    print("  Type 'test' for a simple voice input test")
     print("  Type 'apitest' to test OpenAI API directly")
-    print("  Or type any conversation like: 'Agent: Let's spawn a cube. User: Yes'")
+    print("  Or type any speech transcript like: 'make it more curved'")
+    print("  Or: 'change the color to blue'")
+    print("  Or: 'add metallic finish'")
     print("\n" + "=" * 50)
 
     while True:
         try:
-            user_input = input("\n💬 Enter conversation: ").strip()
+            user_input = input("\n🎤 Enter speech transcript: ").strip()
             
             if user_input.lower() in ['quit', 'exit', 'q']:
                 print("👋 Goodbye!")
                 break
             
             if user_input.lower() == 'test':
-                user_input = "Agent: Backend agent, let's spawn a cube. User: Yes, let's do it"
-                print(f"🧪 Testing with: {user_input}")
-            
-            if user_input.lower() == 'baked':
-                print("🧪 Testing with pre-baked conversation...")
-                baked_file = Path("Agent/exampleconversation.txt")
-                print(f"🔍 Looking for file: {baked_file.absolute()}")
-                print(f"🔍 File exists: {baked_file.exists()}")
-                
-                if baked_file.exists():
-                    test_baked_conversation(backend_agent, baked_file)
-                else:
-                    print(f"❌ Conversation file not found: {baked_file}")
-                    # Try alternative paths
-                    alt_paths = [
-                        Path("./Agent/exampleconversation.txt"),
-                        Path("../Agent/exampleconversation.txt"),
-                        Path("exampleconversation.txt")
-                    ]
-                    for alt_path in alt_paths:
-                        print(f"🔍 Trying: {alt_path.absolute()} - Exists: {alt_path.exists()}")
-                        if alt_path.exists():
-                            print(f"✅ Found file at: {alt_path}")
-                            test_baked_conversation(backend_agent, alt_path)
-                            break
-                continue
+                user_input = "make it more curved and add a metallic finish"
+                print(f"🧪 Testing with speech transcript: {user_input}")
             
             if user_input.lower() == 'apitest':
                 print("🧪 Testing OpenAI API directly...")
@@ -242,27 +113,47 @@ def main():
             if not user_input:
                 continue
             
-            print(f"\n🚀 Sending to backend agent...")
-            print(f"📝 Input: {user_input}")
+            print(f"\n🚀 Processing voice input with backend agent...")
+            print(f"🎤 Speech transcript: {user_input}")
             
-            # Call the backend agent
-            result = backend_agent.get_response(user_input)
+            # Call the backend agent's voice processing method
+            result = backend_agent.process_voice_input(
+                speech_transcript=user_input,
+                current_prompt_state=None,  # Let it read the current state
+                gesture_render_path=None    # No gesture render for console testing
+            )
             
             print(f"\n📊 Backend Agent Response:")
             print("-" * 30)
             if result:
-                print("✅ Success!")
+                print("✅ Voice processing successful!")
                 print(f"📄 Response Type: {type(result)}")
-                print(f"📋 Content: {result}")
+                print(f"📋 Structured Response: {result}")
                 
                 if isinstance(result, dict):
-                    print(f"\n🔍 Detailed Analysis:")
-                    if "tool_name" in result:
-                        print(f"  Tool Name: {result['tool_name']}")
-                    if "parameters" in result:
-                        print(f"  Parameters: {result['parameters']}")
+                    print(f"\n🔍 Parsed FLUX Prompt Components:")
+                    if "subject" in result:
+                        subject = result["subject"]
+                        if "name" in subject:
+                            print(f"  📝 Object Name: {subject['name']}")
+                        if "form_keywords" in subject:
+                            print(f"  🔲 Form: {', '.join(subject['form_keywords'])}")
+                        if "material_keywords" in subject:
+                            print(f"  🏗️  Materials: {', '.join(subject['material_keywords'])}")
+                        if "color_keywords" in subject:
+                            print(f"  🎨 Colors: {', '.join(subject['color_keywords'])}")
+                
+                # Check if userPrompt.txt was updated
+                prompt_path = Path("data/generated_text/userPrompt.txt")
+                if prompt_path.exists():
+                    with open(prompt_path, 'r', encoding='utf-8') as f:
+                        updated_prompt = f.read()
+                    print(f"\n📝 Updated userPrompt.txt:")
+                    print(f"   {updated_prompt[:150]}...")
+                else:
+                    print("\n⚠️ userPrompt.txt not found or not updated")
             else:
-                print("❌ No response or error occurred")
+                print("❌ Voice processing failed or returned no result")
             print("-" * 30)
             
         except KeyboardInterrupt:
