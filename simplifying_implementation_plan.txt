@@ -45,6 +45,9 @@ This document outlines the implementation plan for simplifying CONJURE based on 
 
 #### 1.2 Simplify Backend Agent (Agent B)
 **Files to modify:**
+
+
+
 - `launcher/backend_agent.py` - Drastically simplify system prompt and functionality
 
 **New Backend Agent Role:**

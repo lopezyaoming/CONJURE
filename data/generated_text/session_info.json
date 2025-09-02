@@ -1,0 +1,9 @@
+{
+  "session_start": "2025-09-01 18:00:14",
+  "cleaned_files": [
+    "user_transcript.txt",
+    "userPrompt.txt",
+    "selectedControlNet.txt"
+  ],
+  "status": "clean"
+}

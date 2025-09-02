@@ -1,7 +1,7 @@
 import hashlib
 import json
 import time
-from launcher.state_manager import StateManager
+from state_manager import StateManager
 
 class InstructionManager:
     """

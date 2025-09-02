@@ -1466,7 +1466,41 @@ class ConjureFingertipOperator(bpy.types.Operator):
             elif command == "cycle_brush":
                 if self._last_command != "cycle_brush": # Trigger only once per gesture
                     self._current_brush_index = (self._current_brush_index + 1) % len(config.BRUSH_TYPES)
-                    print(f"Switched brush to: {config.BRUSH_TYPES[self._current_brush_index]}")
+                    current_brush = config.BRUSH_TYPES[self._current_brush_index]
+                    print(f"Switched brush to: {current_brush}")
+                    
+                    # Write current brush to fingertips.json for UI overlay
+                    try:
+                        from pathlib import Path
+                        project_root = Path(__file__).parent.parent.parent.parent
+                        fingertips_path = project_root / "data" / "input" / "fingertips.json"
+                        
+                        # Read existing data
+                        if fingertips_path.exists():
+                            with open(fingertips_path, 'r') as f:
+                                fingertip_data = json.load(f)
+                        else:
+                            fingertip_data = {
+                                "command": "none",
+                                "left_hand": None,
+                                "right_hand": None,
+                                "orbit_delta": {"x": 0.0, "y": 0.0},
+                                "anchors": [],
+                                "scale_axis": "XYZ",
+                                "remesh_type": "BLOCKS"
+                            }
+                        
+                        # Update with current brush
+                        fingertip_data["active_brush"] = current_brush
+                        
+                        # Write back to file
+                        with open(fingertips_path, 'w') as f:
+                            json.dump(fingertip_data, f, indent=2)
+                        
+                        print(f"Updated fingertips.json with active_brush: {current_brush}")
+                        
+                    except Exception as e:
+                        print(f"Error updating fingertips.json with brush info: {e}")
 
             elif command == "cycle_radius":
                 if self._last_command != "cycle_radius":
@@ -1523,7 +1557,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
         # Initialize the history buffer as a deque with a max length
         self._history_buffer = deque(maxlen=config.MAX_HISTORY_STEPS)
-
+        
         # Calculate and store the initial volume of the mesh
         mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
         if mesh_obj:
@@ -1538,6 +1572,41 @@ class ConjureFingertipOperator(bpy.types.Operator):
             self._initial_volume = 1.0
             self._vertex_velocities = {}
             print("Warning: Could not find 'Mesh' object to calculate initial volume.")
+        
+        # Write initial brush state to fingertips.json for UI overlay
+        try:
+            from pathlib import Path
+            project_root = Path(__file__).parent.parent.parent.parent
+            fingertips_path = project_root / "data" / "input" / "fingertips.json"
+            
+            initial_brush = config.BRUSH_TYPES[self._current_brush_index]
+            
+            # Read existing data or create new
+            if fingertips_path.exists():
+                with open(fingertips_path, 'r') as f:
+                    fingertip_data = json.load(f)
+            else:
+                fingertip_data = {
+                    "command": "none",
+                    "left_hand": None,
+                    "right_hand": None,
+                    "orbit_delta": {"x": 0.0, "y": 0.0},
+                    "anchors": [],
+                    "scale_axis": "XYZ",
+                    "remesh_type": "BLOCKS"
+                }
+            
+            # Set initial brush
+            fingertip_data["active_brush"] = initial_brush
+            
+            # Write to file
+            with open(fingertips_path, 'w') as f:
+                json.dump(fingertip_data, f, indent=2)
+            
+            print(f"Initialized fingertips.json with active_brush: {initial_brush}")
+            
+        except Exception as e:
+            print(f"Error initializing fingertips.json with brush info: {e}")
 
         # Initialize the state for each of the 10 markers
         self.marker_states = []

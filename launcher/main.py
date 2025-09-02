@@ -110,6 +110,11 @@ class ConjureApp:
     def __init__(self, generation_mode="local"):
         print("Initializing CONJURE...")
         
+        # 🧹 CLEAN SESSION: Reset transcript and prompt files
+        print("🧹 Starting fresh session - cleaning transcript and prompt files...")
+        from session_cleaner import clean_session
+        clean_session()
+        
         # Store generation mode
         self.generation_mode = generation_mode
         config.GENERATION_MODE = generation_mode  # Ensure config is updated
@@ -245,8 +250,8 @@ class ConjureApp:
             import subprocess
             import platform
             
-            # Path to the UI script (launch directly, not through launcher)
-            ui_script = self.project_root / "Agent" / "conjure_ui_direct.py"
+            # Path to the UI script (launch Phase 3 streamlined UI)
+            ui_script = self.project_root / "Agent" / "conjure_ui.py"
             python_exe = sys.executable
             
             # Launch UI as completely separate process
@@ -261,6 +266,12 @@ class ConjureApp:
                 )
             else:
                 # On other systems
+
+
+
+
+
+                
                 self.ui_process = subprocess.Popen(
                     [python_exe, str(ui_script)],
                     stdin=subprocess.DEVNULL,
@@ -270,6 +281,9 @@ class ConjureApp:
             
             print("✅ CONJURE UI overlay launched as separate process")
             
+
+
+
         except Exception as e:
             print(f"⚠️  UI system error: {e}")
             import traceback

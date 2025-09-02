@@ -246,20 +246,20 @@ class VoiceProcessor:
             return None
     
     def _update_prompt_with_speech(self, transcript):
-        """Update prompt using backend agent voice processing."""
+        """Update prompt using backend agent voice processing with new data package system."""
         try:
-            # Use backend agent to process voice input
-            # This will update userPrompt.txt with the new structured prompt
-            gesture_render_path = Path(__file__).parent.parent / "data" / "generated_images" / "gestureCamera" / "render.png"
+            print(f"🎤 Voice Processor: Processing transcript with new data package system")
             
+            # Use the new simplified process_voice_input method
+            # The data package builder will handle reading current state and formatting
             result = self.backend_agent.process_voice_input(
                 speech_transcript=transcript,
-                current_prompt_state=None,  # Let backend agent read current state
-                gesture_render_path=str(gesture_render_path) if gesture_render_path.exists() else None
+                current_prompt_state=None,  # Not used in new system
+                gesture_render_path=None    # Not used in new system
             )
             
             if result:
-                print("✅ Prompt updated successfully from voice input")
+                print("✅ Prompt updated successfully from voice input using data package system")
             else:
                 print("⚠️ Voice processing completed but no update made")
                 

@@ -1,61 +1,61 @@
 {
   "conversation": [
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "S.O.B.",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "suck",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "stuff.",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "You",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "Bye.",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "You",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "Thanks for watching!",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "you",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "Bye.",
       "source": "whisper"
     },
     {
-      "timestamp": "10:28:29",
+      "timestamp": "11:02:09",
       "speaker": "USER",
       "message": "You",
       "source": "whisper"
@@ -128,17 +128,17 @@
     }
   ],
   "current_command": {
-    "command": null,
+    "command": "import_and_process_mesh",
     "parameters": "new",
     "status": "running",
     "phase": "I",
-    "timestamp": "10:28:29"
+    "timestamp": "11:02:09"
   },
   "brush_info": {
     "active_command": "none",
-    "active_hand": null,
+    "active_hand": "left",
     "scale_axis": "XYZ",
-    "fingertip_count": 0
+    "fingertip_count": 5
   },
   "workflow_progress": {
     "active": false,

@@ -48,16 +48,16 @@ class MinimalLabel(QLabel):
             self.setStyleSheet("""
                 QLabel {
                     color: rgba(255, 255, 255, 220);
-                    font-size: 16px;
+                    font-size: 10px;
                     font-weight: bold;
-                    padding: 5px;
+                    padding: 4px;
                 }
             """)
         elif style_type == "subtitle":
             self.setStyleSheet("""
                 QLabel {
                     color: rgba(200, 200, 200, 180);
-                    font-size: 12px;
+                    font-size: 8px;
                     font-weight: bold;
                     padding: 2px;
                 }
@@ -66,7 +66,7 @@ class MinimalLabel(QLabel):
             self.setStyleSheet("""
                 QLabel {
                     color: rgba(100, 255, 100, 200);
-                    font-size: 14px;
+                    font-size: 9px;
                     font-weight: bold;
                     padding: 3px;
                 }
@@ -75,7 +75,7 @@ class MinimalLabel(QLabel):
             self.setStyleSheet("""
                 QLabel {
                     color: rgba(220, 220, 220, 180);
-                    font-size: 12px;
+                    font-size: 8px;
                     padding: 2px;
                 }
             """)
@@ -87,12 +87,12 @@ class MinimalTextEdit(QTextEdit):
         self.setReadOnly(True)
         self.setStyleSheet("""
             QTextEdit {
-                background-color: rgba(20, 20, 20, 150);
+                background-color: rgba(20, 20, 20, 200);
                 color: white;
                 border: none;
                 border-radius: 6px;
                 padding: 8px;
-                font-size: 11px;
+                font-size: 6px;
                 font-family: 'Consolas', 'Monaco', monospace;
             }
             QScrollBar:vertical {
@@ -119,7 +119,7 @@ class MinimalFrame(QFrame):
         super().__init__(parent)
         self.setStyleSheet("""
             QFrame {
-                background-color: rgba(20, 20, 20, 150);
+                background-color: rgba(20, 20, 20, 200);
                 border: none;
                 border-radius: 10px;
             }
@@ -132,62 +132,63 @@ class MinimalFrame(QFrame):
         shadow.setOffset(3, 3)
         self.setGraphicsEffect(shadow)
 
-class ConversationPanel(MinimalFrame):
-    """Panel for displaying conversation history"""
+class PromptDisplayPanel(MinimalFrame):
+    """Panel for displaying current FLUX prompt - PHASE 3 REDESIGN"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(240, 240)  # EXACT copy from UI.py ImageFrame
+        self.setFixedSize(1200, 75)  # Half as tall: 150/2 = 75
         
-        # Create layout - EXACT copy from UI.py
+        # Create layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
         
-        # Title
-        title = MinimalLabel("Conversation", "subtitle")
-        layout.addWidget(title)
+        # Prompt display (no title, more space for text)
+        self.prompt_text = MinimalTextEdit()
+        self.prompt_text.setMaximumHeight(65)  # Adjusted for smaller 75px panel
+        self.prompt_text.setStyleSheet("""
+            QTextEdit {
+                background-color: rgba(30, 30, 30, 200);
+                border: 2px solid rgba(80, 80, 80, 150);
+                border-radius: 12px;
+                color: #80c0ff;
+                font-size: 9px;
+                font-family: Arial;
+                padding: 15px;
+                line-height: 1.4;
+            }
+        """)
+        layout.addWidget(self.prompt_text)
         
-        # Conversation display
-        self.conversation_text = MinimalTextEdit()
-        self.conversation_text.setMaximumHeight(200)  # Adjusted for 240x240 panel
-        layout.addWidget(self.conversation_text)
+    def update_prompt(self, prompt_text: str):
+        """Update prompt display with current userPrompt.txt content"""
+        if not prompt_text:
+            self.prompt_text.setPlainText("No prompt available")
+            return
         
-    def update_conversation(self, messages: List[Dict]):
-        """Update conversation display with new messages"""
-        html_content = ""
+        # Display the actual prompt being used for generation
+        # Remove the technical photography setup for cleaner display
+        display_prompt = prompt_text
+        if "Shown in a three-quarter view" in display_prompt:
+            display_prompt = display_prompt.split("Shown in a three-quarter view")[0].strip()
         
-        for msg in messages[-20:]:  # Show last 20 messages
-            timestamp = msg.get("timestamp", "")
-            speaker = msg.get("speaker", "")
-            message = msg.get("message", "")
-            source = msg.get("source", "")
-            
-            # Color coding based on speaker
-            if speaker == "USER":
-                color = "#80c0ff"  # Light blue for user
-            else:
-                color = "#80ff80"  # Light green for agent
-            
-            html_content += f"""
-            <div style="margin-bottom: 8px;">
-                <span style="color: #888; font-size: 10px;">[{timestamp}]</span>
-                <span style="color: {color}; font-weight: bold;">{speaker}:</span>
-                <span style="color: #ddd;">{message}</span>
-            </div>
-            """
+        # Limit length for display
+        if len(display_prompt) > 450:  # Increased from 300 to 450 for wider box
+            display_prompt = display_prompt[:450] + "..."
         
-        self.conversation_text.setHtml(html_content)
-        
-        # Auto-scroll to bottom
-        cursor = self.conversation_text.textCursor()
-        cursor.movePosition(cursor.End)
-        self.conversation_text.setTextCursor(cursor)
+        # Set plain text for clean display with styled HTML
+        html_content = f"""
+        <div style="color: #80c0ff; font-size: 9px; line-height: 1.5; text-align: center;">
+            {display_prompt.replace(chr(10), '<br>')}
+        </div>
+        """
+        self.prompt_text.setHtml(html_content)
 
 class StatusPanel(MinimalFrame):
     """Panel for displaying current command and status"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(240, 240)  # EXACT copy from UI.py ImageFrame
+        self.setFixedSize(195, 78)  # 35% smaller: 300*0.65=195, 120*0.65=78
         
         # Create layout - EXACT copy from UI.py
         layout = QVBoxLayout(self)
@@ -278,6 +279,147 @@ class BrushPanel(MinimalFrame):
         self.hand_label.setText(f"Hand: {hand or 'none'}")
         self.fingertips_label.setText(f"Fingertips: {fingertips}")
 
+class BrushIconsPanel(MinimalFrame):
+    """Left column panel for brush icons - PHASE 3 REDESIGN"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(78, 390)  # 35% smaller: 120*0.65=78, 600*0.65=390
+        
+        # Create layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 13, 10, 13)  # 35% smaller: 15*0.65=10, 20*0.65=13
+        layout.setSpacing(13)  # 35% smaller: 20*0.65=13
+        layout.setAlignment(Qt.AlignCenter)  # Center the icons vertically
+        
+        # Load brush icons from the brush icons folder
+        self.brush_icons = {}
+        self.active_brush = "PINCH"  # Default active brush (first in system list)
+        
+        # Create brush icon buttons
+        brush_types = ["PINCH", "GRAB", "SMOOTH", "INFLATE", "FLATTEN"]
+        for brush_type in brush_types:
+            button = self.create_brush_button(brush_type)
+            layout.addWidget(button)
+            self.brush_icons[brush_type] = button
+        
+        # Remove stretch - icons are now centered
+        
+        # Update active brush styling
+        self.update_active_brush(self.active_brush)
+    
+    def create_brush_button(self, brush_type):
+        """Create a brush icon button"""
+        button = QPushButton()
+        button.setFixedSize(59, 59)  # 35% smaller: 90*0.65=59
+        button.setToolTip(brush_type)
+        
+        # Map brush types to icon filenames
+        icon_mapping = {
+            "GRAB": "grab.png",
+            "FLATTEN": "flatten.png", 
+            "INFLATE": "inflate.png",
+            "SMOOTH": "soften.png",  # SMOOTH uses soften icon
+            "PINCH": None            # PINCH will use text fallback
+        }
+        
+        # Try to load the brush icon
+        icon_filename = icon_mapping.get(brush_type, f"{brush_type.lower()}.png")
+        
+        if icon_filename:  # Only try to load if we have a filename
+            icon_path = Path(__file__).parent.parent / "blender" / "assets" / "brush icons" / icon_filename
+            
+            if icon_path.exists():
+                from PyQt5.QtGui import QIcon, QPixmap
+                pixmap = QPixmap(str(icon_path))
+                icon = QIcon(pixmap)
+                button.setIcon(icon)
+                button.setIconSize(button.size() - QSize(10, 10))  # Smaller icon padding: 15*0.65=10
+            else:
+                # Fallback to text if icon file doesn't exist
+                button.setText(brush_type[:3])
+        else:
+            # Use text fallback when no icon filename specified
+            button.setText(brush_type[:3])
+        
+        # Add click handler to make button functional
+        button.clicked.connect(lambda: self.on_brush_clicked(brush_type))
+        
+        # Base styling for brush buttons
+        button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(40, 40, 40, 150);
+                border: 2px solid rgba(80, 80, 80, 100);
+                border-radius: 30px;
+                color: white;
+                font-size: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: rgba(60, 60, 60, 180);
+                border: 2px solid rgba(100, 100, 100, 150);
+            }
+        """)
+        
+        return button
+    
+    def on_brush_clicked(self, brush_type):
+        """Handle brush button clicks"""
+        # Update the active brush immediately
+        self.update_active_brush(brush_type)
+        
+        # Also update the fingertips.json file to persist the selection
+        try:
+            from pathlib import Path
+            import json
+            fingertips_path = Path(__file__).parent.parent / "data" / "input" / "fingertips.json"
+            if fingertips_path.exists():
+                with open(fingertips_path, 'r', encoding='utf-8') as f:
+                    fingertip_data = json.load(f)
+                fingertip_data["command"] = brush_type
+                with open(fingertips_path, 'w', encoding='utf-8') as f:
+                    json.dump(fingertip_data, f, indent=2)
+                
+        except Exception as e:
+            print(f"Error updating fingertips.json: {e}")
+    
+    def update_active_brush(self, brush_type):
+        """Update which brush icon is highlighted as active"""
+        self.active_brush = brush_type
+        
+        for brush_name, button in self.brush_icons.items():
+            if brush_name == brush_type:
+                # Active brush styling
+                button.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(80, 160, 255, 200);
+                        border: 3px solid rgba(120, 180, 255, 255);
+                        border-radius: 30px;
+                        color: white;
+                        font-size: 5px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(100, 180, 255, 220);
+                        border: 3px solid rgba(140, 200, 255, 255);
+                    }
+                """)
+            else:
+                # Inactive brush styling
+                button.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(40, 40, 40, 150);
+                        border: 2px solid rgba(80, 80, 80, 100);
+                        border-radius: 30px;
+                        color: white;
+                        font-size: 5px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(60, 60, 60, 180);
+                        border: 2px solid rgba(100, 100, 100, 150);
+                    }
+                """)
+
 class ConjureMainWindow(QMainWindow):
     """Main transparent overlay window"""
     def __init__(self):
@@ -286,9 +428,14 @@ class ConjureMainWindow(QMainWindow):
         # Set window flags for transparency and always on top
         self.setWindowFlags(
             Qt.FramelessWindowHint | 
-            Qt.WindowStaysOnTopHint
+            Qt.WindowStaysOnTopHint |
+            Qt.Tool  # This helps keep it on top
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Make sure the window is visible and on top
+        self.raise_()
+        self.activateWindow()
         
         # Initialize data generator if available
         self.data_generator = UIDataGenerator() if UIDataGenerator else None
@@ -316,73 +463,77 @@ class ConjureMainWindow(QMainWindow):
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
         
-        # Create main layout - EXACT copy from UI.py
+        # Create main layout - PHASE 3 REDESIGN to match mockup
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(40, 40, 40, 40)
-        main_layout.setSpacing(20)  # Reduced spacing like UI.py
-        main_layout.setAlignment(Qt.AlignCenter)
+        main_layout.setContentsMargins(26, 26, 26, 26)  # 35% smaller: 40*0.65=26
+        main_layout.setSpacing(13)  # 35% smaller: 20*0.65=13
         
-        # Add discrete terminate button in top-left corner - EXACT copy from UI.py
-        terminate_button = QPushButton("×")
-        terminate_button.setFixedSize(26, 26)
+        # Add discrete terminate button in top-left corner
+        terminate_button = QPushButton("× CONJURE UI")
+        terminate_button.setFixedSize(120, 30)
         terminate_button.clicked.connect(self.close)
         terminate_button.setStyleSheet("""
             QPushButton {
-                background-color: rgba(40, 40, 40, 150);
-                color: rgba(220, 220, 220, 180);
-                border: none;
-                border-radius: 13px;
-                font-size: 18px;
+                background-color: rgba(60, 60, 60, 220);
+                color: rgba(255, 255, 255, 255);
+                border: 2px solid rgba(100, 100, 100, 255);
+                border-radius: 15px;
+                font-size: 12px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: rgba(80, 40, 40, 180);
+                background-color: rgba(100, 60, 60, 240);
                 color: white;
             }
         """)
         
-        # Position the terminate button in the top-left corner - EXACT copy from UI.py
+        # Position the terminate button in the top-left corner
         terminate_button.setParent(self)
         terminate_button.move(15, 15)
         
-        # Create panels container - vertical orientation like UI.py
-        panels_container = QWidget()
-        panels_layout = QVBoxLayout(panels_container)
-        panels_layout.setSpacing(30)  # Reduced vertical spacing like UI.py
-        panels_layout.setAlignment(Qt.AlignCenter)
+        # Create main horizontal layout: brush icons (left) + content area (right)
+        main_horizontal = QHBoxLayout()
+        main_horizontal.setSpacing(26)  # 35% smaller: 40*0.65=26
         
-        # Create UI panels
+        # Left column: Brush icons panel
+        self.brush_icons_panel = BrushIconsPanel()
+        main_horizontal.addWidget(self.brush_icons_panel, alignment=Qt.AlignTop)
+        
+        # Right area: Content layout (status top-right, prompt bottom-center)
+        content_layout = QVBoxLayout()
+        content_layout.setSpacing(26)  # 35% smaller: 40*0.65=26
+        
+        # Top section: Status panel in top-right corner
+        top_section = QHBoxLayout()
+        top_section.addStretch()  # Push status to the right
         self.status_panel = StatusPanel()
-        panels_layout.addWidget(self.status_panel, alignment=Qt.AlignCenter)
+        self.status_panel.setFixedSize(300, 120)  # Bigger status panel
+        top_section.addWidget(self.status_panel)
+        content_layout.addLayout(top_section)
         
-        self.conversation_panel = ConversationPanel()
-        panels_layout.addWidget(self.conversation_panel, alignment=Qt.AlignCenter)
+        # Middle section: Expandable space for 3D viewport (empty space)
+        content_layout.addStretch()
         
-        self.brush_panel = BrushPanel()
-        panels_layout.addWidget(self.brush_panel, alignment=Qt.AlignCenter)
+        # Bottom section: Prompt display in center-bottom
+        bottom_section = QHBoxLayout()
+        bottom_section.addStretch()  # Center the prompt horizontally
+        self.prompt_panel = PromptDisplayPanel()
+        bottom_section.addWidget(self.prompt_panel)
+        bottom_section.addStretch()  # Center the prompt horizontally
+        content_layout.addLayout(bottom_section)
         
-        # Create a container widget to position panels on the right - EXACT copy from UI.py
-        right_container = QWidget()
-        right_layout = QHBoxLayout(right_container)
-        right_layout.addStretch(4)  # Increased to push content more to the right
-        right_layout.addWidget(panels_container)
-        right_layout.setContentsMargins(0, 0, 20, 0)  # Add right margin to keep a bit of space from edge
-        main_layout.addWidget(right_container)
+        # Add content area to main horizontal layout
+        main_horizontal.addLayout(content_layout)
         
-        # Small space after panels - EXACT copy from UI.py
-        main_layout.addSpacing(20)  # Small spacing instead of large stretch
+        # Add the complete horizontal layout to main layout
+        main_layout.addLayout(main_horizontal)
         
-        # Status bar for showing messages - EXACT copy from UI.py
+        # Remove old brush panel since we now have brush icons panel
+        # self.brush_panel = BrushPanel()  # Removed - replaced with icons
+        
+        # Status label (hidden by default)
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("""
-            color: rgba(200, 200, 200, 150);
-            font-size: 12px;
-        """)
-        self.status_label.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(self.status_label)
-        
-        # Add a stretcher to push everything up from the bottom - EXACT copy from UI.py
-        main_layout.addStretch(1)
+        self.status_label.setVisible(False)
         
         # Close button in top-right corner - EXACT copy from UI.py
         close_button = QPushButton("×")
@@ -434,28 +585,88 @@ class ConjureMainWindow(QMainWindow):
             return None
     
     def refresh_data(self):
-        """Refresh all UI panels with latest data"""
+        """Refresh all UI panels with latest data - PHASE 3 SIMPLIFICATION"""
+        print("DEBUG: refresh_data() called")
         ui_data = self.load_ui_data()
         
-        if not ui_data:
-            print("No UI data available")
-            return
-        
         try:
-            # Update conversation panel
-            if "conversation" in ui_data:
-                self.conversation_panel.update_conversation(ui_data["conversation"])
+            # PHASE 3: Update prompt panel with current userPrompt.txt
+            prompt_text = self.load_current_prompt()
+            self.prompt_panel.update_prompt(prompt_text)
             
             # Update status panel
-            if "current_command" in ui_data:
+            if ui_data and "current_command" in ui_data:
                 self.status_panel.update_status(ui_data["current_command"])
+            else:
+                # Show generation status based on Phase 2 continuous loop
+                import time
+                current_time = int(time.time())
+                cycle_position = current_time % 30
+                if cycle_position < 5:
+                    status = "🔄 Generating mesh..."
+                elif cycle_position < 25:
+                    status = f"⏳ Next generation in {30 - cycle_position}s"
+                else:
+                    status = "🔄 Preparing generation..."
+                self.status_panel.update_status(status)
             
-            # Update brush panel
-            if "brush_info" in ui_data:
-                self.brush_panel.update_brush(ui_data["brush_info"])
+            # Update brush icons panel with active brush
+            # Read the actual current brush from Blender via fingertips.json
+            try:
+                from pathlib import Path
+                fingertips_path = Path(__file__).parent.parent / "data" / "input" / "fingertips.json"
+                print(f"DEBUG: Reading from {fingertips_path}")
+                if fingertips_path.exists():
+                    import json
+                    with open(fingertips_path, 'r', encoding='utf-8') as f:
+                        fingertip_data = json.load(f)
+                    
+                    print(f"DEBUG: Loaded fingertip data: {fingertip_data}")
+                    
+                    # Read the actual active brush from Blender
+                    active_brush = fingertip_data.get("active_brush", "PINCH")
+                    print(f"DEBUG: Active brush from file: {active_brush}")
+                    
+                    # Map system brush names to UI brush names if needed
+                    brush_mapping = {
+                        "PINCH": "PINCH",
+                        "GRAB": "GRAB", 
+                        "SMOOTH": "SMOOTH",
+                        "INFLATE": "INFLATE",
+                        "FLATTEN": "FLATTEN",
+                    }
+                    mapped_brush = brush_mapping.get(active_brush.upper(), active_brush.upper())
+                    print(f"DEBUG: Mapped brush: {mapped_brush}")
+                    print(f"DEBUG: Available UI brushes: {list(self.brush_icons_panel.brush_icons.keys())}")
+                    
+                    if mapped_brush in self.brush_icons_panel.brush_icons:
+                        print(f"DEBUG: Updating UI to show {mapped_brush} as active")
+                        self.brush_icons_panel.update_active_brush(mapped_brush)
+                    else:
+                        print(f"DEBUG: Brush {mapped_brush} not found in UI brushes")
+                else:
+                    print(f"DEBUG: Fingertips file does not exist")
+                    
+            except Exception as e:
+                print(f"DEBUG: Error reading brush info: {e}")
+                # Default to PINCH if we can't read brush info
+                self.brush_icons_panel.update_active_brush("PINCH")
                 
         except Exception as e:
             print(f"Error updating UI: {e}")
+    
+    def load_current_prompt(self):
+        """Load current prompt from userPrompt.txt for Phase 3"""
+        try:
+            from pathlib import Path
+            prompt_path = Path(__file__).parent.parent / "data" / "generated_text" / "userPrompt.txt"
+            if prompt_path.exists():
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    return f.read().strip()
+            else:
+                return "No prompt file found"
+        except Exception as e:
+            return f"Error loading prompt: {e}"
     
     def mousePressEvent(self, event):
         """Enable window dragging"""
@@ -490,10 +701,12 @@ class ConjureMainWindow(QMainWindow):
 class ConjureUI(QApplication):
     """Main application class"""
     def __init__(self, argv):
+        # Set application attributes BEFORE calling super().__init__
+        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+        
         super().__init__(argv)
         
-        # Set application attributes
-        self.setAttribute(Qt.AA_EnableHighDpiScaling)
+        # Set high DPI policy
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
         
         # Use system font
