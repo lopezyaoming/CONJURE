@@ -84,10 +84,12 @@ class CONJURE_PT_ui_panel(bpy.types.Panel):
                 selection_mode = "inactive"
             
             if selection_mode == "active":
-                # Show exit button when in selection mode
+                # Show gesture controls when in selection mode
                 box = layout.box()
                 box.label(text="🎯 SELECTION MODE ACTIVE", icon='INFO')
-                box.label(text="👆 Point at segment, 🤏 pinch to select")
+                box.label(text="👆 Point to highlight segment")
+                box.label(text="🤏 Pinch thumb+index to confirm")
+                box.label(text="✊ Close fist to fuse all segments")
                 
                 # Show currently selected segment
                 segment_objects = [obj for obj in bpy.data.objects 

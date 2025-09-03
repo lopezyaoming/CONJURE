@@ -10,6 +10,7 @@ from pathlib import Path
 from . import config
 import json
 import time
+from .auto_replace_fit import auto_replace_fit_conjure
 
 class CONJURE_OT_render_gesture_camera(bpy.types.Operator):
     """Render the GestureCamera for FLUX1.DEPTH input"""
@@ -165,9 +166,9 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
                 self.report({'ERROR'}, "No meshes survived volume filtering")
                 return {'CANCELLED'}
             
-            # Center all meshes at origin
-            print("📍 Centering meshes at origin...")
-            self.center_meshes_at_origin(valid_meshes)
+            # Use auto_replace_fit to properly align new meshes with existing "Mesh" object
+            print("🎯 Aligning new meshes with existing 'Mesh' object using auto_replace_fit...")
+            self.align_meshes_with_existing(valid_meshes)
             
             print(f"✅ Successfully imported and processed {len(valid_meshes)} mesh segments")
             
@@ -176,9 +177,15 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
             self.setup_selection_materials()
             self.apply_default_materials_to_segments(valid_meshes)
             
-            # Enter segment selection mode automatically
-            print("🎯 Entering selection mode...")
-            self.enter_selection_mode()
+            # Auto-launch segment selection immediately after successful import
+            print("🎯 Auto-launching segment selection mode...")
+            try:
+                bpy.ops.conjure.segment_selection()
+                print("✅ Segment selection mode auto-launched successfully!")
+            except Exception as e:
+                print(f"⚠️ Failed to auto-launch segment selection: {e}")
+                # Fallback to manual mode entry
+                self.enter_selection_mode()
             
             print("🎉 Mesh import and processing completed successfully!")
             return {'FINISHED'}
@@ -316,20 +323,77 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
             except Exception as e:
                 print(f"❌ Error applying material to {obj.name}: {e}")
     
+    def align_meshes_with_existing(self, new_mesh_objects):
+        """
+        Use auto_replace_fit to align new imported meshes with the existing 'Mesh' object.
+        This treats all new meshes as a single unit and aligns them to replace the old mesh.
+        """
+        try:
+            # Find the existing "Mesh" object (target)
+            existing_mesh = bpy.data.objects.get("Mesh")
+            if not existing_mesh:
+                print("⚠️ No existing 'Mesh' object found - falling back to origin centering")
+                self.center_meshes_at_origin(new_mesh_objects)
+                return
+            
+            if existing_mesh.type != 'MESH':
+                print("⚠️ Existing 'Mesh' object is not a mesh - falling back to origin centering") 
+                self.center_meshes_at_origin(new_mesh_objects)
+                return
+            
+            # Filter to only mesh objects
+            valid_meshes = [obj for obj in new_mesh_objects if obj.type == 'MESH']
+            if not valid_meshes:
+                print("❌ No valid mesh objects to align")
+                return
+            
+            print(f"🎯 Aligning {len(valid_meshes)} new meshes to existing 'Mesh' object...")
+            print(f"   📍 Target: {existing_mesh.name}")
+            print(f"   📦 Sources: {[obj.name for obj in valid_meshes]}")
+            
+            # Use auto_replace_fit_conjure to align all new meshes as a group
+            transform_matrix = auto_replace_fit_conjure(
+                old_mesh_obj=existing_mesh,
+                new_mesh_objects=valid_meshes,
+                icp_points=2000,  # Moderate point count for performance
+                icp_iters=10,     # Fewer iterations for speed
+                icp_trim=0.2,     # Robust trimming
+                seed=42           # Consistent results
+            )
+            
+            print("✅ Auto-replace alignment completed successfully!")
+            print(f"📊 Applied transformation matrix to {len(valid_meshes)} mesh objects")
+            
+            # Now hide the old mesh since it's been replaced
+            existing_mesh.hide_viewport = True
+            existing_mesh.hide_render = True
+            print(f"👁️ Hidden old mesh '{existing_mesh.name}' - replaced by new aligned meshes")
+            
+        except Exception as e:
+            print(f"❌ Error during mesh alignment: {e}")
+            import traceback
+            print(f"🔍 Alignment error traceback:\n{traceback.format_exc()}")
+            print("🔄 Falling back to simple origin centering...")
+            self.center_meshes_at_origin(new_mesh_objects)
+    
     def create_placeholder_mesh(self):
-        """Create a small mesh object named 'Mesh' to prevent console errors"""
+        """
+        Create a reasonably-sized mesh object named 'Mesh' for proper alignment reference.
+        This creates a better target for auto_replace_fit alignment.
+        """
         # Remove existing Mesh if it exists
         existing_mesh = bpy.data.objects.get("Mesh")
         if existing_mesh:
             bpy.data.objects.remove(existing_mesh, do_unlink=True)
             print("🗑️ Removed existing Mesh object")
         
-        # Create a small cube mesh as placeholder
-        bpy.ops.mesh.primitive_cube_add(size=0.01, location=(0, 0, 0))
+        # Create a properly-sized cube mesh as placeholder (2x2x2 units)
+        # This provides a good reference size for alignment without being too small or large
+        bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
         placeholder = bpy.context.active_object
         placeholder.name = "Mesh"
         placeholder.hide_viewport = True  # Hidden by default
-        print("📍 Created placeholder 'Mesh' cube object")
+        print("📍 Created placeholder 'Mesh' cube object (2x2x2 units) for alignment reference")
     
     def enter_selection_mode(self):
         """Enter segment selection mode and update state"""
@@ -700,9 +764,13 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
                 confirmed_segment.name = "Mesh"
                 print(f"🏷️ Renamed {old_name} to 'Mesh'")
                 
-                # Step 6: Keep the selected material on the main mesh
-                # (It already has selected_material, so we keep it)
-                print("✨ Selected segment remains highlighted for further editing")
+                # Step 6: Apply remesh modifier for polycount control (target: 12500 faces max)
+                print("🔧 Applying remesh modifier for polycount control...")
+                self.apply_remesh_modifier(confirmed_segment)
+                
+                # Step 7: Restore original mesh material (remove selection highlighting)
+                print("🎨 Restoring original mesh material...")
+                self.restore_original_material(confirmed_segment)
                 
                 print(f"✅ Workflow complete! 'Mesh' is ready for deformation with {len(remaining_segments)} parented segments")
             else:
@@ -744,6 +812,56 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
             print(f"📏 Scaled {obj.name} by factor {scale_factor:.3f} to fit {self.target_bounding_box_size}x{self.target_bounding_box_size}x{self.target_bounding_box_size} bounding box")
         else:
             print("⚠️ Object has zero dimensions, skipping scaling")
+    
+    def apply_remesh_modifier(self, mesh_obj):
+        """Apply remesh modifier with smooth type and resolution 6 to control polycount"""
+        try:
+            # Remove any existing remesh modifiers first
+            for modifier in mesh_obj.modifiers:
+                if modifier.type == 'REMESH':
+                    mesh_obj.modifiers.remove(modifier)
+            
+            # Add new remesh modifier
+            remesh_modifier = mesh_obj.modifiers.new(name="RemeshPolycount", type='REMESH')
+            remesh_modifier.mode = 'SMOOTH'  # Smooth remesh type
+            remesh_modifier.octree_depth = 6  # Resolution level 6 for good balance
+            remesh_modifier.use_remove_disconnected = False  # Keep all parts
+            
+            # Apply the modifier
+            bpy.context.view_layer.objects.active = mesh_obj
+            bpy.ops.object.modifier_apply(modifier="RemeshPolycount")
+            
+            # Check final face count
+            face_count = len(mesh_obj.data.polygons)
+            print(f"✅ Remesh applied - Final face count: {face_count}")
+            
+            if face_count > 15000:  # Warning if still too high
+                print(f"⚠️ Face count ({face_count}) is still high - consider lowering octree depth")
+            elif face_count < 1000:  # Warning if too low
+                print(f"⚠️ Face count ({face_count}) is very low - consider raising octree depth")
+            else:
+                print(f"✅ Face count ({face_count}) is within optimal range for deformation")
+                
+        except Exception as e:
+            print(f"❌ Error applying remesh modifier: {e}")
+    
+    def restore_original_material(self, mesh_obj):
+        """Restore the original mesh material instead of selection material"""
+        try:
+            # Look for the original/default material to restore
+            default_mat = bpy.data.materials.get("default_material") 
+            
+            if default_mat:
+                # Clear existing materials and apply default
+                mesh_obj.data.materials.clear()
+                mesh_obj.data.materials.append(default_mat)
+                print("✅ Restored default_material to selected mesh")
+            else:
+                # If no default material, try to find a neutral material or create one
+                print("⚠️ default_material not found - mesh will keep current material")
+                
+        except Exception as e:
+            print(f"❌ Error restoring original material: {e}")
     
     def update_state(self, data):
         """Update state.json with new data"""

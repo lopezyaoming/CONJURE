@@ -923,8 +923,61 @@ class ConjureFingertipOperator(bpy.types.Operator):
             active_radius = "UNKNOWN"
         blf.draw(font_id, f"Radius: {active_radius}")
     
+    def detect_gesture(self, finger_positions_3d):
+        """
+        Detect special gestures from finger positions.
+        Returns: 'fist', 'thumb_index_pinch', 'pointing', or 'none'
+        """
+        try:
+            # Need at least right hand fingers (thumb=5, index=6, middle=7, ring=8, pinky=9)
+            if len(finger_positions_3d) < 10:
+                return 'none'
+            
+            # Get right hand finger positions (indices 5-9)
+            thumb = finger_positions_3d[5]
+            index = finger_positions_3d[6] 
+            middle = finger_positions_3d[7]
+            ring = finger_positions_3d[8]
+            pinky = finger_positions_3d[9]
+            
+            # Count how many fingers are detected (not None)
+            detected_fingers = [f for f in [thumb, index, middle, ring, pinky] if f is not None]
+            
+            if len(detected_fingers) < 2:
+                return 'none'
+            
+            # FIST DETECTION: All fingers close together (low variance in positions)
+            if len(detected_fingers) >= 4:  # Need at least 4 fingers for fist detection
+                # Calculate centroid of detected fingers
+                centroid = sum(detected_fingers, mathutils.Vector()) / len(detected_fingers)
+                
+                # Calculate maximum distance from centroid
+                max_distance = max((finger - centroid).length for finger in detected_fingers)
+                
+                # If all fingers are within a small radius, it's a fist
+                fist_threshold = 0.3  # Adjust based on hand tracking precision
+                if max_distance < fist_threshold:
+                    return 'fist'
+            
+            # THUMB+INDEX PINCH DETECTION: Thumb and index close together
+            if thumb is not None and index is not None:
+                distance = (thumb - index).length
+                pinch_threshold = 0.15  # Adjust based on hand tracking precision
+                if distance < pinch_threshold:
+                    return 'thumb_index_pinch'
+            
+            # DEFAULT: Just pointing
+            if index is not None:
+                return 'pointing'
+                
+            return 'none'
+            
+        except Exception as e:
+            print(f"⚠️ Error in gesture detection: {e}")
+            return 'none'
+
     def handle_segment_selection(self, context, finger_positions_3d, region, rv3d, depsgraph):
-        """Handle segment selection with immediate selection on pointing"""
+        """Handle segment selection with gesture-based confirmation and fusion"""
         try:
             # Initialize selection state if not exists
             if not hasattr(self, '_selection_state'):
@@ -932,9 +985,12 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     'current_selected_segment': None,
                     'stability_counter': 0,
                     'stability_threshold': 15,  # Frames to wait before changing selection
-                    'candidate_segment': None
+                    'candidate_segment': None,
+                    'gesture_confirmation_counter': 0,
+                    'gesture_confirmation_threshold': 10,  # Frames to wait for gesture confirmation
+                    'last_gesture': 'none'
                 }
-                print("🎯 Initialized segment selection state")
+                print("🎯 Initialized segment selection state with gesture detection")
         except (ReferenceError, AttributeError) as e:
             print(f"⚠️ Segment selection error (operator removed): {e}")
             return
@@ -978,34 +1034,72 @@ class ConjureFingertipOperator(bpy.types.Operator):
             return
         
         try:
-            # Stability system: only change selection after consistent detection
-            if detected_segment == self._selection_state['candidate_segment']:
-                # Same segment detected - increment stability counter
-                self._selection_state['stability_counter'] += 1
-            else:
-                # Different segment detected - reset counter
-                self._selection_state['candidate_segment'] = detected_segment
-                self._selection_state['stability_counter'] = 0
+            # Detect current gesture
+            current_gesture = self.detect_gesture(finger_positions_3d)
             
-            # Only change selection if we've had stable detection and it's different from current
-            if (self._selection_state['stability_counter'] >= self._selection_state['stability_threshold'] and 
-                self._selection_state['candidate_segment'] != self._selection_state['current_selected_segment']):
+            # Handle gesture confirmation for actions
+            if current_gesture == self._selection_state['last_gesture']:
+                self._selection_state['gesture_confirmation_counter'] += 1
+            else:
+                self._selection_state['last_gesture'] = current_gesture
+                self._selection_state['gesture_confirmation_counter'] = 0
+            
+            # GESTURE ACTIONS (only when gesture is held stable)
+            if self._selection_state['gesture_confirmation_counter'] >= self._selection_state['gesture_confirmation_threshold']:
                 
-                # Clear previous selection
-                if self._selection_state['current_selected_segment']:
-                    self.apply_material_to_segment(self._selection_state['current_selected_segment'], default_mat)
+                # FIST GESTURE: Fuse all segments
+                if current_gesture == 'fist':
+                    print("✊ FIST GESTURE DETECTED - Fusing all segments...")
+                    try:
+                        bpy.ops.conjure.fuse_mesh()
+                        print("✅ Mesh fusion triggered by fist gesture")
+                        # Exit selection mode after fusion
+                        bpy.ops.conjure.exit_selection_mode()
+                        return
+                    except Exception as e:
+                        print(f"❌ Error during fist gesture fusion: {e}")
                 
-                # Apply new selection
-                new_selected_segment = self._selection_state['candidate_segment']
-                if new_selected_segment:
-                    self.apply_material_to_segment(new_selected_segment, selected_mat)
-                    print(f"🎯 Selected segment: {new_selected_segment.name}")
+                # THUMB+INDEX PINCH: Confirm current selection
+                elif current_gesture == 'thumb_index_pinch' and self._selection_state['current_selected_segment']:
+                    print("🤏 PINCH GESTURE DETECTED - Confirming selection...")
+                    try:
+                        bpy.ops.conjure.exit_selection_mode()
+                        print("✅ Selection confirmed by pinch gesture")
+                        return
+                    except Exception as e:
+                        print(f"❌ Error during pinch gesture confirmation: {e}")
+            
+            # POINTING SELECTION (only when pointing)
+            if current_gesture == 'pointing':
+                # Stability system: only change selection after consistent detection
+                if detected_segment == self._selection_state['candidate_segment']:
+                    # Same segment detected - increment stability counter
+                    self._selection_state['stability_counter'] += 1
                 else:
-                    print("🌌 Deselected - pointing at empty space")
+                    # Different segment detected - reset counter
+                    self._selection_state['candidate_segment'] = detected_segment
+                    self._selection_state['stability_counter'] = 0
                 
-                # Update current selection
-                self._selection_state['current_selected_segment'] = new_selected_segment
-                self._selection_state['stability_counter'] = 0  # Reset counter
+                # Only change selection if we've had stable detection and it's different from current
+                if (self._selection_state['stability_counter'] >= self._selection_state['stability_threshold'] and 
+                    self._selection_state['candidate_segment'] != self._selection_state['current_selected_segment']):
+                    
+                    # Clear previous selection
+                    if self._selection_state['current_selected_segment']:
+                        self.apply_material_to_segment(self._selection_state['current_selected_segment'], default_mat)
+                    
+                    # Apply new selection
+                    new_selected_segment = self._selection_state['candidate_segment']
+                    if new_selected_segment:
+                        self.apply_material_to_segment(new_selected_segment, selected_mat)
+                        print(f"🎯 Selected segment: {new_selected_segment.name}")
+                    else:
+                        print("🌌 Deselected - pointing at empty space")
+                    
+                    # Update current selection
+                    self._selection_state['current_selected_segment'] = new_selected_segment
+                    self._selection_state['stability_counter'] = 0  # Reset counter
+                    
         except (ReferenceError, AttributeError) as e:
             print(f"⚠️ Segment selection update error (operator removed): {e}")
             return

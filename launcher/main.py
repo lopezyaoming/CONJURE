@@ -272,6 +272,8 @@ class ConjureApp:
 
 
                 
+
+                
                 self.ui_process = subprocess.Popen(
                     [python_exe, str(ui_script)],
                     stdin=subprocess.DEVNULL,
