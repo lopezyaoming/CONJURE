@@ -1,0 +1,25 @@
+import requests
+
+url = 'https://api.runcomfy.net/prod/v1/deployments/dfcf38cd-0a09-4637-a067-5059dc9e444e/inference'
+headers = {
+  'Authorization': 'Bearer YOUR_API_TOKEN',
+  'Content-Type': 'application/json'
+}
+payload = { 'overrides': {
+  "16": {
+    "inputs": {
+      "image": "ComfyUI_00001_.png"
+    }
+  },
+  "40": {
+    "inputs": {
+      "value": ""
+    }
+  },
+  "41": {
+    "inputs": {
+      "value": ""
+    }
+  }
+} }
+requests.post(url, headers=headers, json=payload)

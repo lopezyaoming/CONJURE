@@ -1,0 +1,413 @@
+# 🚀 RunComfy Serverless API Implementation Plan for CONJURE
+
+## **📋 Overview**
+
+The new RunComfy Serverless API represents a major paradigm shift from the current server management approach. Instead of managing ComfyUI server instances, we deploy pre-packaged workflows as **serverless API endpoints** that scale automatically and eliminate cold start times.
+
+### **🔄 Current vs New Architecture**
+
+**CURRENT (Server-based)**:
+- Launch/manage ComfyUI server instances
+- Wait for server startup (30-90 seconds)
+- Execute workflows on running servers
+- Manual server lifecycle management
+- Pay for server uptime
+
+**NEW (Serverless)**:
+- Deploy workflows as containerized API endpoints
+- Instant execution (no server startup)
+- Auto-scaling based on demand
+- Zero infrastructure management
+- Pay only for actual execution time
+
+---
+
+## **🎯 Key Benefits for CONJURE**
+
+1. **Elimination of Cold Starts**: No more 30-90 second server launch delays
+2. **Cost Optimization**: Pay only for actual generation time, not idle server time
+3. **Auto-scaling**: Handle burst workloads automatically
+4. **Reliability**: Managed infrastructure with 99.9% uptime
+5. **Simplified Architecture**: Remove complex server state management
+6. **Version Control**: Workflow versioning with rollback capabilities
+
+---
+
+## **🏗️ Implementation Strategy**
+
+### **Phase 1: Workflow Preparation & Deployment**
+### **Phase 2: CONJURE Integration Layer**
+### **Phase 3: Legacy System Migration**
+### **Phase 4: Advanced Features & Optimization**
+
+---
+
+## **📋 Phase 1: Workflow Preparation & Deployment**
+
+### **1.1 User Setup Requirements**
+
+#### **RunComfy Account Setup**
+1. Create RunComfy account at https://runcomfy.com
+2. Navigate to Profile (upper-right corner) to get API key
+3. Choose pricing plan:
+   - **Hobby Plan**: Pay-as-you-go ($0.79-$6.99/hour)
+   - **Pro Plan**: 20-30% discount on hourly rates
+
+#### **Workflow Preparation Steps**
+
+**Step A: Access CONJURE Workflow**
+1. Visit RunComfy/FLUX workflow page or explore community templates
+2. Click "Run Workflow" to launch ComfyUI session (5 min initialization)
+3. When ComfyUI loads, verify workflow runs successfully
+
+**Step B: Customize for CONJURE Requirements**
+Our CONJURE pipeline needs these workflow capabilities:
+- **Input**: Image (render.png from GestureCamera)
+- **Input**: Text prompt (from userPrompt.txt)
+- **Output**: FLUX-generated image
+- **Output**: 3D mesh (via PartPacker or similar)
+
+**Step C: Export Workflow API JSON**
+1. In ComfyUI interface, open "Workflow" menu (upper-left)
+2. Select "Export (API)" to generate JSON file
+3. Download the exported API JSON file
+4. **IMPORTANT**: Enable Node ID display:
+   - Open Settings panel (lower-left)
+   - Select "Lite Graph"
+   - Set "Node ID Badge Mode" to "Show All"
+
+**Step D: Identify Dynamic Inputs**
+Review exported JSON to identify customizable parameters:
+```json
+{
+  "6": {
+    "inputs": {
+      "text": "Default prompt here",
+      "clip": ["11", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "16": {
+    "inputs": {
+      "image": "render.png"
+    },
+    "class_type": "LoadImage"
+  }
+}
+```
+
+**Step E: Cloud Save Workflow**
+1. Click "Cloud Save" button in top bar
+2. Name your workflow (e.g., "CONJURE-FLUX-Mesh-Pipeline")
+3. This packages entire runtime environment into container
+
+**Step F: Deploy as Serverless API**
+1. Go to Deployments page
+2. Select "Deploy workflow as API"
+3. Search for your saved workflow by name
+4. Choose "Instant Deploy" with recommended settings:
+   - **Hardware**: 48GB (A6000) for FLUX+PartPacker
+   - **Autoscaling**: Default settings (can be tuned later)
+5. Copy the `deployment_id` - critical for API calls
+
+### **1.2 CONJURE-Specific Workflow Requirements**
+
+#### **Required Input Nodes**
+- **Node for Image Input**: Should accept "render.png" (from GestureCamera)
+- **Node for Text Prompt**: Should accept dynamic text from userPrompt.txt
+- **Node for Seed Control**: For reproducible generation
+
+#### **Required Output Nodes**
+- **FLUX Image Output**: Should save as "flux.png"
+- **3D Mesh Output**: Should save as GLB format for Blender import
+
+#### **Example Overrides Structure for CONJURE**
+```json
+{
+  "overrides": {
+    "6": {
+      "inputs": {
+        "text": "DYNAMIC_PROMPT_FROM_CONJURE"
+      }
+    },
+    "16": {
+      "inputs": {
+        "image": "BASE64_RENDER_PNG_DATA"
+      }
+    },
+    "25": {
+      "inputs": {
+        "noise_seed": 123456789
+      }
+    }
+  }
+}
+```
+
+---
+
+## **📋 Phase 2: CONJURE Integration Layer**
+
+### **2.1 New Serverless Generation Service**
+
+#### **Create ServerlessRunComfyService Class**
+```python
+class ServerlessRunComfyService(GenerationService):
+    def __init__(self):
+        self.base_url = "https://api.runcomfy.net"
+        self.api_token = os.getenv("RUNCOMFY_API_TOKEN")
+        self.deployment_id = os.getenv("RUNCOMFY_DEPLOYMENT_ID")
+        
+    def generate_flux_mesh(self, prompt: str, render_image_path: str) -> Dict:
+        # New unified method for FLUX + 3D generation
+        pass
+```
+
+#### **Integration Points**
+- **Input Data**: Read from existing CONJURE data files
+  - `data/generated_text/userPrompt.txt`
+  - `data/generated_images/gestureCamera/render.png`
+- **Output Data**: Save to existing CONJURE directories
+  - `data/generated_images/flux/flux.png`
+  - `data/generated_models/partpacker_results/result.glb`
+
+### **2.2 API Integration Architecture**
+
+#### **Request Flow**
+1. **Prepare Inputs**:
+   - Read prompt from userPrompt.txt
+   - Encode render.png as Base64 or upload to temporary URL
+   - Generate request overrides JSON
+
+2. **Submit Request**:
+   ```bash
+   POST /prod/v1/deployments/{deployment_id}/inference
+   ```
+
+3. **Poll for Completion**:
+   ```bash
+   GET /prod/v1/deployments/{deployment_id}/requests/{request_id}/status
+   ```
+
+4. **Retrieve Results**:
+   ```bash
+   GET /prod/v1/deployments/{deployment_id}/requests/{request_id}/result
+   ```
+
+#### **Error Handling & Retries**
+- Implement exponential backoff for network issues
+- Handle specific RunComfy error codes (10001-10012)
+- Fallback to local generation if serverless fails
+
+### **2.3 Configuration Management**
+
+#### **Environment Variables**
+```bash
+RUNCOMFY_API_TOKEN=your_api_token_here
+RUNCOMFY_DEPLOYMENT_ID=your_deployment_id_here
+RUNCOMFY_SERVERLESS_ENABLED=true
+RUNCOMFY_FALLBACK_TO_LOCAL=true
+```
+
+#### **Mode Selection Updates**
+Update generation mode selection to include:
+- **LOCAL**: HuggingFace models (existing)
+- **CLOUD**: RunComfy servers (existing)  
+- **SERVERLESS**: RunComfy Serverless API (new)
+- **AUTO**: Intelligent fallback (serverless -> local)
+
+---
+
+## **📋 Phase 3: Legacy System Migration**
+
+### **3.1 Gradual Migration Strategy**
+
+#### **Stage 1: Parallel Implementation**
+- Keep existing cloud service for stability
+- Add serverless as optional mode
+- Allow users to choose between server and serverless
+
+#### **Stage 2: Performance Comparison**
+- Implement metrics collection:
+  - Generation time
+  - Cost per generation
+  - Success/failure rates
+  - User satisfaction
+
+#### **Stage 3: Default Migration**
+- Make serverless the default for new users
+- Provide migration path for existing workflows
+
+#### **Stage 4: Legacy Deprecation**
+- Remove server management code
+- Simplify architecture
+
+### **3.2 Backward Compatibility**
+
+#### **Maintain Existing APIs**
+- Keep current generation service interface
+- Map existing parameters to serverless overrides
+- Preserve file paths and naming conventions
+
+#### **Configuration Migration**
+- Auto-detect serverless capability
+- Migrate existing user preferences
+- Provide clear upgrade path
+
+---
+
+## **📋 Phase 4: Advanced Features & Optimization**
+
+### **4.1 Cost Optimization**
+
+#### **Smart Instance Management**
+- Configure autoscaling based on usage patterns:
+  - `minimum_instances`: 0 (scale to zero when idle)
+  - `maximum_instances`: 3-5 (handle burst workloads)
+  - `keep_warm_timeout`: 60s (balance cost vs latency)
+
+#### **Hardware Selection**
+- **Development**: Medium (T4/A4000) - $0.79/hour
+- **Production**: X-Large (A6000) - $1.99/hour  
+- **Heavy Workloads**: 2X-Large (A100) - $3.99/hour
+
+### **4.2 Workflow Versioning & Management**
+
+#### **Version Control Integration**
+- Implement workflow version tracking
+- Allow rollback to previous versions
+- A/B testing between workflow versions
+
+#### **Custom Workflow Support**
+- Enable users to upload custom workflows
+- Validate workflow compatibility with CONJURE
+- Provide workflow templates for common use cases
+
+### **4.3 Enhanced Monitoring**
+
+#### **Real-time Progress Tracking**
+- Implement WebSocket connection for live updates
+- Show detailed node execution progress
+- Provide ETA estimates
+
+#### **Cost Tracking & Alerts**
+- Track generation costs per session
+- Set budget alerts and limits
+- Provide cost optimization recommendations
+
+---
+
+## **🔧 Technical Implementation Details**
+
+### **File Structure Changes**
+
+```
+runcomfy/
+├── serverless/
+│   ├── __init__.py
+│   ├── serverless_client.py       # New serverless API client
+│   ├── workflow_manager.py        # Workflow deployment management
+│   ├── deployment_config.py       # Deployment configuration
+│   └── cost_tracker.py           # Usage and cost tracking
+├── workflows/
+│   ├── conjure_flux_mesh.json    # Main CONJURE workflow
+│   ├── templates/                # Workflow templates
+│   └── user_workflows/           # User-uploaded workflows
+└── legacy/                       # Existing server-based code
+    ├── runcomfy_client.py
+    ├── runcomfy_orchestrator.py
+    └── dev_server_state.py
+```
+
+### **New Configuration Options**
+
+```python
+# launcher/config.py additions
+RUNCOMFY_SERVERLESS_ENABLED = True
+RUNCOMFY_DEPLOYMENT_ID = ""
+RUNCOMFY_API_TOKEN = ""
+RUNCOMFY_FALLBACK_ENABLED = True
+RUNCOMFY_COST_LIMIT_PER_SESSION = 5.00  # USD
+RUNCOMFY_PREFERRED_HARDWARE = "x-large"  # medium, large, x-large, etc.
+```
+
+---
+
+## **📊 Migration Checklist**
+
+### **User Actions Required**
+
+- [ ] Create RunComfy account
+- [ ] Get API token from profile page
+- [ ] Choose pricing plan (Hobby vs Pro)
+- [ ] Test workflow in RunComfy ComfyUI
+- [ ] Export workflow as API JSON
+- [ ] Cloud save workflow
+- [ ] Deploy workflow as serverless API
+- [ ] Copy deployment_id
+- [ ] Set environment variables in CONJURE
+- [ ] Test serverless generation in CONJURE
+
+### **Development Tasks**
+
+- [ ] Implement ServerlessRunComfyService class
+- [ ] Add serverless mode to generation service factory
+- [ ] Update API server endpoints for serverless
+- [ ] Implement async request polling
+- [ ] Add cost tracking and monitoring
+- [ ] Create workflow validation system
+- [ ] Implement fallback mechanisms
+- [ ] Add comprehensive error handling
+- [ ] Update configuration management
+- [ ] Create user migration guide
+- [ ] Add performance metrics collection
+- [ ] Implement automated testing
+- [ ] Update documentation
+
+---
+
+## **💡 Additional Considerations**
+
+### **Security**
+- Store API tokens securely
+- Validate workflow JSONs before deployment
+- Implement request rate limiting
+- Add audit logging for API calls
+
+### **Performance**
+- Implement request caching where appropriate
+- Optimize image encoding/decoding
+- Use connection pooling for API requests
+- Monitor and optimize cold start times
+
+### **User Experience**
+- Provide clear cost estimates before generation
+- Show real-time progress updates
+- Implement graceful degradation on failures
+- Add one-click workflow deployment
+
+### **Monitoring & Analytics**
+- Track generation success rates
+- Monitor cost per generation
+- Measure performance improvements
+- Collect user feedback on serverless experience
+
+---
+
+## **🎯 Success Metrics**
+
+### **Performance Targets**
+- **Generation Time**: <30 seconds (vs current 60-120 seconds)
+- **Success Rate**: >99% (vs current ~95%)
+- **Cost Reduction**: 40-60% for typical usage patterns
+- **User Satisfaction**: >90% prefer serverless over current system
+
+### **Technical KPIs**
+- API response time <2 seconds
+- Zero server management overhead
+- <1% infrastructure-related failures
+- 100% workflow reproducibility
+
+---
+
+This implementation plan provides a comprehensive roadmap for migrating CONJURE to RunComfy's new Serverless API, eliminating the complexity of server management while improving performance and reducing costs. The phased approach ensures minimal disruption to existing users while providing a clear upgrade path to the new serverless architecture.

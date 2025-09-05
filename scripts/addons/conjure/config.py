@@ -28,7 +28,7 @@ GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based ma
 HIDE_GRACE_PERIOD_FRAMES = 5    # How many frames to wait before hiding a missing finger marker.
 REFRESH_RATE_SECONDS = 1 / 30  # Target 30 updates per second.
 MAX_HISTORY_STEPS = 150        # The number of undo steps to store in memory.
-BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
+BRUSH_TYPES = ['DRAW', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
 
 
 # --- MAPPING & VISUALS ---

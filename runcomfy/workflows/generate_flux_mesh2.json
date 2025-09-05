@@ -1,0 +1,321 @@
+{
+  "3": {
+    "inputs": {
+      "noise_seed": [
+        "42",
+        0
+      ],
+      "steps": [
+        "44",
+        0
+      ],
+      "timestep_to_start_cfg": 1,
+      "true_gs": 3.5,
+      "image_to_image_strength": 0,
+      "denoise_strength": 1,
+      "model": [
+        "10",
+        0
+      ],
+      "conditioning": [
+        "34",
+        0
+      ],
+      "neg_conditioning": [
+        "19",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ],
+      "controlnet_condition": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "XlabsSampler",
+    "_meta": {
+      "title": "Xlabs Sampler"
+    }
+  },
+  "4": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "6": {
+    "inputs": {
+      "width": 520,
+      "height": 520,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "latent empty image"
+    }
+  },
+  "7": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Decodificación VAE"
+    }
+  },
+  "8": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Cargar VAE"
+    }
+  },
+  "10": {
+    "inputs": {
+      "unet_name": "flux1-dev-fp8.safetensors",
+      "weight_dtype": "fp8_e4m3fn_fast"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load diff model"
+    }
+  },
+  "13": {
+    "inputs": {
+      "model_name": "flux-dev-fp8",
+      "controlnet_path": "flux-depth-controlnet-v3.safetensors"
+    },
+    "class_type": "LoadFluxControlNet",
+    "_meta": {
+      "title": "Load Flux ControlNet"
+    }
+  },
+  "14": {
+    "inputs": {
+      "strength": 0.86,
+      "controlnet": [
+        "13",
+        0
+      ],
+      "image": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "ApplyFluxControlNet",
+    "_meta": {
+      "title": "Apply Flux ControlNet"
+    }
+  },
+  "16": {
+    "inputs": {
+      "image": "ComfyUI_00001_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUTIMAGE"
+    }
+  },
+  "19": {
+    "inputs": {
+      "clip_l": "",
+      "t5xxl": "",
+      "guidance": 4,
+      "clip": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncodeFlux",
+    "_meta": {
+      "title": "NEGATIVECLIPDONTTOUCH"
+    }
+  },
+  "24": {
+    "inputs": {
+      "filename_prefix": "depth_res",
+      "images": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "EXPORT IMAGE"
+    }
+  },
+  "25": {
+    "inputs": {
+      "ckpt_name": "depth_anything_vitl14.pth",
+      "resolution": 512,
+      "image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "DepthAnythingPreprocessor",
+    "_meta": {
+      "title": "Depth Anything"
+    }
+  },
+  "30": {
+    "inputs": {
+      "checkpoint": "flow.pt",
+      "vae": "partpacker_vae.pt",
+      "dino": "facebook/dinov2-giant",
+      "cpu_offload": true
+    },
+    "class_type": "PartPacker_Loader",
+    "_meta": {
+      "title": "PartPacker_Loader"
+    }
+  },
+  "32": {
+    "inputs": {
+      "target_num_faces": 2147483647,
+      "grid_res": 384,
+      "seed": 593950252,
+      "steps": [
+        "43",
+        0
+      ],
+      "cfg_scale": 7,
+      "simplify_mesh": false,
+      "model": [
+        "30",
+        0
+      ],
+      "image": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "PartPacker_Sampler",
+    "_meta": {
+      "title": "PartPacker_Sampler"
+    }
+  },
+  "33": {
+    "inputs": {
+      "filename_prefix": "mesh/ComfyUI",
+      "image": "",
+      "mesh": [
+        "32",
+        1
+      ]
+    },
+    "class_type": "SaveGLB",
+    "_meta": {
+      "title": "EXPORTGLB"
+    }
+  },
+  "34": {
+    "inputs": {
+      "clip_l": [
+        "40",
+        0
+      ],
+      "t5xxl": [
+        "41",
+        0
+      ],
+      "guidance": 4.7,
+      "clip": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncodeFlux",
+    "_meta": {
+      "title": "POSITIVECLIP"
+    }
+  },
+  "36": {
+    "inputs": {
+      "model": "u2net: general purpose",
+      "providers": "CUDA"
+    },
+    "class_type": "RemBGSession+",
+    "_meta": {
+      "title": "🔧 RemBG Session"
+    }
+  },
+  "37": {
+    "inputs": {
+      "rembg_session": [
+        "36",
+        0
+      ],
+      "image": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "ImageRemoveBackground+",
+    "_meta": {
+      "title": "🔧 Image Remove Background"
+    }
+  },
+  "40": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "FLUXCLIP"
+    }
+  },
+  "41": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "FLUXT5XXL"
+    }
+  },
+  "42": {
+    "inputs": {
+      "value": 328735208611721
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "NOISESEED"
+    }
+  },
+  "43": {
+    "inputs": {
+      "value": 50
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "STEPSPARTPACKER"
+    }
+  },
+  "44": {
+    "inputs": {
+      "value": 20
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "STEPSFLUX"
+    }
+  }
+}

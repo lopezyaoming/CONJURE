@@ -1,0 +1,21 @@
+workflow deployment ID: dfcf38cd-0a09-4637-a067-5059dc9e444e
+
+user ID: 0cb54d51-f01e-48e1-ae7b-28d1c21bc947
+API token 1: 78356331-a9ec-49c2-a412-59140b32b9b3
+API token 2: 85d58c0c-a147-4097-b9ed-2b1fcdc1e160
+
+
+INPUT
+
+#16: INPUTIMAGE - **Input**: Image (render.png from GestureCamera)
+#40: FLUXCLIP - **Input**: Text prompt (raw "," response from the backendAgent in text format)
+#41: FLUXT5XXL  **Input**: Text prompt (from userPrompt.txt)
+#42: NOISESEED **Input**:integer from custom made noise seed integer generator 
+#43: STEPSPARTPACKER: important variable, let's set it at the start of the software in the debug console. default is 50.
+#44: STEPSFLUX : important variable, let's set it at the start of the software in the debug console. default is 20.
+
+
+OUTPUT
+
+#33: EXPORTGLB: **Output**: 3D mesh (via PartPacker)
+#24: EXPORT IMAGE:  **Output**: FLUX-generated image

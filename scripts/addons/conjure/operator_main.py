@@ -140,7 +140,7 @@ INFLATE_FORCE_STRENGTH = 0.15    # How strongly the inflate brush adds/removes v
 FLATTEN_FORCE_STRENGTH = 1.5   # How strongly the flatten brush creates planar surfaces.
 USE_VELOCITY_FORCES = True # Master toggle for the entire viscosity system.
 MAX_HISTORY_STEPS = 150 # The number of undo steps to store in memory.
-BRUSH_TYPES = ['PINCH', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
+BRUSH_TYPES = ['DRAW', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
 
 
 # === 1. INITIAL SCENE SETUP ===
@@ -410,16 +410,10 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
         # This is the key to making the brushes feel natural and not jagged.
         falloff = (1.0 - (dist_from_center / effective_radius))**2
 
-        if brush_type == 'PINCH':
-            # PINCH has its own special falloff based on distance to each finger,
-            # so we don't use the centered falloff.
-            v_world = world_matrix @ v.co
-            for finger_pos in finger_positions_3d:
-                to_finger = finger_pos - v_world
-                dist = to_finger.length
-                if dist < effective_radius:
-                    pinch_falloff = (1.0 - (dist / effective_radius))**2
-                    force += to_finger.normalized() * config.FINGER_FORCE_STRENGTH * pinch_falloff
+        if brush_type == 'DRAW':
+            # DRAW doesn't deform vertices - it's handled separately in the main modal loop
+            # This space is reserved for future DRAW-specific vertex effects if needed
+            pass
 
         elif brush_type == 'GRAB':
             # Moves vertices along with the hand's movement vector, scaled by falloff.
@@ -508,6 +502,18 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _draw_handler = None # For drawing the UI text
     _last_orbit_delta = {"x": 0.0, "y": 0.0}
     marker_states = []
+    
+    # === DRAW FUNCTIONALITY STATE ===
+    _is_drawing = False              # Whether user is currently drawing
+    _draw_path = []                  # List of 3D points for current draw stroke
+    _draw_click_count = 0            # Count of index+thumb clicks for boolean operation
+    _draw_click_timer = 0.0          # Timer for detecting double-clicks
+    _current_draw_object = None      # Current curve object being drawn
+    _draw_last_position = None       # Last recorded position to avoid duplicate points
+    _draw_release_timer = 0.0        # Timer to make release detection more robust
+    _draw_release_threshold = 0.3    # Time threshold before confirming release (300ms for MediaPipe noise)
+    _draw_noise_filter_timer = 0.0   # Timer for filtering MediaPipe tracking noise
+    _draw_noise_threshold = 0.05     # Threshold for noise filtering (50ms)
 
     def get_mesh_volume(self, mesh_obj):
         """Calculates the volume of a given mesh object using bmesh."""
@@ -632,7 +638,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
         # PRIORITY PROCESSING: Handle import commands immediately, skip other checks
         if command == "import_and_process_mesh":
             print(f"🚨 BLENDER: PRIORITY - Processing import_and_process_mesh immediately!")
-            import time
             print(f"🕐 BLENDER: Current time: {time.time()}")
             # Jump directly to import processing (defined below)
         
@@ -823,7 +828,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
             print(f"❌ BLENDER: Write verification FAILED! Expected 'new', got '{written_value}'")
         else:
             print(f"⏳ BLENDER: Waiting 1 second for main launcher to detect...")
-            import time
             time.sleep(1.0)  # Give main launcher time to detect the change
             print(f"🔍 BLENDER: Step 3 completed - main launcher should have detected the request")
     
@@ -1244,7 +1248,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
             except PermissionError as e:
                 if attempt < max_retries - 1:
                     print(f"Permission error reading state.json (attempt {attempt + 1}/{max_retries}): {e}")
-                    import time
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
                     continue
@@ -1268,7 +1271,6 @@ class ConjureFingertipOperator(bpy.types.Operator):
             except PermissionError as e:
                 if attempt < max_retries - 1:
                     print(f"Permission error writing state.json (attempt {attempt + 1}/{max_retries}): {e}")
-                    import time
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
                     continue
@@ -1316,6 +1318,279 @@ class ConjureFingertipOperator(bpy.types.Operator):
             print(f"DEBUG: Clearing command '{command}' from state file.")
             state_data["command"] = None
             self.safe_write_state_file(state_data)
+
+    # === DRAW FUNCTIONALITY METHODS ===
+    
+    def start_drawing(self, context, start_position):
+        """Start a new drawing stroke"""
+        self._is_drawing = True
+        self._draw_path = [start_position.copy()]
+        self._draw_last_position = start_position.copy()
+        print(f"🎨 Started drawing at: {start_position}")
+    
+    def add_draw_point(self, context, new_position):
+        """Add a point to the current drawing path"""
+        if not self._is_drawing:
+            return
+            
+        # Check minimum distance to avoid too many points (reduced threshold for easier drawing)
+        min_distance = 0.2   # Minimum distance between points (1/4 of original 0.05 * 4 = 0.2)
+        if self._draw_last_position and (new_position - self._draw_last_position).length < min_distance:
+            return
+            
+        self._draw_path.append(new_position.copy())
+        self._draw_last_position = new_position.copy()
+        print(f"🎨 Added draw point: {new_position} (total: {len(self._draw_path)})")
+    
+    def finish_drawing(self, context):
+        """Complete the drawing stroke and create the curve object"""
+        if not self._is_drawing or len(self._draw_path) < 2:
+            print(f"⚠️ Not enough points to create curve (have {len(self._draw_path)} points, need at least 2)")
+            self._is_drawing = False
+            self._draw_path = []
+            return None
+            
+        print(f"🎨 Finishing draw with {len(self._draw_path)} points")
+        
+        # Create bezier curve from the path
+        curve_obj = self.create_bezier_curve_from_path(context, self._draw_path)
+        
+        if curve_obj:
+            print(f"✅ Curve created successfully: {curve_obj.name}")
+            # Immediately convert to mesh with remesh modifier
+            mesh_obj = self.convert_curve_to_mesh_with_modifiers(curve_obj)
+            if mesh_obj:
+                print(f"✅ Curve converted to mesh: {mesh_obj.name}")
+                self._current_draw_object = mesh_obj
+            else:
+                print("❌ Failed to convert curve to mesh")
+                self._current_draw_object = curve_obj
+        else:
+            print("❌ Failed to create curve")
+            self._current_draw_object = None
+        
+        # Reset drawing state
+        self._is_drawing = False
+        self._draw_path = []
+        self._draw_last_position = None
+        
+        return self._current_draw_object
+    
+    def create_bezier_curve_from_path(self, context, path_points):
+        """Create a bezier curve from a list of 3D points with specific properties"""
+        if len(path_points) < 2:
+            print(f"❌ Not enough path points: {len(path_points)}")
+            return None
+            
+        try:
+            print(f"🔧 Creating curve with {len(path_points)} points...")
+            
+            # Create new curve data
+            curve_data = bpy.data.curves.new(name="DrawCurve", type='CURVE')
+            curve_data.dimensions = '3D'
+            
+            # Set curve properties (using proper Blender 4.x API)
+            try:
+                curve_data.twist_method = 'MINIMUM'
+            except AttributeError:
+                # Fallback for different Blender versions
+                pass
+            
+            try:
+                curve_data.twist_smooth = 0.0
+            except AttributeError:
+                pass
+                
+            curve_data.fill_mode = 'FULL'
+            curve_data.extrude = 0.01  # 0.01m extrude
+            
+            # Bevel settings
+            curve_data.bevel_mode = 'ROUND'
+            curve_data.bevel_depth = 0.12  # 0.12 depth (3x thicker than original 0.03)
+            curve_data.bevel_resolution = 6
+            curve_data.use_fill_caps = True
+            print("✅ Curve data created with properties")
+            
+            # Create spline
+            spline = curve_data.splines.new(type='BEZIER')
+            spline.bezier_points.add(len(path_points) - 1)  # -1 because spline starts with 1 point
+            print(f"✅ Spline created with {len(spline.bezier_points)} bezier points")
+            
+            # Set bezier points
+            for i, point in enumerate(path_points):
+                bp = spline.bezier_points[i]
+                bp.co = point
+                bp.handle_left_type = 'AUTO'
+                bp.handle_right_type = 'AUTO'
+                print(f"  Point {i}: {point}")
+            print("✅ All bezier points set")
+            
+            # Create curve object
+            curve_obj = bpy.data.objects.new("DrawCurve", curve_data)
+            context.collection.objects.link(curve_obj)
+            print(f"✅ Curve object '{curve_obj.name}' created and linked to scene")
+            
+            # Make sure the curve is visible and selected
+            curve_obj.hide_viewport = False
+            curve_obj.hide_render = False
+            curve_obj.select_set(True)
+            context.view_layer.objects.active = curve_obj
+            
+            # Debug curve properties
+            print(f"✅ Curve object made visible and selected")
+            print(f"📏 Curve location: {curve_obj.location}")
+            print(f"📏 Curve scale: {curve_obj.scale}")
+            print(f"📏 Curve rotation: {curve_obj.rotation_euler}")
+            print(f"📏 Curve dimensions: {curve_obj.dimensions}")
+            
+            # Calculate bounding box
+            bbox = curve_obj.bound_box
+            bbox_size = max(bbox[6][0] - bbox[0][0], bbox[6][1] - bbox[0][1], bbox[6][2] - bbox[0][2])
+            print(f"📏 Curve bounding box size: {bbox_size}")
+            
+            # Apply selection material
+            self.apply_selection_material(curve_obj)
+            print("✅ Selection material applied")
+            
+            print(f"✅ Created bezier curve with {len(path_points)} points")
+            return curve_obj
+            
+        except Exception as e:
+            print(f"❌ Error creating curve: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def apply_selection_material(self, obj):
+        """Apply or create selection material for draw objects"""
+        try:
+            selection_mat = bpy.data.materials.get("selected_material")
+            
+            if not selection_mat:
+                print("⚠️ Warning: 'selected_material' not found in scene, creating fallback material")
+                # Create fallback material if selected_material doesn't exist
+                selection_mat = bpy.data.materials.new(name="selected_material")
+                selection_mat.use_nodes = True
+                nodes = selection_mat.node_tree.nodes
+                nodes.clear()
+                
+                # Create a bright highlighting material
+                bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+                bsdf.inputs['Base Color'].default_value = (1.0, 0.3, 0.0, 1.0)  # Orange highlight
+                bsdf.inputs['Emission'].default_value = (1.0, 0.3, 0.0, 1.0)
+                bsdf.inputs['Emission Strength'].default_value = 0.5
+                
+                output = nodes.new(type='ShaderNodeOutputMaterial')
+                selection_mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+                print("✅ Selection material created")
+            else:
+                print("✅ Using existing selection material")
+            
+            # Apply material
+            if obj.data.materials:
+                obj.data.materials[0] = selection_mat
+                print(f"✅ Applied material to existing slot on {obj.name}")
+            else:
+                obj.data.materials.append(selection_mat)
+                print(f"✅ Added new material slot to {obj.name}")
+                
+        except Exception as e:
+            print(f"❌ Error applying selection material: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def convert_curve_to_mesh_with_modifiers(self, curve_obj):
+        """Convert curve to mesh and apply remesh modifier with specific settings"""
+        if not curve_obj or curve_obj.type != 'CURVE':
+            print(f"❌ Cannot convert: invalid curve object (type: {curve_obj.type if curve_obj else 'None'})")
+            return None
+            
+        try:
+            print(f"🔧 Converting curve '{curve_obj.name}' to mesh...")
+            
+            # First convert curve to mesh
+            bpy.context.view_layer.objects.active = curve_obj
+            bpy.ops.object.convert(target='MESH')
+            print(f"✅ Curve converted to mesh type (now type: {curve_obj.type})")
+            
+            # Now add remesh modifier
+            print("🔧 Adding remesh modifier...")
+            remesh_mod = curve_obj.modifiers.new(name="Remesh", type='REMESH')
+            remesh_mod.mode = 'SMOOTH'
+            remesh_mod.octree_depth = 8
+            remesh_mod.scale = 0.9
+            remesh_mod.use_remove_disconnected = False
+            remesh_mod.threshold = 1.0
+            print("✅ Remesh modifier added")
+            
+            # Apply the modifier
+            print("🔧 Applying remesh modifier...")
+            bpy.context.view_layer.objects.active = curve_obj
+            bpy.ops.object.modifier_apply(modifier="Remesh")
+            print("✅ Remesh modifier applied")
+            
+            # Make sure it's visible after conversion
+            curve_obj.hide_viewport = False
+            curve_obj.select_set(True)
+            
+            print(f"✅ Converted curve to mesh and applied remesh: {curve_obj.name}")
+            return curve_obj
+            
+        except Exception as e:
+            print(f"❌ Error converting curve to mesh: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def handle_draw_click(self, context):
+        """Handle index+thumb click for boolean operations (single=union, double=difference)"""
+        current_time = time.time()
+        
+        # Check if this is a double-click (within 0.5 seconds)
+        if current_time - self._draw_click_timer < 0.5:
+            self._draw_click_count += 1
+        else:
+            self._draw_click_count = 1
+            
+        self._draw_click_timer = current_time
+        
+        if self._current_draw_object:
+            if self._draw_click_count == 1:
+                # Wait a moment to see if there's a second click
+                pass
+            elif self._draw_click_count >= 2:
+                # Double click - boolean difference
+                self.apply_boolean_operation(context, self._current_draw_object, 'DIFFERENCE')
+                self._draw_click_count = 0
+                self._current_draw_object = None
+        
+        # If no second click comes, apply union (handled in modal with timer)
+    
+    def apply_boolean_operation(self, context, draw_obj, operation='UNION'):
+        """Apply boolean operation between draw object and main mesh"""
+        mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
+        if not mesh_obj or not draw_obj:
+            print(f"⚠️ Cannot apply boolean: mesh_obj={mesh_obj}, draw_obj={draw_obj}")
+            return
+            
+        # Convert curve to mesh if needed
+        if draw_obj.type == 'CURVE':
+            self.convert_curve_to_mesh_with_modifiers(draw_obj)
+        
+        # Apply boolean modifier to main mesh
+        bool_mod = mesh_obj.modifiers.new(name=f"Boolean_{operation}", type='BOOLEAN')
+        bool_mod.operation = operation
+        bool_mod.object = draw_obj
+        
+        # Apply the modifier
+        bpy.context.view_layer.objects.active = mesh_obj
+        bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+        
+        # Remove the draw object
+        bpy.data.objects.remove(draw_obj, do_unlink=True)
+        
+        operation_text = "ADDED TO" if operation == 'UNION' else "SUBTRACTED FROM"
+        print(f"✅ Draw object {operation_text} main mesh")
 
     def modal(self, context, event):
         # The UI panel can set this property to signal the operator to stop
@@ -1510,6 +1785,41 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 selection_mode = "inactive"
                 state_command = None
             
+            # === DRAW STATE MANAGEMENT (Independent of command) ===
+            # Check if we're currently drawing and handle finger release detection
+            active_brush = config.BRUSH_TYPES[self._current_brush_index]
+            if active_brush == "DRAW" and self._is_drawing:
+                # Check if fingers are still present in the data
+                fingers_present = (len(finger_positions_3d) > 6 and 
+                                 finger_positions_3d[5] is not None and 
+                                 finger_positions_3d[6] is not None)
+
+                if not fingers_present or command != "deform":
+                    # Start or continue the release timer
+                    if self._draw_release_timer == 0.0:
+                        self._draw_release_timer = time.time()
+                        print("⏱️ DRAW: Starting release confirmation timer...")
+                    
+                    # Check if we've been without fingers for long enough (300ms for noise immunity)
+                    elapsed_time = time.time() - self._draw_release_timer
+                    if elapsed_time > self._draw_release_threshold:
+                        # Fingers released for long enough - finish drawing
+                        print(f"🖐️ DRAW: Confirmed finger release after {elapsed_time:.2f}s - finishing drawing...")
+                        curve_obj = self.finish_drawing(context)
+                        if curve_obj:
+                            print("🎨 Drawing finished - use quick index+thumb clicks to add/subtract from mesh")
+                        self._draw_release_timer = 0.0  # Reset timer
+                    else:
+                        # Still waiting for confirmation
+                        remaining = self._draw_release_threshold - elapsed_time
+                        if remaining > 0.1:  # Only print if more than 100ms remaining
+                            print(f"⏳ DRAW: Waiting {remaining:.2f}s more to confirm release...")
+                else:
+                    # Fingers are present again - reset release timer
+                    if self._draw_release_timer > 0.0:
+                        print("✋ DRAW: Fingers detected again - canceling release timer")
+                    self._draw_release_timer = 0.0
+            
             if selection_mode == "active" or state_command == "segment_selection":
                 # print("🎯 DEBUG: segment_selection mode ACTIVE - calling handler")
                 try:
@@ -1519,43 +1829,72 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 except Exception as e:
                     print(f"⚠️ Unexpected error in segment selection handler: {e}")
             elif command == "deform":
-                # Safety check: ensure mesh object has valid mesh data
-                if not mesh_obj or not mesh_obj.data or not hasattr(mesh_obj.data, 'vertices'):
-                    print(f"⚠️ Cannot deform: invalid mesh object (mesh_obj={mesh_obj})")
-                    return {'PASS_THROUGH'}
+                # Check if we have valid thumb and index finger positions (indices 5 and 6)
+                has_thumb_index = (len(finger_positions_3d) > 6 and 
+                                 finger_positions_3d[5] is not None and 
+                                 finger_positions_3d[6] is not None)
                 
-                # The deform points are the thumb and index of the right hand (indices 5 and 6)
-                if len(finger_positions_3d) > 6 and finger_positions_3d[5] and finger_positions_3d[6]:
+                active_brush = config.BRUSH_TYPES[self._current_brush_index]
+                
+                if has_thumb_index:
+                    # FINGERS DETECTED - Handle drawing or deformation
                     deform_points = [finger_positions_3d[5], finger_positions_3d[6]]
                     
-                    if config.USE_VELOCITY_FORCES:
-                        active_brush = config.BRUSH_TYPES[self._current_brush_index]
-                        deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, self, active_brush, hand_move_vector)
+                    if active_brush == "DRAW":
+                        # DRAW FUNCTIONALITY: Handle drawing with index+thumb
+                        # Calculate midpoint between thumb and index for draw position
+                        draw_position = (finger_positions_3d[5] + finger_positions_3d[6]) / 2
+                        print(f"🎨 DRAW: thumb={finger_positions_3d[5]}, index={finger_positions_3d[6]}, midpoint={draw_position}")
+                        
+                        # DRAW LOGIC: Always prioritize drawing over clicking
+                        if not self._is_drawing:
+                            # Start drawing (always start drawing, don't worry about clicks here)
+                            print("🎨 Starting new drawing stroke...")
+                            self.start_drawing(context, draw_position)
+                        else:
+                            # Continue drawing - add point to path
+                            self.add_draw_point(context, draw_position)
+                    
                     else:
-                        deform_mesh(mesh_obj, deform_points, self._initial_volume)
+                        # OTHER BRUSHES: Standard deformation
+                        if not mesh_obj or not mesh_obj.data or not hasattr(mesh_obj.data, 'vertices'):
+                            print(f"⚠️ Cannot deform: invalid mesh object (mesh_obj={mesh_obj})")
+                            return {'PASS_THROUGH'}
+                        
+                        if config.USE_VELOCITY_FORCES:
+                            deform_mesh_with_viscosity(mesh_obj, deform_points, self._initial_volume, self._vertex_velocities, self._history_buffer, self, active_brush, hand_move_vector)
+                        else:
+                            deform_mesh(mesh_obj, deform_points, self._initial_volume)
+                            
+                else:
+                    # NO FINGERS DETECTED - Handle finger release
+                    print(f"🖐️ Finger release detected for {active_brush} brush")
+                    
+                    if self._is_drawing and active_brush == "DRAW":
+                        # Finish drawing when user releases index+thumb
+                        print("🎨 User released fingers - finishing drawing...")
+                        curve_obj = self.finish_drawing(context)
+                        if curve_obj:
+                            print("🎨 Drawing finished - use quick index+thumb clicks to add/subtract from mesh")
+                    
+                    # Handle single/double click detection for DRAW boolean operations
+                    if active_brush == "DRAW" and self._current_draw_object and self._draw_click_count == 1:
+                        # Check if enough time has passed for single click (0.6 seconds)
+                        if time.time() - self._draw_click_timer > 0.6:
+                            # Single click - boolean union
+                            self.apply_boolean_operation(context, self._current_draw_object, 'UNION')
+                            self._draw_click_count = 0
+                            self._current_draw_object = None
 
-            elif command == "reset_rotation":
-                # Also reset velocities when resetting camera for a clean stop
-                for index in self._vertex_velocities:
-                    self._vertex_velocities[index] = mathutils.Vector((0,0,0))
+            # REMOVED: reset_rotation command (left hand index+thumb) is no longer supported
 
-                camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
-                if camera and self._initial_camera_matrix:
-                    camera.matrix_world = self._initial_camera_matrix
-                
-                # Also reset the mesh's position to the world origin using the specified method
-                if mesh_obj:
-                    try:
-                        bpy.context.view_layer.objects.active = mesh_obj
-                        # 1. Move 3D cursor to the world origin
-                        bpy.context.scene.cursor.location = (0, 0, 0)
-                        # 2. Set the object's origin to the 3D cursor's location
-                        bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='MEDIAN')
-                        # 3. Move the geometry to the object's new origin
-                        bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN')
-                        print(f"'{config.DEFORM_OBJ_NAME}' has been re-centered using the 3D cursor method.")
-                    except RuntimeError as e:
-                        print(f"Could not re-center mesh. Operator context may be incorrect: {e}")
+            elif command == "deform" and not finger_positions_3d:
+                # This handles the case where deform command exists but no fingers detected
+                # Used for click detection when user has a draw object ready
+                active_brush = config.BRUSH_TYPES[self._current_brush_index]
+                if active_brush == "DRAW" and self._current_draw_object:
+                    # User might be doing a quick click for boolean operation
+                    print("🖱️ Potential click detected for draw object")
 
             elif command == "cycle_brush":
                 if self._last_command != "cycle_brush": # Trigger only once per gesture

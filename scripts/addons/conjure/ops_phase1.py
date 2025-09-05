@@ -59,7 +59,7 @@ class CONJURE_OT_render_gesture_camera(bpy.types.Operator):
 
 class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
     """Import and process mesh from generation results (PartPacker local or RunComfy cloud)
-    - Local mode: Handles pre-segmented meshes from PartPacker
+    - HuggingFace mode: Handles pre-segmented meshes from PartPacker
     - Cloud mode: Separates single mesh from RunComfy into loose parts for segmentation"""
     bl_idname = "conjure.import_and_process_mesh"
     bl_label = "Import and Process Mesh"
@@ -96,7 +96,7 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
             
             # Detect generation mode based on file path
             if "partpacker_result" in str(full_path):
-                print("🏠 LOCAL MODE: PartPacker-generated mesh (pre-segmented)")
+                print("🏠 HUGGINGFACE MODE: PartPacker-generated mesh (pre-segmented)")
             elif "genMesh" in str(full_path):
                 print("☁️ CLOUD MODE: RunComfy-generated mesh (single object - will be separated)") 
             else:
@@ -151,7 +151,7 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
                 else:
                     print(f"📊 Found {len(mesh_objects)} objects - no separation needed")
             else:
-                print("🏠 LOCAL MODE: Using pre-segmented meshes from PartPacker")
+                print("🏠 HUGGINGFACE MODE: Using pre-segmented meshes from PartPacker")
             
             # Filter by volume and rename
             print("🔍 Filtering meshes by volume...")

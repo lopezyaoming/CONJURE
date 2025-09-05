@@ -50,20 +50,28 @@ def select_generation_mode():
     print("="*60)
     print("Please choose your generation mode:")
     print()
-    print("1. LOCAL  - Use HuggingFace models (current implementation)")
+    print("1. HUGGINGFACE - Use HuggingFace models (current implementation)")
     print("   • FLUX.1-dev and FLUX.1-Depth-dev")
     print("   • PartPacker for 3D generation")
     print("   • Requires: HUGGINGFACE_HUB_ACCESS_TOKEN")
     print()
-    print("2. CLOUD  - Use runComfy cloud services (faster, more expensive)")
-    print("   • Cloud-based ComfyUI workflows")
-    print("   • Faster generation with high-end GPUs")
+    print("2. SERVERLESS - Use runComfy Serverless API (INSTANT, recommended)")
+    print("   • ⚡ Instant generation (no server startup delays)")
+    print("   • 💰 Pay only for execution time")
+    print("   • 🚀 Auto-scaling, enterprise-grade infrastructure")
+    print("   • 🎯 Unified FLUX + 3D mesh generation")
+    print("   • Requires: runComfy API token and deployment")
+    print()
+    print("3. CLOUD      - Use runComfy legacy servers (slower startup)")
+    print("   • Legacy server-based ComfyUI workflows")
+    print("   • 30-90 second server startup delays")
+    print("   • Manual server lifecycle management")
     print("   • Requires: runComfy account and credits")
     print()
-    print("3. DEBUG  - Automated testing mode (cloud + speech input)")
+    print("4. DEBUG      - Automated testing mode (serverless + speech input)")
     print("   • Tests all backend agent functions sequentially")
     print("   • spawn_primitive → generate_flux_mesh → segment_selection → fuse_mesh")
-    print("   • Uses runComfy cloud services for mesh generation")
+    print("   • Uses runComfy serverless API for mesh generation")
     print("   • Conversational agent enabled - speak to update prompts contextually")
     print("   • Recursive segmentation loop for comprehensive testing")
     print()
@@ -71,24 +79,29 @@ def select_generation_mode():
     
     while True:
         try:
-            choice = input("Enter your choice (1 for LOCAL, 2 for CLOUD, 3 for DEBUG): ").strip()
+            choice = input("Enter your choice (1-4, or HUGGINGFACE/SERVERLESS/CLOUD/DEBUG): ").strip()
             
-            if choice == "1" or choice.lower() == "local":
-                selected_mode = "local"
-                print(f"✅ Selected: LOCAL mode (HuggingFace models)")
+            if choice == "1" or choice.lower() == "huggingface":
+                selected_mode = "local"  # Keep internal mode as "local" for backward compatibility
+                print(f"✅ Selected: HUGGINGFACE mode (HuggingFace models)")
                 break
-            elif choice == "2" or choice.lower() == "cloud":
-                selected_mode = "cloud"
-                print(f"✅ Selected: CLOUD mode (runComfy services)")
-                print("⚠️  NOTE: Cloud mode implementation is in progress")
+            elif choice == "2" or choice.lower() == "serverless":
+                selected_mode = "serverless"
+                print(f"✅ Selected: SERVERLESS mode (runComfy Serverless API)")
+                print("⚡ SERVERLESS: Instant generation with auto-scaling!")
                 break
-            elif choice == "3" or choice.lower() == "debug":
+            elif choice == "3" or choice.lower() == "cloud":
+                selected_mode = "cloud_legacy"
+                print(f"✅ Selected: CLOUD LEGACY mode (runComfy servers)")
+                print("⚠️  NOTE: Legacy server mode has longer startup times")
+                break
+            elif choice == "4" or choice.lower() == "debug":
                 selected_mode = "debug"
                 print(f"✅ Selected: DEBUG mode (automated testing)")
-                print("🔬 DEBUG: Will test all backend agent functions automatically")
+                print("🔬 DEBUG: Will test all backend agent functions automatically using serverless")
                 break
             else:
-                print("❌ Invalid choice. Please enter '1' for LOCAL, '2' for CLOUD, or '3' for DEBUG.")
+                print("❌ Invalid choice. Please enter '1' for HUGGINGFACE, '2' for SERVERLESS, '3' for CLOUD, or '4' for DEBUG.")
                 continue
                 
         except KeyboardInterrupt:
@@ -122,9 +135,9 @@ class ConjureApp:
         # Debug mode handling
         self.is_debug_mode = (generation_mode == "debug")
         if self.is_debug_mode:
-            # Set to cloud mode for actual operations (runComfy)
-            config.GENERATION_MODE = "cloud"
-            print(f"🔧 Running in DEBUG mode (using CLOUD backend via runComfy)")
+            # Set to serverless mode for actual operations (faster than legacy cloud)
+            config.GENERATION_MODE = "serverless"
+            print(f"🔧 Running in DEBUG mode (using SERVERLESS backend via runComfy)")
         else:
             print(f"🔧 Running in {generation_mode.upper()} mode")
         
@@ -134,7 +147,7 @@ class ConjureApp:
         self.state_manager.reset_to_clean_state()
         
         # 🔧 Store generation mode in state file for API server access
-        actual_mode = "cloud" if self.is_debug_mode else generation_mode
+        actual_mode = "serverless" if self.is_debug_mode else generation_mode
         self.state_manager.set_state("generation_mode", actual_mode)
         print(f"🔧 Generation mode stored in state file: {actual_mode}")
         

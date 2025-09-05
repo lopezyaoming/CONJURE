@@ -293,10 +293,10 @@ class BrushIconsPanel(MinimalFrame):
         
         # Load brush icons from the brush icons folder
         self.brush_icons = {}
-        self.active_brush = "PINCH"  # Default active brush (first in system list)
+        self.active_brush = "DRAW"  # Default active brush (first in system list)
         
         # Create brush icon buttons
-        brush_types = ["PINCH", "GRAB", "SMOOTH", "INFLATE", "FLATTEN"]
+        brush_types = ["DRAW", "GRAB", "SMOOTH", "INFLATE", "FLATTEN"]
         for brush_type in brush_types:
             button = self.create_brush_button(brush_type)
             layout.addWidget(button)
@@ -319,7 +319,7 @@ class BrushIconsPanel(MinimalFrame):
             "FLATTEN": "flatten.png", 
             "INFLATE": "inflate.png",
             "SMOOTH": "soften.png",  # SMOOTH uses soften icon
-            "PINCH": None            # PINCH will use text fallback
+            "DRAW": None             # DRAW will use text fallback
         }
         
         # Try to load the brush icon
@@ -624,12 +624,12 @@ class ConjureMainWindow(QMainWindow):
                     print(f"DEBUG: Loaded fingertip data: {fingertip_data}")
                     
                     # Read the actual active brush from Blender
-                    active_brush = fingertip_data.get("active_brush", "PINCH")
+                    active_brush = fingertip_data.get("active_brush", "DRAW")
                     print(f"DEBUG: Active brush from file: {active_brush}")
                     
                     # Map system brush names to UI brush names if needed
                     brush_mapping = {
-                        "PINCH": "PINCH",
+                        "DRAW": "DRAW",
                         "GRAB": "GRAB", 
                         "SMOOTH": "SMOOTH",
                         "INFLATE": "INFLATE",
@@ -649,8 +649,8 @@ class ConjureMainWindow(QMainWindow):
                     
             except Exception as e:
                 print(f"DEBUG: Error reading brush info: {e}")
-                # Default to PINCH if we can't read brush info
-                self.brush_icons_panel.update_active_brush("PINCH")
+                # Default to DRAW if we can't read brush info
+                self.brush_icons_panel.update_active_brush("DRAW")
                 
         except Exception as e:
             print(f"Error updating UI: {e}")

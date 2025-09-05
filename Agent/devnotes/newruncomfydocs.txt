@@ -1,0 +1,919 @@
+Getting Started
+Introduction
+
+Copy page
+
+RunComfy lets you take any ComfyUI workflow and instantly turn it into a serverless API, giving you a direct path from prototype to production without the operational headaches. Your generative AI pipelines become scalable, production-ready endpoints, no servers to maintain, no GPUs to provision, no dependency conflicts to chase down.
+Behind the scenes, RunComfy packages your entire workflow, nodes, models, dependencies, and hardware settings into a fully reproducible cloud environment. Containerization ensures that what you deploy today will run exactly the same tomorrow, while cloud orchestration scales on demand. You get to focus on building and iterating, while RunComfy handles everything else.
+​
+Key Features
+No-Hassle Deployment: Turn any ComfyUI workflow into a production API in just a few clicks. When you save a workflow to the cloud, RunComfy captures the entire runtime, including nodes, models, drivers, and libraries, and turns it into a self-contained, reproducible environment. That saved environment becomes the container your API runs on. With deployment handled automatically, there are no servers to configure, no dependencies to troubleshoot, and no extra infrastructure to maintain.
+High-Performance GPUs: Choose hardware that matches your model’s memory and performance needs. Options range from 16 GB GPUs such as T4 or A4000, through 24 GB and 48 GB tiers, up to 80 GB A100 and H100 cards, and all the way to the 141 GB H200 for the heaviest workloads. This flexibility lets you right-size cost and throughput without changing your workflow code.
+Scale On-Demand: Autoscaling keeps latency low during bursts and costs low when traffic is quiet. You control the minimum and maximum instance counts, the queue size threshold that triggers new instances, and how long to keep an instance warm before it shuts down. Set minimum instances to zero for scale-to-idle or keep one warm to avoid cold starts, then tune based on real usage.
+Workflow Versioning: Iterate safely with versioned workflows. Each cloud save produces an isolated, fully captured environment and a new version you can test in isolation. Deployments are pinned to a specific version, so you can roll forward or roll back with minimal disruption and without affecting live traffic until you switch versions.
+Real-Time Monitoring: Track each request directly in the RunComfy dashboard with real-time visibility into queue wait, cold start time, execution time, and total duration, alongside billing details. With this level of insight, you can tune autoscaling, queue limits, and keep-warm settings, or switch to a different GPU tier to meet your latency targets while keeping costs under control.
+200+ Ready-to-Deploy Templates: Start fast by picking from a large library of pre-saved community workflows that already run in the cloud. You can explore, launch, customize, save your own version, and deploy it as an API in minutes, which is ideal for prototyping new features or standing up a service without starting from scratch.
+Pay-Per-Use Pricing: Only pay for the GPU time you actually consume. Whether you see steady usage or spiky demand, transparent pay-per-use billing works hand in hand with autoscaling to keep costs predictable while maintaining performance.
+Alternative Option: RunComfy Server API with ComfyUI Backend API
+To accommodate diverse integration needs, RunComfy provides not only the Serverless API but also the Server API paired with the ComfyUI Backend API, giving you complete control over the ComfyUI backend. These APIs let you spin up and fully manage a dedicated ComfyUI backend instance, making them ideal for scenarios where you need to integrate the ComfyUI backend into tools like Krita, Photoshop, Blender, iClone, or other software. For more details, refer to the documentation here.
+
+Getting Started
+Quickstart
+
+Copy page
+
+Get your ComfyUI workflow deployed as a serverless API and make your first inference call. This guide walks you step-by-step through deploying a pre-built community workflow, RunComfy/FLUX, into a scalable, ready-to-use API endpoint.
+Note: You can deploy your own custom workflows as APIs too, check out the Custom Workflows section for details.
+​
+Step 1: Prepare the Workflow
+First, visit the RunComfy/FLUX workflow page and click Run Workflow to load it into a machine instance. This action launches a ComfyUI session, which may take up to 5 minutes to initialize.
+When the ComfyUI interface appears, queue the workflow to confirm that it runs successfully. Next, open the Workflow menu (in the latest version, this is located in the upper-left corner) and choose Export (API). This generates a JSON file containing all nodes, inputs, default values, and connections used in the workflow.
+Alt Export API in ComfyUI
+The exported API file for this workflow will look like the example below: runcomfy-flux-workflow-api.json.
+Since the nodes in the API JSON are identified by Node IDs, it can be helpful to display these IDs directly in the workflow interface. To do this, open the Settings panel in ComfyUI (in the latest version, this is located in the lower-left corner), select Lite Graph, and set Node ID Badge Mode to Show All. This allows you to match node IDs between the interface and the JSON file more easily.\
+Alt Enable Node ID display in ComfyUI
+
+Carefully review the exported JSON to identify which inputs you want to make dynamic, such as prompt text or noise seed. These dynamic inputs can be overridden through API calls for flexible customization, while all other parameters will continue using the workflow’s defaults.
+When sending API requests, include an overrides JSON object that modifies only those selected inputs. This avoids retransmitting the full workflow and keeps calls efficient. Overrides should be formatted with node IDs (taken from the JSON) as keys, and values as {"inputs": {input_key: new_value}}. Accuracy in both keys and values is essential to prevent errors. For this workflow, you can begin with the example below.\
+Alt Example API Overrides JSON
+
+
+Copy
+{
+  "overrides": {
+    "6": {
+      "inputs": {
+        "text": "Your custom prompt here"
+      }
+    },
+    "25": {
+      "inputs": {
+        "noise_seed": 123456789
+      }
+    }
+  }
+}
+​
+Step 2: Deploy Workflow as API
+Go to the Deployments page and select Deploy workflow as API. Search for the workflow by its name (RunComfy/FLUX) or ID (00000000-0000-0000-0000-000000001111).
+For a quick setup, choose Instant Deploy, which uses default settings like 48GB hardware (A6000) and autoscaling. These settings can be adjusted later if needed.
+After the deployment is complete, copy the deployment_id — you’ll need it when making API calls.
+​
+Step 3: Authenticate
+Click your profile icon (upper-right corner of the RunComfy page) to access the Profile page and find your API key. Include it in every request via the Authorization: Bearer <your-api-key> header. This secures your calls and helps track usage.
+​
+Step 4: Submit a Request
+Now it’s time to run your deployed workflow. Send a POST request to the inference endpoint, replacing {deployment_id} with your actual deployment ID. In the request body, include the overrides you prepared in Step 1 under the overrides field. This tells RunComfy exactly which inputs to customize while keeping all other workflow settings as-is.
+
+Copy
+curl --request POST \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/inference \
+  --header "Content-Type: application/json" \
+  --header "Authorization: Bearer <token>" \
+  --data '{
+    "overrides": {
+      "6": {
+        "inputs": {
+          "text": "Your custom prompt here"
+        }
+      },
+      "25": {
+        "inputs": {
+          "noise_seed": 123456789
+        }
+      }
+    }
+  }'
+Expected response:
+
+Copy
+{
+  "request_id": "{request_id}",
+  "status_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/status",
+  "result_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/result",
+  "cancel_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/cancel"
+}
+Note: If your workflow requires media inputs, you can pass them in overrides as either URLs or Base64-encoded data. For complete formatting details, see the Async Queue Endpoints section.
+​
+Step 5: Monitor and Retrieve Results
+After submitting a request, you can track its progress and fetch the outputs once it’s ready.
+To monitor the job, poll the status_url at regular intervals until the status changes to "completed". When the job is complete, use the result_url to retrieve the final outputs.
+Check Request Status:
+
+Copy
+curl --request GET \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/status \
+  --header "Authorization: Bearer <token>"
+Example response:
+
+Copy
+{
+  "status": "in_queue",
+  "queue_position": 0,
+  "result_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/result"
+}
+Retrieve Request Results:
+
+Copy
+curl --request GET \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/result \
+  --header "Authorization: Bearer <token>"
+Example response:
+
+Copy
+{
+  "status": "succeeded",
+  "outputs": {
+    "136": {
+      "images": [
+        {
+          "url": "https://example.com/ComfyUI_00001_.png",
+          "filename": "ComfyUI_00001_.png",
+          "subfolder": "",
+          "type": "output"
+        }
+      ]
+    }
+  },
+  "created_at": "2025-07-22T13:05:16.143086",
+  "finished_at": "2025-07-22T13:13:03.624471"
+}
+🎉 Congratulations! You’ve successfully deployed and called your first API. Your ComfyUI workflow is now live and ready to power real applications!
+
+Core Concepts
+
+Copy page
+
+​
+ComfyUI Cloud
+RunComfy gives you a fully managed ComfyUI Cloud environment that stays in sync with the official comfyanonymous/ComfyUI repository. This means everything you’re used to locally, from custom nodes to downloaded models, works exactly the same in the RunComfy cloud. You can install new nodes, bring in your own models, and run workflows without compatibility issues.
+​
+Workflows
+In ComfyUI, a workflow is a visual program built from interconnected nodes. Each node performs a specific function, and together they form a pipeline for generative AI tasks, such as creating images, videos, or other media.
+​
+Workflows API JSON
+The exported API JSON from a workflow details all nodes, inputs, defaults, and connections, serving as the blueprint for identifying customizable parameters that can be dynamically adjusted in API interactions.
+​
+Cloud Saving
+In RunComfy, Cloud Saving packages your entire ComfyUI workflow, including its runtime environment, drivers, libraries, custom nodes, models, and dependencies, into a fully reproducible container image. This ensures your workflow runs consistently in the cloud, regardless of the underlying hardware or environment.
+Cloud Saving keeps workflows deployment-ready, supports versioning for iterative updates, and enables private sharing within your team, so you can collaborate smoothly without worrying about dependency conflicts.
+Note: Community workflows in RunComfy are already pre-saved with Cloud Saving, so you can use them immediately or modify and save them as your own.
+​
+Deployments
+A deployment turns a cloud-saved ComfyUI workflow into a serverless API endpoint. You choose the hardware (e.g., GPU type) and autoscaling settings, and RunComfy handles containerization and GPU orchestration. Your deployment becomes the production-ready interface for inference requests, identified by a unique deployment_id that you’ll use in all API calls.
+​
+Instances
+An instance is a running containerized environment of your deployed workflow on a dedicated GPU. It’s the execution engine that processes inference requests using the full workflow. Instances are isolated for performance and security, configured at the deployment level, and ephemeral, they start and stop automatically based on demand, keeping costs efficient.
+​
+Scaling
+Scaling in RunComfy automatically adjusts the number of active instances based on workload and your deployment settings. You can control parameters like minimum/maximum instances, queue size limits, and keep-warm durations to balance cost efficiency with low-latency performance. This ensures smooth handling of bursty or unpredictable workloads.
+​
+Overrides (in Inference Request Body)
+Overrides let you customize specific workflow inputs directly in your API calls without resending the full workflow JSON each time. Using node IDs from the workflow’s API JSON, you can change values like prompts, seeds, or media inputs while leaving everything else unchanged. This makes requests lighter, faster, and easier to maintain.
+
+# Custom Workflows
+
+This guide shows you how to create, test, and save your own ComfyUI workflows in RunComfy’s cloud environment, from building or modifying workflows, to exporting them for API use, to cloud-saving everything for deployment.
+
+## Overview
+
+In RunComfy, you build workflows as node-based graphs in a cloud-hosted ComfyUI environment. When your workflow is ready, you can **Cloud Save** it, packaging the workflow and its full runtime (drivers, libraries, custom nodes, models, and dependencies) into a container image that runs consistently in the cloud every time.
+
+RunComfy’s ComfyUI Cloud is kept in sync with the [official ComfyUI GitHub repository](https://github.com/comfyanonymous/ComfyUI), including historical versions, so you get the same interface and tools you use locally, no relearning required.
+
+You can easily download models from Civitai, Hugging Face, or Google Drive, upload your own, and install custom nodes using the built-in ComfyUI Manager.
+
+Once saved to the cloud, your workflow can be deployed as a **serverless API endpoint**, scalable, production-ready, and covered in detail in the [Create a Deployment](https://docs.runcomfy.com/create-a-deployment) section.
+
+***
+
+## Build a Workflow
+
+You can start with a clean environment or use an existing community workflow as your base.
+
+### From Scratch
+
+To begin a ComfyUI session, head to the [My Workflows](https://runcomfy.com/comfyui-workflows/my-workflows) page. You'll find two preset environments to pick from and launch a machine. The **ComfyUI-NodesLoaded** option comes with popular nodes pre-installed to cut down on setup time. The **ComfyUI-Minimal** option skips preloads for quicker startup. Both draw from the latest ComfyUI version on GitHub, and you can choose older versions via the three-dot dropdown before launching.
+
+When the interface loads, either build your workflow from scratch or import a workflow JSON by dragging it onto the canvas.
+
+![Alt Build a Workflow from Scratch](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/build-workflow-from-scratch.webp)
+
+### Add Custom Nodes
+
+To install custom nodes, click the **Manager** button in the interface. Select **Install Missing Custom Nodes** to auto-detect and add what's needed, or pick **Install Custom Nodes** and search for a specific node. After installation, restart ComfyUI using the Manager's restart feature and refresh your browser to activate the changes.
+
+![Alt Install Custom Nodes in ComfyUI](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/install-custom-nodes.webp)
+
+### Add Models
+
+Click the "Assets" button on the right sidebar to open the file browser panel.
+For downloading models from **Civitai, Hugging Face, or Google Drive**, first navigate to the appropriate subfolder (e.g., models/checkpoints or models/loras) in the browser. Enter the model's URL in the download bar at the top, click **Download**, then refresh the interface to load the new model, it will save directly to the selected folder.
+
+Read more here: [How to download models from Civitai, Hugging Face, and Google Drive?](https://comfyui-guides.runcomfy.com/ultimate-comfyui-how-tos-a-runcomfy-guide/how-to-download-models-from-civitai-hugging-face-and-google-drive)
+
+![Alt Download Models in ComfyUI](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/download-models.webp)
+
+For uploading models from local storage, navigate to the target subfolder in the file browser, click the three-dot menu, select **Upload**, and choose your files, they will upload directly to the selected folder
+
+Read more here: [How to Upload/Delete/Move files in RunComfy?](https://comfyui-guides.runcomfy.com/ultimate-comfyui-how-tos-a-runcomfy-guide/how-to-upload-files-in-runcomfy)
+
+![Alt Upload Models in ComfyUI](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/upload-models.webp)
+
+### Use a Template
+
+To pick a community workflow, visit the [Explore](https://runcomfy.com/comfyui-workflows) page, browse or search for one that fits, and click **Run Workflow** to load it into a machine instance. When the ComfyUI interface loads with the pre-built workflow, make changes as required, using the same steps above for installing nodes or models.
+
+![Alt Use a Workflow Template](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/use-workflow-template.webp)
+
+***
+
+## Test Workflow
+
+With your workflow set up, click **Queue Prompt** to run it and preview outputs (images, videos, etc.) directly in output nodes. Files are automatically saved to the output folder.
+
+For debugging during tests, you can search for information in the node author's related GitHub repositories, or refer to the common error fixes in [RunComfy’s How-tos](https://comfyui-guides.runcomfy.com/ultimate-comfyui-how-tos-a-runcomfy-guide).
+
+***
+
+## Export for API
+
+When your workflow is stable, export it as API JSON by selecting **Export (API)** from the top-left **Workflow** menu. This generates a JSON file containing all nodes, inputs, default values, and connections, which you can download or copy for later use.
+
+![Alt Export API in ComfyUI](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/export-api.webp)
+
+The exported API JSON is structured like a standard ComfyUI workflow JSON: it's a dictionary where keys are node IDs (e.g., `"6"` for a prompt encoder or `"25"` for a sampler), and each value is a node object with its `class_type` (the node name), `inputs` (holding default values or links to upstream nodes), and `_meta` for extras like titles. Links in inputs appear as arrays like `["11", 0]`, meaning "connect to output slot 0 from node 11".
+
+Here's a snippet of two nodes from a sample FLUX workflow:
+
+```json
+{
+  "6": {
+    "inputs": {
+      "text": "An old tv with the word \"FLUX\" on it, sitting in an abandoned workshop environment, created in Unreal Engine 5 with Octane render in the style of ArtStation.",
+      "clip": ["11", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "25": {
+    "inputs": {
+      "noise_seed": 417264191485848
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  }
+}
+```
+
+View the complete example here: [runcomfy-flux-workflow-api.json](/static/runcomfy-flux-workflow-api.json).
+
+***
+
+## Apply Overrides
+
+When you export a workflow API JSON, the file contains the full definition of the workflow: all nodes, their connections, and every parameter value. Normally, each API request would need to include this entire JSON, even if only a single parameter needs to change. This is inefficient and makes requests larger and harder to maintain.
+
+**`Overrides` provide a more concise way to update workflows at runtime. Instead of sending the full workflow API JSON, you only send the parameters you want to modify. RunComfy loads the workflow API JSON as the base, then applies the `overrides` on top of it.** Any parameter you don’t include in the `overrides` will automatically use the value already saved in the workflow API JSON. This means your request only needs to describe what is different, not the entire workflow.
+
+To build `overrides`, create a JSON object where the keys are node IDs from your exported API JSON, and each value is an object with an `inputs` key containing the new values for that node’s parameters.
+
+For example, instead of sending the full workflow API JSON, you can just write:
+
+```json
+{
+  "overrides": {
+    "6": {
+      "inputs": {
+        "text": "futuristic cityscape"
+      }
+    },
+    "25": {
+      "inputs": {
+        "noise_seed": 987654321
+      }
+    }
+  }
+}
+```
+
+In this example, node `6` uses the text `"futuristic cityscape"` and node `25` uses the seed `987654321`. All other parameters keep the values already defined in the Workflow API JSON.
+
+***
+
+## Cloud Save Workflow
+
+In RunComfy, **Cloud Saving** packages your entire ComfyUI workflow, along with its runtime environment, drivers, libraries, custom nodes, models, and dependencies, into a **fully reproducible container image**. This ensures your workflow runs consistently in the cloud, regardless of the underlying hardware or environment.
+
+Cloud Saving keeps workflows **deployment-ready**, supports **versioning** for iterative updates, and enables **private sharing** within your team, so you can collaborate smoothly without worrying about dependency conflicts.
+
+> **Note:** Community workflows in RunComfy, found in the [Explore](https://runcomfy.com/comfyui-workflows) page, are already pre-saved with Cloud Saving, so you can use them immediately or modify and save them as your own.
+
+### Save to Cloud
+
+Save the workflow by clicking the **Cloud Save** button in the top bar. This packages the entire setup, including all dependencies into a container image that’s ready for consistent cloud execution.
+
+> **Note:** If multiple workflow tabs are open, only the active tab will be saved. Switch to other tabs and save them separately as new workflows to preserve each one.
+
+![Alt Save Workflow to Cloud in RunComfy](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/save-to-cloud.webp)
+
+Read more here: [RunComfy ComfyUI Workflow Cloud Save and Sharing features](https://comfyui-guides.runcomfy.com/ultimate-comfyui-how-tos-a-runcomfy-guide/runcomfy-comfyui-workflow-cloud-save-and-sharing-features)
+
+### View Saved
+
+Saved workflows appear on your [My Workflows](https://runcomfy.com/comfyui-workflows/my-workflows) page. Next time you run it, you'll get the saved version complete with its environment.
+![Alt Saved Workflows](https://mintlify.s3.us-west-1.amazonaws.com/inceptionsaiinc/docs-image/saved-workflows.webp)
+
+### Deploy Saved
+
+Saved workflows are ready to deploy right away: click the **API** button or go to the [Deployments](https://runcomfy.com/comfyui-api/deployments) page, select your workflow, and set up the endpoint.
+
+🎉 **Your workflow is now built, tested, and cloud-saved, ready to become a production API!**
+
+# Workflow Versions
+
+RunComfy's workflow versioning lets you iterate on ComfyUI workflows, including those modified from community templates, with built-in safeguards for reproducibility and stability. This allows you to focus on enhancing your workflow's generative features without worrying about regressions or breaking deployments.
+
+## Saving a New Version
+
+To create a new version, launch an existing workflow into a ComfyUI session and make your updates. Then click **Cloud Save** in the top bar, keeping the same workflow name. RunComfy will automatically increment the version number and package the updated graph along with its complete runtime environment (drivers, libraries, custom nodes, models, and dependencies) into a new container image.
+
+Each version is fully independent with its own isolated environment, ensuring it can be restored exactly as saved. A single workflow can have multiple versions, making it ideal for managing feature tests, variations, or rollbacks.
+
+## Accessing Versions
+
+On the [My Workflows](https://runcomfy.com/comfyui-workflows/my-workflows) page, find your workflow, click the three-dot icon, and select **More Versions** to view its full history. From there, choose any version to launch it in a ComfyUI session for review, further edits, or deployment preparation.
+
+## Versioning in Deployments
+
+Deployments are tied to a specific workflow version, so new versions don't impact running endpoints. They continue using the original version for uninterrupted operation.
+
+Test new versions thoroughly in isolation to catch issues, then switch via the deployment settings (as detailed in [Edit a Deployment](https://docs.runcomfy.com/edit-a-deployment)). Updates roll out seamlessly with minimal downtime—similar to a rolling deployment—ensuring no disruption to live API traffic.
+
+
+
+
+# Edit a Deployment
+
+From the [Deployments](https://runcomfy.com/comfyui-api/deployments) page, update your existing deployment to meet changing requirements, such as upgrading to a new workflow version, fine-tuning autoscaling settings, toggling it on or off for maintenance, or deleting it entirely.
+
+## Update Workflow Version
+
+If you’ve updated your workflow (for example, fixing bugs, optimizing nodes, or adding features) and cloud-saved a new version, your deployment will still run the original version it was created with. To use the new version, edit the deployment and select the updated workflow version.
+
+Before upgrading, test the new version thoroughly in a ComfyUI session to confirm it runs without errors. Also, check whether any modified nodes change the inputs used in your API `overrides`. If they do, update your overrides accordingly to avoid broken API calls or unexpected results.
+
+## Change Hardware
+
+You can adjust the GPU hardware configuration at any time to match changing requirements, such as upgrading to a higher VRAM tier for larger models or more intensive tasks.
+
+## Change Autoscaling
+
+Adjust autoscaling rules, such as minimum and maximum instances, queue size, or keep-warm duration, at any time to better align with your app's traffic patterns and usage demands, allowing you to optimize for lower latency during peaks or reduced costs in quieter times without recreating the deployment.
+
+## Rollout Process
+
+Changes to your deployment, whether updating the workflow version, modifying hardware, or adjusting autoscaling rules, roll out gradually via a rolling update to avoid disruptions. For workflow version or hardware updates, existing instances continue handling in-flight requests under the previous configuration, while new instances launch with the updated setup; once ready, new requests are routed to the new instances. For autoscaling adjustments without workflow or hardware changes, the system modifies the current instance pool directly. This ensures seamless transitions, with minimal impact on ongoing operations and no need for downtime.
+
+## Disable Deployment
+
+Disabling deployment immediately fails all requests, both new and ongoing, while shutting down all instances to halt billing, and preserves the configuration for easy reactivation later.
+
+## Enable Deployment
+
+Enabling the deployment restarts it fully, including autoscaling based on your configured rules, so it can begin accepting and processing requests again while resuming normal billing based on usage.
+
+## Delete Deployment
+
+If the deployment is no longer useful, delete it permanently from the page, this removes all settings and stops any associated costs, but your underlying workflow stays intact for recreating if desired.
+
+Before deleting, jot down your settings for reference, as the action is irreversible—always confirm before proceeding.
+
+# Edit a Deployment
+
+From the [Deployments](https://runcomfy.com/comfyui-api/deployments) page, update your existing deployment to meet changing requirements, such as upgrading to a new workflow version, fine-tuning autoscaling settings, toggling it on or off for maintenance, or deleting it entirely.
+
+## Update Workflow Version
+
+If you’ve updated your workflow (for example, fixing bugs, optimizing nodes, or adding features) and cloud-saved a new version, your deployment will still run the original version it was created with. To use the new version, edit the deployment and select the updated workflow version.
+
+Before upgrading, test the new version thoroughly in a ComfyUI session to confirm it runs without errors. Also, check whether any modified nodes change the inputs used in your API `overrides`. If they do, update your overrides accordingly to avoid broken API calls or unexpected results.
+
+## Change Hardware
+
+You can adjust the GPU hardware configuration at any time to match changing requirements, such as upgrading to a higher VRAM tier for larger models or more intensive tasks.
+
+## Change Autoscaling
+
+Adjust autoscaling rules, such as minimum and maximum instances, queue size, or keep-warm duration, at any time to better align with your app's traffic patterns and usage demands, allowing you to optimize for lower latency during peaks or reduced costs in quieter times without recreating the deployment.
+
+## Rollout Process
+
+Changes to your deployment, whether updating the workflow version, modifying hardware, or adjusting autoscaling rules, roll out gradually via a rolling update to avoid disruptions. For workflow version or hardware updates, existing instances continue handling in-flight requests under the previous configuration, while new instances launch with the updated setup; once ready, new requests are routed to the new instances. For autoscaling adjustments without workflow or hardware changes, the system modifies the current instance pool directly. This ensures seamless transitions, with minimal impact on ongoing operations and no need for downtime.
+
+## Disable Deployment
+
+Disabling deployment immediately fails all requests, both new and ongoing, while shutting down all instances to halt billing, and preserves the configuration for easy reactivation later.
+
+## Enable Deployment
+
+Enabling the deployment restarts it fully, including autoscaling based on your configured rules, so it can begin accepting and processing requests again while resuming normal billing based on usage.
+
+## Delete Deployment
+
+If the deployment is no longer useful, delete it permanently from the page, this removes all settings and stops any associated costs, but your underlying workflow stays intact for recreating if desired.
+
+Before deleting, jot down your settings for reference, as the action is irreversible—always confirm before proceeding.
+
+# Async Queue Endpoints
+
+The Queue API makes it easy to manage inference jobs for your deployed ComfyUI workflows. You can use it to submit new jobs, track their progress, retrieve results, and cancel them whenever necessary.
+
+## **Queue endpoints**
+
+**Base URL**: `https://api.runcomfy.net`
+
+| Endpoint                                                            | Method | Description      |
+| :------------------------------------------------------------------ | :----: | :--------------- |
+| `/prod/v1/deployments/{deployment_id}/inference`                    |  POST  | Run workflow     |
+| `/prod/v1/deployments/{deployment_id}/requests/{request_id}/status` |   GET  | Check job status |
+| `/prod/v1/deployments/{deployment_id}/requests/{request_id}/result` |   GET  | Get job result   |
+| `/prod/v1/deployments/{deployment_id}/requests/{request_id}/cancel` |  POST  | Cancel job       |
+
+## Common Path Parameters
+
+* `deployment_id`: string (required)\
+  This is the unique ID for your deployed workflow. You get it when you create a deployment. It tells the server which workflow to use.
+
+* `request_id`: string (required, except for submission)\
+  This is the unique ID for a specific job, given back when you submit a request.
+
+***
+
+## Submitting a Request
+
+Use `POST /prod/v1/deployments/{deployment_id}/inference` to start a new inference job. **The API automatically loads the workflow API JSON, so you only need to include overrides for the parts you want to change**. Any parts you leave out will use the workflow’s default values. This makes it easy to tweak specific node inputs without having to upload the entire workflow JSON each time. View the detailed introduction of the [workflow API JSON](https://docs.runcomfy.com/custom-workflows#export-for-api) and [overrides](https://docs.runcomfy.com/custom-workflows#apply-overrides).
+
+When setting overrides, make sure the node IDs, input keys, and value formats match your workflow’s API JSON exactly. If they don’t, the overrides won’t work. **For media inputs like images or videos in the `overrides` field, you can provide a URL or a Base64 data URI inside the `inputs` object**.
+
+For reference, here’s a sample file you can check: [runcomfy-flux-kontext-workflow-api.json](/static/runcomfy-flux-kontext-workflow-api.json)
+
+### Request Example: Basic
+
+For example, this request overrides the `seed` in `KSampler` (ID `"31"`) and the `text` in `CLIPTextEncode` (ID `"6"`) from `runcomfy-flux-kontext-workflow-api.json`.
+
+```bash
+curl --request POST \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/inference \
+  --header "Content-Type: application/json" \
+  --header "Authorization: Bearer <token>" \
+  --data '{
+    "overrides": {
+      "31": {
+        "inputs": {
+          "seed": 987654321
+        }
+      },
+      "6": {
+        "inputs": {
+          "text": "futuristic cityscape"
+        }
+      }
+    }
+  }'
+```
+
+### Request Example: Media Upload (URL)
+
+For example, this request overrides the `image` in `LoadImage` (ID `"189"`) from `runcomfy-flux-kontext-workflow-api.json` with a URL.
+
+```bash
+curl --request POST \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/inference \
+  --header "Content-Type: application/json" \
+  --header "Authorization: Bearer <token>" \
+  --data '{
+    "overrides": {
+      "189": {
+        "inputs": {
+          "image": "https://example.com/new-image.jpg"
+        }
+      }
+    }
+  }'
+```
+
+### Request Example: Media Upload (Base64)
+
+For example, this request overrides the `image` in `LoadImage` (ID `"189"`) from `runcomfy-flux-kontext-workflow-api.json` with a Base64 data URI.
+
+```bash
+curl --request POST \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/inference \
+  --header "Content-Type: application/json" \
+  --header "Authorization: Bearer <token>" \
+  --data '{
+    "overrides": {
+      "189": {
+        "inputs": {
+          "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD..."
+        }
+      }
+    }
+  }'
+```
+
+**Request Body Explanation**
+
+A JSON object for customizing the workflow. All fields are optional.
+
+* **overrides** (object):
+  * Keys: Node IDs as strings (e.g., `"31"`), matching your workflow's API JSON exactly.
+  * Values: Objects with an `inputs` field containing input names and updated values (e.g., `{ "inputs": { "seed": 987654321 } }`).\
+    Input keys and formats must match your workflow's API JSON. For media inputs, use a URL (e.g., `"image": "https://example.com/new-image.jpg"`) or Base64 data URI (e.g., `"image": "data:image/jpeg;base64,/9j/..."`) in the `inputs` object.
+
+### Media Upload
+
+Media inputs (images or videos) can be added to the `inputs` object as either Base64 data URIs or public URLs.
+
+**Via Base64 (Data URI)**\
+Include a Base64 data URI in the `inputs` object (for example: `"image": "data:image/jpeg;base64,/9j/..."`). Large files may slow down requests. Recommended limits: images ≤256KB (around 512x512); videos ≤1MB for short clips (around 480p).
+
+**Via URL (Public file link)**\
+Include a public URL in the `inputs` object (for example: `"image": "https://example.com/image.jpg"`). Keep in mind that some hosts may block requests. Recommended limits: images ≤50MB (around 4K); videos ≤100MB (about 2–5 minutes at 720p).
+
+### Response Example
+
+```json
+{
+  "request_id": "{request_id}",
+  "status_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/status",
+  "result_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/result",
+  "cancel_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/cancel"
+}
+```
+
+**Response Explanation**
+
+Successful requests return a 200 OK status with a JSON object providing job tracking details.
+
+* **request\_id** (string): Unique identifier for the job.
+* **status\_url** (string): URL to poll for job progress.
+* **result\_url** (string): URL to fetch outputs once the job completes.
+* **cancel\_url** (string): URL to cancel the job if still queued.
+
+***
+
+## Monitoring Request Status
+
+Use `GET /prod/v1/deployments/{deployment_id}/requests/{request_id}/status` to check the current state of a queued or running job. Poll this endpoint periodically for updates on progress.
+
+### Request Example
+
+```bash
+curl --request GET \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/status \
+  --header "Authorization: Bearer <token>"
+```
+
+### Response Example
+
+```json
+{
+  "request_id": "{request_id}",
+  "status": "in_queue",
+  "queue_position": 0,
+  "result_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/result",
+  "status_url": "https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/status"
+}
+```
+
+**Response Explanation**
+
+Successful requests return a 200 OK status with a JSON object describing the job's state. The content varies by status:
+
+* **status** (string): Current state (e.g., `"in_queue"`, `"in_progress"`, `"completed"`, or `"canceled"`).
+* Additional fields based on status:
+  * For `"in_queue"`:
+    * **queue\_position** (integer): Your position in the queue.
+    * **result\_url** (string): URL where results will be available.
+  * For `"in_progress"`, `"completed"`, or `"canceled"`:
+    * **result\_url** (string): The URL to get the final outputs (available only when `"completed"` or `"canceled"`).
+
+***
+
+## Retrieving Request Results
+
+Use `GET /prod/v1/deployments/{deployment_id}/requests/{request_id}/result` to fetch outputs once the job status is `"completed"`.
+
+### Request Example
+
+```bash
+curl --request GET \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/result \
+  --header "Authorization: Bearer <token>"
+```
+
+### Response Example
+
+```json
+{
+  "request_id": "{request_id}",
+  "status": "succeeded",
+  "outputs": {
+    "136": {
+      "images": [
+        {
+          "url": "https://example.com/ComfyUI_00001_.png",
+          "filename": "ComfyUI_00001_.png",
+          "subfolder": "",
+          "type": "output"
+        }
+      ]
+    }
+  },
+  "created_at": "2025-07-22T13:05:16.143086",
+  "finished_at": "2025-07-22T13:13:03.624471"
+}
+```
+
+**Response Explanation**
+
+Successful requests return a 200 OK status with a JSON object containing the job's final details. The content varies by status:
+
+* **status** (string): Outcome (e.g., `"succeeded"`, `"failed"`, `"in_queue"` , `"in_progress"`, `"canceled"`).
+* Additional fields based on status:
+  * For `"succeeded"`:
+    * **outputs** (array): Generated files, each with:
+      * **url** (string): Direct link to the output file (e.g., `"https://example.com/outputs/ComfyUI_00001_.png"`).
+      * **filename** (string): Name of the output file.
+    * **created\_at** (string): When the request was created.
+    * **finished\_at** (string): When the request completed.
+  * For `"failed"`:
+    * **error**: Details on why the job failed.
+    * **created\_at** (string): When the request was created.
+    * **finished\_at**: When the request failed or was canceled.
+  * For `"in_queue"`, `"in_progress"`, or `"canceled"`:
+    * **created\_at** (string): When the request was created.
+    * **finished\_at** (string, only for `"canceled"`): When the request was canceled.
+
+***
+
+## Cancelling a Request
+
+Use `POST /prod/v1/deployments/{deployment_id}/requests/{request_id}/cancel` to attempt to cancel a queued or running job.
+
+### Request Example
+
+```bash
+curl --request POST \
+  --url https://api.runcomfy.net/prod/v1/deployments/{deployment_id}/requests/{request_id}/cancel \
+  --header "Authorization: Bearer <token>"
+```
+
+### Response Example
+
+```json
+{
+  "request_id": "{request_id}",
+  "status": "cancellation_requested"
+}
+```
+
+**Response Explanation**
+
+Successful requests return a 202 Accepted status with a JSON object containing the cancellation outcome.
+
+* **status** (string): Outcome (e.g., `"cancellation_requested"`if accepted, `"not_cancellable"` if the job is completed or otherwise cannot be canceled).
+
+By using these endpoints, you can fully manage the lifecycle of your ComfyUI inference jobs, from submission and monitoring to retrieving results and canceling tasks, directly through the API.
+
+# Error Codes
+
+When an API call fails, RunComfy returns a JSON error payload with an HTTP status, a numeric `error_code` (when available), and a message. Below are the most common errors, grouped into two parts: General Error Codes and Errors by Request Phase.
+
+***
+
+## General Error Codes
+
+### 401001 Unauthorized
+
+This error occurs when user ID validation fails or the user ID does not exist, often due to an invalid, missing, or expired API token. Ensure your API key is valid, regenerate it if needed, and include it in the Authorization header as `Bearer <your-api-key>`.
+
+### 403003 Forbidden
+
+This error arises when the deployment or deployment request does not belong to the authenticated user, indicating a permissions issue or mismatched ownership. Confirm you are using the correct `deployment_id` for your account and that your API key matches the user who owns the resource.
+
+### 404001 Not Found
+
+This error is triggered when the specified deployment, deployment version, or deployment request cannot be located in the database, possibly because it was deleted or never existed. Verify the deployment\_id or request\_id in your request URL is accurate and check if the resource still exists in your account.
+
+### 422001 Validation Error
+
+This error occurs when the request body fails validation, such as submitting an inference request without the required overrides object or with invalid structure, mismatched node IDs, incorrect input keys, or malformed values like improper URLs/Base64 for media inputs. Review the "detail" array in the response for specific issues, ensure your overrides align exactly with the workflow's exported API JSON, and test with minimal changes to isolate the problem.
+
+### 500001 Internal Error
+
+This catch-all error indicates unexpected server-side problems. Implement retries with exponential backoff in your code, wait a short delay before trying again.
+
+***
+
+## Errors by Request Phase
+
+### Deployment Gating
+
+#### 10001 InsufficientFunds
+
+This deployment is currently disabled because your balance or plan does not allow new runs. To resolve this, you should add funds or upgrade your plan at `https://www.runcomfy.com/pricing`. After completing the payment, go to the deployment Edit page and re-enable the deployment.
+
+#### 10002 DisabledDeployment
+
+The deployment has been manually disabled. Enable it on the Edit page before sending requests.
+
+#### 10003 DeletedDeployment
+
+The `deployment_id` you are calling no longer exists, because it was deleted. You should select an existing deployment or create a new one, and then update your client code to use the new `deployment_id`.
+
+***
+
+### ComfyUI Prompt Queuing
+
+#### 10013 EmptyWorkflowApiJson
+
+The deployment has no Workflow API JSON, so ComfyUI cannot run any workflows. To fix this, open the workflow in ComfyUI Cloud, verify it runs correctly, and click Cloud Save to generate a new version. Then update your deployment to use this new version, and retry the request.
+
+#### 10007 ComfyUIConnectionError
+
+The service couldn’t reach ComfyUI (DNS/host unreachable/non-200 from ComfyUI). Most cases are temporary and can be resolved by retrying the request later.
+
+#### 10009 FileUploadException
+
+The uploaded media in your request could not be processed. This usually happens when the file URL is invalid or not publicly accessible, the Base64 data URI is malformed, or the file permissions are too restrictive.
+
+#### 10008 ComfyUIQueuePromptError
+
+ComfyUI returned an error while queuing the prompt. A common cause is a type mismatch, for example an input expected as an integer but provided as a string. The error payload often shows which node failed and what input value was invalid. To troubleshoot, open the workflow in ComfyUI Cloud, import the Workflow API JSON (downloadable from your deployment detail page), and run it with the same inputs. If the workflow runs successfully there, double-check that the API request `overrides` in your call are correct and match the schema exactly.
+
+#### 10004 QueuePromptUnexpectedError
+
+An unexpected error occurred while queuing the prompt in ComfyUI. This usually means the request could not be processed for reasons outside of the typical validation or input errors. To troubleshoot, open the workflow in ComfyUI Cloud, import the Workflow API JSON (downloadable from your deployment detail page), and run it with the same inputs. If the workflow runs successfully there, double-check that the API request `overrides` in your call are correct and match the schema exactly.
+
+***
+
+### ComfyUI Status Polling
+
+#### 10007 ComfyUIConnectionError
+
+The service couldn’t reach ComfyUI (DNS/host unreachable/non-200 from ComfyUI). Most cases are temporary and can be resolved by retrying the request later.
+
+#### 10012 ComfyUIRequestMissing
+
+The request could not be found in the current ComfyUI instance when fetching results. This may happen if ComfyUI crashed or restarted, possibly due to insufficient memory. To fix this, try switching to a larger GPU or simplify the workflow so it uses fewer resources.
+
+#### 10005 PollingResultUnexpectedError
+
+An unexpected error occurred while polling the request status from ComfyUI. This means the system could not obtain the expected progress information. To debug, open the workflow in ComfyUI Cloud, import the Workflow API JSON (downloadable from your deployment detail page), and run it with the same inputs. Make sure the workflow completes there before retrying the API request.
+
+***
+
+### ComfyUI Result Retrieval
+
+#### 10007 ComfyUIConnectionError
+
+The service couldn’t reach ComfyUI (DNS/host unreachable/non-200 from ComfyUI). Most cases are temporary and can be resolved by retrying the request later.
+
+#### 10012 ComfyUIRequestMissing
+
+The request could not be found in the current ComfyUI instance when fetching results. This may happen if ComfyUI crashed or restarted, possibly due to insufficient memory. To fix this, try switching to a larger GPU or simplify the workflow so it uses fewer resources.
+
+#### 10011 ComfyUIExecutionError
+
+Execution failed because ComfyUI encountered a runtime error while running the workflow. This is usually caused by a node error or a problem with the workflow configuration. To debug, open the workflow in ComfyUI Cloud, import the Workflow API JSON (downloadable from your deployment detail page), and run it with the same inputs. Make sure the workflow completes there before retrying the API request.
+
+#### 10006 ResultRetrievalUnexpectedError
+
+An unexpected error occurred while retrieving the execution results from ComfyUI. This indicates that the workflow may have finished but the results could not be returned correctly.  To debug, open the workflow in ComfyUI Cloud, import the Workflow API JSON (downloadable from your deployment detail page), and run it with the same inputs. Make sure the workflow completes there before retrying the API request.
+
+***
+
+### General Server Error
+
+#### 10000 InternalServerError
+
+The request failed due to an unexpected internal error that does not match any other category. Retry after a short delay, and before retrying, test the workflow in ComfyUI Cloud to confirm it can run successfully with the same inputs. If the error persists, collect the full error response and contact support.
+
+***
+
+## Getting help
+
+If you encounter an error code not listed here, or if the suggested solutions do not resolve your issue:
+
+1. Review the API reference for endpoint requirements and limitations
+
+2. Contact our support team at [hi@runcomfy.com](mailto:hi@runcomfy.com) with the full error response
+
+# Pricing
+
+RunComfy Serverless API offers flexible, pay-per-use pricing with no upfront costs. This guide explains how pricing works and how you can manage your costs effectively.
+
+## Pricing Overview
+
+You can use the API under two plans: **Hobby (pay-as-you-go)** or **Pro (subscription)**. Under the Hobby plan, you pay standard hourly rates for different machine tiers. Under the Pro plan, you receive a 20%–30% discount on those rates. For complete details on machine rates, plan benefits, and extras like increased storage or priority support, see the [RunComfy Pricing](https://www.runcomfy.com/pricing?tab=comfyui) page.
+
+| Machine Type  | GPU Options | VRAM  | RAM   | vCPUs | Hobby Price per Hour | Pro Price per Hour |
+| ------------- | ----------- | ----- | ----- | ----- | -------------------- | ------------------ |
+| Medium        | T4, A4000   | 16GB  | 16GB  | 8     | \$0.99               | \$0.79             |
+| Large         | A10G, A5000 | 24GB  | 32GB  | 8     | \$1.75               | \$1.39             |
+| X-Large       | A6000       | 48GB  | 48GB  | 28    | \$2.50               | \$1.99             |
+| X-Large Plus  | L40S, L40   | 48GB  | 64GB  | 28    | \$2.99               | \$2.15             |
+| 2X-Large      | A100        | 80GB  | 96GB  | 28    | \$4.99               | \$3.99             |
+| 2X-Large Plus | H100        | 80GB  | 180GB | 28    | \$7.49               | \$5.99             |
+| 3X-Large      | H200        | 141GB | 240GB | 24    | \$8.75               | \$6.99             |
+
+## How Billing Works
+
+Billing for the Serverless API is usage-based and calculated per second. Charges begin when an instance is signaled to wake up and stop when the instance is fully shut down. This ensures you only pay for the exact compute time you use, giving you the flexibility to scale up for heavy workloads and scale down to zero when idle, without incurring costs for unused capacity.
+
+Your deployment can include persistent instances, on-demand instances, or a combination of both, depending on the `minimum_instances` and `maximum_instances` settings:
+
+### Persistent Instances
+
+When you set `minimum_instances` > 0 in your deployment settings, that number of instances is created and stays active even without requests. Billing for these persistent instances starts shortly after saving the changes and continues until you reduce `minimum_instances` (causing excess instances to scale down). The full duration, including idle time, is billed. This setup supports immediate responses by avoiding cold starts for the baseline capacity, but balance the performance gains with costs for your specific workload.
+
+### On-Demand Instances
+
+On-demand instances spin up automatically to handle additional demand beyond your `minimum_instances` (or all demand if `minimum_instances` = 0). They scale down completely when idle after the keep-warm period. You're billed only for their active time during requests, including cold start, execution, and keep-warm durations. This suits fluctuating workloads, aligning costs directly with demand, and is ideal for variable loads, non-time-sensitive apps, and optimizing costs in sporadic usage. If `maximum_instances` > `minimum_instances`, these on-demand instances provide elastic scaling on top of any persistent baseline.
+
+## Instance Cost Breakdown
+
+**Cold Start Time**: The time taken for an instance to launch from a fully scaled-down state. This includes container startup and loading workflow models and assets into GPU memory. Duration varies based on machine tier, workflow complexity, and model size, and can take several minutes. Cold start time, when it occurs, is billed as part of active instance usage.
+
+**Execution Time**: The period when the instance is actively running workflows. This is the main compute time, affected by workflow complexity, input size, and GPU performance. Execution time is fully billed.
+
+**Keep Warm Time**: The period an instance remains active after completing its last task, based on the keep-warm timeout configured in [Deployment](https://www.runcomfy.com/comfyui-api/deployments). This helps handle bursts of requests without additional cold starts. Keep-warm time is also billed.
+
+> **Note:** In your [Request](https://www.runcomfy.com/comfyui-api/requests) page, you may also see **Queue Time**, the period an instance is waiting before it starts work. This can happen while GPU resources are being allocated, concurrency limits are reached, or earlier tasks are still running. Queue time is not billed, as the instance has not yet begun active use.
+
+## Support
+
+If you believe you’ve been incorrectly billed, please contact us at [**hi@runcomfy.com**](mailto:hi@runcomfy.com) with your deployment ID, the request ID (if applicable), and the approximate time of the issue.
+
+
+ENDPOINTS DEMO: SUBMIT REQUEST:
+# Submit Request
+
+Send an inference request to this deployment.
+
+## Header
+
+<ParamField header="Authorization" type="string" required placeholder="Bearer YOUR_TOKEN" />
+
+<ParamField header="Content-Type" type="string" default="application/json" initialValue="application/json" />
+
+## Path Parameters
+
+<ParamField path="deployment_id" type="string" required placeholder="Enter deployment ID" format="password" />
+
+## Body
+
+<ParamField body="overrides" type="object" placeholder="{}" default="{}" />
+
+CHECK REQUEST STATUS:
+# Check Request Status
+
+Check the status of a specific run.
+
+## Header
+
+<ParamField header="Authorization" type="string" required placeholder="Bearer YOUR_TOKEN" />
+
+<ParamField header="Content-Type" type="string" default="application/json" initialValue="application/json" />
+
+## Path Parameters
+
+<ParamField path="deployment_id" type="string" required placeholder="Enter deployment ID" />
+
+<ParamField path="request_id" type="string" required placeholder="Enter request ID" />
+GET REQUEST STATUS: # Get Request Results
+
+Retrieve the output of a completed run.
+
+## Header
+
+<ParamField header="Authorization" type="string" required placeholder="Bearer YOUR_TOKEN" />
+
+<ParamField header="Content-Type" type="string" default="application/json" initialValue="application/json" />
+
+## Path Parameters
+
+<ParamField path="deployment_id" type="string" required placeholder="Enter deployment ID" />
+
+<ParamField path="request_id" type="string" required placeholder="Enter request ID" />
+
+
+
+

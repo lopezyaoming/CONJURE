@@ -2,7 +2,7 @@
 Generation Services Interface
 
 This module provides abstract interfaces for different generation backends:
-- LocalGenerationService: Uses HuggingFace models (FLUX, PartPacker)
+- LocalGenerationService (HuggingFace mode): Uses HuggingFace models (FLUX, PartPacker)
 - CloudGenerationService: Uses runComfy cloud services (to be implemented)
 """
 
@@ -38,7 +38,7 @@ class GenerationService(ABC):
         pass
 
 class LocalGenerationService(GenerationService):
-    """Local generation service using HuggingFace models."""
+    """HuggingFace generation service using HuggingFace models (formerly called LocalGenerationService)."""
     
     def __init__(self):
         self.hf_token = os.getenv("HUGGINGFACE_HUB_ACCESS_TOKEN")
@@ -51,7 +51,7 @@ class LocalGenerationService(GenerationService):
     
     def generate_flux_image(self, prompt: str, seed: int = 0, **kwargs) -> Dict[str, Any]:
         """Generate image using FLUX.1-dev."""
-        print(f"🎨 [LOCAL] Generating FLUX image: {prompt[:100]}...")
+        print(f"🎨 [HUGGINGFACE] Generating FLUX image: {prompt[:100]}...")
         
         # Set defaults
         width = kwargs.get('width', 1024)
@@ -105,7 +105,7 @@ class LocalGenerationService(GenerationService):
     
     def generate_flux_depth_image(self, control_image_path: str, prompt: str, seed: int = 0, **kwargs) -> Dict[str, Any]:
         """Generate depth-controlled image using FLUX.1-Depth-dev."""
-        print(f"🎨 [LOCAL] Generating FLUX Depth image: {prompt[:100]}...")
+        print(f"🎨 [HUGGINGFACE] Generating FLUX Depth image: {prompt[:100]}...")
         
         # Verify control image exists
         if not Path(control_image_path).exists():
@@ -165,7 +165,7 @@ class LocalGenerationService(GenerationService):
     
     def generate_3d_model(self, image_path: str, seed: int = 0, **kwargs) -> Dict[str, Any]:
         """Generate 3D model using PartPacker."""
-        print(f"🏗️ [LOCAL] Generating 3D model from: {image_path}")
+        print(f"🏗️ [HUGGINGFACE] Generating 3D model from: {image_path}")
         
         # Verify input image exists
         if not Path(image_path).exists():
@@ -215,6 +215,59 @@ class CloudGenerationService(GenerationService):
     def __init__(self):
         self.runcomfy_credentials_path = Path("runcomfy/credentials.txt")
         print("☁️  CloudGenerationService: Using RunComfy orchestrator")
+
+
+class ServerlessGenerationService(GenerationService):
+    """Serverless generation service using RunComfy Serverless API."""
+    
+    def __init__(self):
+        try:
+            from runcomfy.serverless_service import ServerlessRunComfyService
+            self.service = ServerlessRunComfyService()
+            print("⚡ ServerlessGenerationService: Using RunComfy Serverless API")
+        except ImportError as e:
+            print(f"❌ Failed to import ServerlessRunComfyService: {e}")
+            self.service = None
+    
+    def is_available(self) -> bool:
+        """Check if serverless service is available."""
+        return self.service is not None and self.service.is_available()
+    
+    def generate_flux_image(self, prompt: str, seed: int = 0, **kwargs) -> Dict[str, Any]:
+        """Generate image using FLUX.1-dev via serverless API."""
+        if not self.service:
+            raise Exception("ServerlessRunComfyService not available")
+        
+        return self.service.generate_flux_image(prompt, seed, **kwargs)
+    
+    def generate_flux_depth_image(self, control_image_path: str, prompt: str, seed: int = 0, **kwargs) -> Dict[str, Any]:
+        """Generate depth-controlled image using serverless API."""
+        if not self.service:
+            raise Exception("ServerlessRunComfyService not available")
+        
+        return self.service.generate_flux_depth_image(control_image_path, prompt, seed, **kwargs)
+    
+    def generate_3d_model(self, image_path: str, seed: int = 0, **kwargs) -> Dict[str, Any]:
+        """Generate 3D model using serverless API."""
+        if not self.service:
+            raise Exception("ServerlessRunComfyService not available")
+        
+        return self.service.generate_3d_model(image_path, seed, **kwargs)
+    
+    def generate_flux_mesh_unified(self, **kwargs) -> Dict[str, Any]:
+        """Execute unified FLUX + 3D mesh generation (serverless-specific method)."""
+        if not self.service:
+            raise Exception("ServerlessRunComfyService not available")
+        
+        return self.service.generate_flux_mesh_unified(**kwargs)
+
+
+class CloudGenerationService_Legacy(GenerationService):
+    """Legacy cloud generation service using runComfy servers."""
+    
+    def __init__(self):
+        self.runcomfy_credentials_path = Path("runcomfy/credentials.txt")
+        print("☁️  CloudGenerationService_Legacy: Using RunComfy orchestrator")
     
     def is_available(self) -> bool:
         """Check if runComfy credentials are available."""
@@ -376,6 +429,12 @@ def get_generation_service(mode: str = "local") -> GenerationService:
     if mode == "local":
         return LocalGenerationService()
     elif mode == "cloud":
-        return CloudGenerationService()
+        # Cloud now defaults to serverless for better performance
+        return ServerlessGenerationService()
+    elif mode == "serverless":
+        return ServerlessGenerationService()
+    elif mode == "cloud_legacy":
+        # Legacy server-based cloud service
+        return CloudGenerationService_Legacy()
     else:
-        raise ValueError(f"Unknown generation mode: {mode}. Use 'local' or 'cloud'.")
+        raise ValueError(f"Unknown generation mode: {mode}. Use 'local', 'cloud', 'serverless', or 'cloud_legacy'.")

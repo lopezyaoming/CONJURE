@@ -216,24 +216,39 @@ async def get_mode():
     
     # Check service availability
     local_service = get_generation_service("local")
-    cloud_service = get_generation_service("cloud")
+    serverless_service = get_generation_service("serverless")
+    cloud_legacy_service = get_generation_service("cloud_legacy")
     
     return {
         "generation_mode": mode,
-        "available_modes": ["local", "cloud"],
+        "available_modes": ["huggingface", "cloud", "serverless", "cloud_legacy"],
         "local_available": local_service.is_available(),
-        "cloud_available": cloud_service.is_available(),
+        "cloud_available": serverless_service.is_available(),  # Cloud now means serverless
+        "serverless_available": serverless_service.is_available(),
+        "cloud_legacy_available": cloud_legacy_service.is_available(),
         "services": {
-            "local": {
-                "name": "HuggingFace Models",
+            "huggingface": {
+                "name": "HuggingFace Models", 
                 "description": "FLUX.1-dev, FLUX.1-Depth-dev, PartPacker",
                 "available": local_service.is_available(),
                 "requirements": "HUGGINGFACE_HUB_ACCESS_TOKEN"
             },
             "cloud": {
-                "name": "runComfy Cloud",
-                "description": "Cloud-based ComfyUI workflows",
-                "available": cloud_service.is_available(),
+                "name": "runComfy Serverless API",
+                "description": "Instant serverless FLUX + 3D mesh generation",
+                "available": serverless_service.is_available(),
+                "requirements": "runComfy API token and deployment"
+            },
+            "serverless": {
+                "name": "runComfy Serverless API",
+                "description": "Instant serverless FLUX + 3D mesh generation",
+                "available": serverless_service.is_available(),
+                "requirements": "runComfy API token and deployment"
+            },
+            "cloud_legacy": {
+                "name": "runComfy Server Management",
+                "description": "Legacy server-based ComfyUI workflows",
+                "available": cloud_legacy_service.is_available(),
                 "requirements": "runComfy account and credits"
             }
         }
@@ -626,10 +641,60 @@ async def render_gesture_camera():
         print(f"❌ Error rendering GestureCamera: {e}")
         raise HTTPException(status_code=500, detail=f"Error rendering GestureCamera: {str(e)}")
 
+@app.post("/serverless/flux_mesh_unified", response_model=APIResponse)
+async def generate_flux_mesh_unified():
+    """Execute unified FLUX + 3D mesh generation using serverless API."""
+    try:
+        print(f"🚀 SERVERLESS UNIFIED API: Request received")
+        
+        # Get serverless generation service
+        generation_service = get_generation_service("serverless")
+        
+        if not generation_service.is_available():
+            raise HTTPException(status_code=503, detail="Serverless service not available")
+        
+        print(f"⚡ SERVERLESS UNIFIED: Starting unified FLUX + 3D generation...")
+        
+        # Execute unified generation (reads from CONJURE data automatically)
+        result = generation_service.generate_flux_mesh_unified()
+        
+        if result["success"]:
+            print(f"✅ SERVERLESS UNIFIED: Generation completed successfully!")
+            print(f"   FLUX image: {result.get('flux_image_path', 'N/A')}")
+            print(f"   3D mesh: {result.get('mesh_model_path', 'N/A')}")
+            
+            # Trigger mesh import if we have a mesh result
+            mesh_path = result.get('mesh_model_path')
+            if mesh_path and Path(mesh_path).exists():
+                global state_manager
+                if state_manager:
+                    state_manager.update_state({
+                        "command": "import_and_process_mesh",
+                        "mesh_path": mesh_path,
+                        "min_volume_threshold": 0.001
+                    })
+                    print(f"✅ SERVERLESS UNIFIED: Triggered mesh import for {mesh_path}")
+            
+            return APIResponse(
+                success=True,
+                message="Serverless unified generation completed successfully",
+                data=result
+            )
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            print(f"❌ SERVERLESS UNIFIED: Generation failed: {error_msg}")
+            raise HTTPException(status_code=500, detail=f"Serverless generation failed: {error_msg}")
+            
+    except Exception as e:
+        print(f"❌ SERVERLESS UNIFIED API ERROR: {e}")
+        import traceback
+        print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error in serverless generation: {str(e)}")
+
 @app.post("/blender/import_mesh", response_model=APIResponse)
 async def import_mesh(request: MeshImportRequest):
     """Import and process mesh from generation results (PartPacker local or RunComfy cloud).
-    - Local mode: Handles pre-segmented meshes from PartPacker
+    - HuggingFace mode: Handles pre-segmented meshes from PartPacker
     - Cloud mode: Automatically separates single mesh from RunComfy into loose parts"""
     try:
         print(f"📦 MESH IMPORT API: Request received")
