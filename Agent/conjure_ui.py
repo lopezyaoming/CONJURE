@@ -269,15 +269,29 @@ class BrushPanel(MinimalFrame):
         self.fingertips_label = MinimalLabel("Fingertips: 0", "normal")
         layout.addWidget(self.fingertips_label)
         
+        # Primitive info (for CREATE brush)
+        self.primitive_label = MinimalLabel("Primitive: CUBE", "normal")
+        layout.addWidget(self.primitive_label)
+        self.primitive_label.hide()  # Hidden by default, shown only for CREATE brush
+        
     def update_brush(self, brush_data: Dict):
         """Update brush display with new data"""
         command = brush_data.get("active_command", "idle")
         hand = brush_data.get("active_hand", "none")
         fingertips = brush_data.get("fingertip_count", 0)
+        active_brush = brush_data.get("active_brush", "DRAW")
+        current_primitive = brush_data.get("current_primitive", "CUBE")
         
         self.command_label.setText(f"Tool: {command}")
         self.hand_label.setText(f"Hand: {hand or 'none'}")
         self.fingertips_label.setText(f"Fingertips: {fingertips}")
+        
+        # Show/hide primitive info based on active brush
+        if active_brush == "CREATE":
+            self.primitive_label.setText(f"Primitive: {current_primitive}")
+            self.primitive_label.show()
+        else:
+            self.primitive_label.hide()
 
 class BrushIconsPanel(MinimalFrame):
     """Left column panel for brush icons - PHASE 3 REDESIGN"""
@@ -296,7 +310,7 @@ class BrushIconsPanel(MinimalFrame):
         self.active_brush = "DRAW"  # Default active brush (first in system list)
         
         # Create brush icon buttons
-        brush_types = ["DRAW", "GRAB", "SMOOTH", "INFLATE", "FLATTEN"]
+        brush_types = ["DRAW", "CREATE", "GRAB", "SMOOTH", "INFLATE", "FLATTEN"]
         for brush_type in brush_types:
             button = self.create_brush_button(brush_type)
             layout.addWidget(button)
@@ -625,11 +639,14 @@ class ConjureMainWindow(QMainWindow):
                     
                     # Read the actual active brush from Blender
                     active_brush = fingertip_data.get("active_brush", "DRAW")
+                    current_primitive = fingertip_data.get("current_primitive", "CUBE")
                     print(f"DEBUG: Active brush from file: {active_brush}")
+                    print(f"DEBUG: Current primitive from file: {current_primitive}")
                     
                     # Map system brush names to UI brush names if needed
                     brush_mapping = {
                         "DRAW": "DRAW",
+                        "CREATE": "CREATE",
                         "GRAB": "GRAB", 
                         "SMOOTH": "SMOOTH",
                         "INFLATE": "INFLATE",
@@ -642,8 +659,15 @@ class ConjureMainWindow(QMainWindow):
                     if mapped_brush in self.brush_icons_panel.brush_icons:
                         print(f"DEBUG: Updating UI to show {mapped_brush} as active")
                         self.brush_icons_panel.update_active_brush(mapped_brush)
+                        
+                        # Update window title to show primitive info for CREATE brush
+                        if mapped_brush == "CREATE":
+                            self.setWindowTitle(f"CONJURE - {mapped_brush} Brush - Primitive: {current_primitive}")
+                        else:
+                            self.setWindowTitle(f"CONJURE - {mapped_brush} Brush")
                     else:
                         print(f"DEBUG: Brush {mapped_brush} not found in UI brushes")
+                        self.setWindowTitle("CONJURE - Unknown Brush")
                 else:
                     print(f"DEBUG: Fingertips file does not exist")
                     
@@ -651,6 +675,7 @@ class ConjureMainWindow(QMainWindow):
                 print(f"DEBUG: Error reading brush info: {e}")
                 # Default to DRAW if we can't read brush info
                 self.brush_icons_panel.update_active_brush("DRAW")
+                self.setWindowTitle("CONJURE - DRAW Brush")
                 
         except Exception as e:
             print(f"Error updating UI: {e}")

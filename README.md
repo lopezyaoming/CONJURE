@@ -35,22 +35,52 @@ This creates an **instinctive, visual workflow** where the creative process feel
 The central 3D modeling environment where all geometry is created and deformed using natural hand movements.
 
 **Right-Hand Gestures (Primary Actions):**
-- **Thumb + Index Finger**: Deform mesh with active sculpting brush
+- **Thumb + Index Finger**: Use active brush (deform, draw, or create primitives)
 - **Thumb + Middle Finger**: Orbit camera around the model
-- **Thumb + Ring Finger**: Cycle between sculpting brushes (PINCH, GRAB, SMOOTH, INFLATE, FLATTEN)
+- **Thumb + Ring Finger**: Cycle between brushes (DRAW, CREATE, GRAB, SMOOTH, INFLATE, FLATTEN)
 - **Thumb + Pinky Finger**: Rewind/undo changes
 
 **Left-Hand Gestures (Utility Actions):**
-- **Thumb + Index Finger**: Reset camera view and center model
-- **Thumb + Middle Finger**: Cycle brush size (SMALL, MEDIUM, LARGE)
+- **Thumb + Index Finger**: Boolean UNION (add drawn/created objects to mesh)
+- **Thumb + Middle Finger**: Cycle brush size OR cycle primitives (in CREATE mode)
+- **Thumb + Ring Finger**: Confirm primitive placement (CREATE mode only)
+- **Thumb + Pinky Finger**: Boolean DIFFERENCE (subtract drawn/created objects from mesh)
 
-### 3. Continuous AI Generation Loop
+### 3. Brush System
+CONJURE features six specialized brushes for different modeling approaches:
+
+#### **DRAW Brush**
+Create organic curves and ribbons by drawing in 3D space:
+1. **Right Thumb + Index**: Start drawing - move fingers to create 3D Bezier curves
+2. **Release fingers**: Finish the stroke and apply DRAWbrush GeometryNode for thick ribbons
+3. **Left Thumb + Index**: Boolean UNION to add ribbons to mesh
+4. **Left Thumb + Pinky**: Boolean DIFFERENCE to subtract ribbons from mesh
+5. **Right Pinky**: Rewind to remove last drawn stroke
+
+#### **CREATE Brush**
+Place and manipulate geometric primitives with precise control:
+1. **Left Thumb + Middle**: Cycle through primitives (CUBE, SPHERE, CYLINDER, CONE, TORUS)
+2. **Right Thumb + Index**: Start primitive preview - move fingers to adjust size and rotation
+3. **Release fingers**: Preview stays active for further adjustment
+4. **Right Thumb + Index again**: Continue adjusting size and rotation as needed
+5. **Left Thumb + Ring**: Confirm primitive placement (converts to solid object)
+6. **Left Thumb + Index**: Boolean UNION to add primitives to mesh
+7. **Left Thumb + Pinky**: Boolean DIFFERENCE to subtract primitives from mesh
+8. **Right Pinky**: Rewind to cancel preview or remove last confirmed primitive
+
+#### **Traditional Sculpting Brushes**
+- **GRAB**: Move and pull mesh vertices
+- **SMOOTH**: Smooth surface irregularities
+- **INFLATE**: Push vertices outward along surface normals
+- **FLATTEN**: Flatten surface areas
+
+### 4. Continuous AI Generation Loop
 - **30-Second Cycles**: Automatic mesh generation every 30 seconds
 - **FLUX.1-Depth Pipeline**: Uses current prompt + gesture camera render
 - **Seamless Import**: New meshes automatically replace the current model
 - **Uninterrupted Flow**: Users continue working while AI processes in background
 
-### 4. Streamlined UI (`Agent/conjure_ui.py`)
+### 5. Streamlined UI (`Agent/conjure_ui.py`)
 **Minimal, Essential Information Only:**
 - **Prompt Display**: Current model description with real-time updates
 - **Brush Status**: Active tool and size indicator

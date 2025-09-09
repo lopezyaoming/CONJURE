@@ -8,6 +8,5 @@
   },
   "anchors": [],
   "scale_axis": "XYZ",
-  "remesh_type": "BLOCKS",
-  "active_brush": "DRAW"
+  "remesh_type": "BLOCKS"
 }

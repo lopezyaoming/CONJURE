@@ -28,7 +28,8 @@ GESTURE_CAMERA_NAME = "GestureCamera" # The camera used for perspective-based ma
 HIDE_GRACE_PERIOD_FRAMES = 5    # How many frames to wait before hiding a missing finger marker.
 REFRESH_RATE_SECONDS = 1 / 30  # Target 30 updates per second.
 MAX_HISTORY_STEPS = 150        # The number of undo steps to store in memory.
-BRUSH_TYPES = ['DRAW', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
+BRUSH_TYPES = ['DRAW', 'CREATE', 'GRAB', 'SMOOTH', 'INFLATE', 'FLATTEN'] # The available deformation brushes
+PRIMITIVE_TYPES = ['CUBE', 'SPHERE', 'CYLINDER', 'CONE', 'TORUS'] # The available primitives for CREATE brush
 
 
 # --- MAPPING & VISUALS ---
@@ -36,8 +37,10 @@ HAND_SCALE_X = 5.0
 HAND_SCALE_Y = 5.0
 HAND_SCALE_Z = 5.0
 MARKER_OUT_OF_VIEW_LOCATION = (1000, 1000, 1000)
-MARKER_SURFACE_OFFSET = 0.15
-SMOOTHING_FACTOR = 0.35
+MARKER_SURFACE_OFFSET = 0.5  # Increased to 0.5 to guarantee fingertips stay in front of mesh
+SMOOTHING_FACTOR = 0.15  # Reduced from 0.35 for much smoother movement
+HOVER_SMOOTHING_FACTOR = 0.08  # Extra smooth when hovering over mesh
+VELOCITY_SMOOTHING_FACTOR = 0.2  # For velocity-based smoothing
 
 
 # --- CAMERA ORBIT ---

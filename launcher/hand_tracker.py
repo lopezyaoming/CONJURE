@@ -73,7 +73,11 @@ def run_hand_tracker():
         "cycle_brush":  {"finger": HAND_LANDMARKS.RING_FINGER_TIP,   "hand": "Right", "type": "oneshot"},
         "rewind":       {"finger": HAND_LANDMARKS.PINKY_TIP,        "hand": "Right", "type": "continuous"},
         # Left Hand
-        "cycle_radius":   {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+        "cycle_radius":     {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+        "cycle_primitive":  {"finger": HAND_LANDMARKS.MIDDLE_FINGER_TIP, "hand": "Left", "type": "oneshot"}, # Same gesture, context-dependent
+        "confirm_placement": {"finger": HAND_LANDMARKS.RING_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+        "boolean_union":    {"finger": HAND_LANDMARKS.INDEX_FINGER_TIP, "hand": "Left", "type": "oneshot"},
+        "boolean_difference": {"finger": HAND_LANDMARKS.PINKY_TIP, "hand": "Left", "type": "oneshot"},
     }
 
     # Initialize Webcam
