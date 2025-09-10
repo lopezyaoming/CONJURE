@@ -210,8 +210,8 @@ class ConjureApp:
         else:
             print("✅ CONJURE simplified workflow ready (no conversational agent)")
         
-        # Start the UI system in a separate thread
-        self.start_ui_system()
+        # DISABLED: PyQt overlay UI (replaced with Blender viewport display)
+        # self.start_ui_system()
         
         # 🚦 Mark initialization as complete
         self.initialization_complete = True
@@ -1059,8 +1059,8 @@ class ConjureApp:
                 
                 self.check_for_requests()
                 
-                # Check for UI shutdown signal
-                self.check_for_shutdown_signal()
+                # DISABLED: UI shutdown signal check (overlay UI disabled)
+                # self.check_for_shutdown_signal()
                 
                 time.sleep(1)
                 debug_counter += 1
@@ -1102,8 +1102,8 @@ class ConjureApp:
         #     print("🎤 Stopping conversational agent...")
         #     self.conversational_agent.stop()
         
-        # Stop UI system
-        if hasattr(self, 'ui_process'):
+        # Stop UI system (if it was started)
+        if hasattr(self, 'ui_process') and self.ui_process:
             print("🖥️  Stopping UI overlay process...")
             try:
                 self.ui_process.terminate()
@@ -1115,6 +1115,8 @@ class ConjureApp:
                     self.ui_process.kill()
                 except:
                     pass
+        else:
+            print("ℹ️  UI overlay was not running (disabled)")
         
         print("✅ CONJURE shutdown complete")
 

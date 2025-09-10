@@ -259,7 +259,19 @@ class BrushPanel(MinimalFrame):
         title = MinimalLabel("Active Brush", "subtitle")
         layout.addWidget(title)
         
-        # Brush info
+        # Brush info (matching Blender display)
+        self.brush_label = MinimalLabel("Brush: DRAW", "normal")
+        layout.addWidget(self.brush_label)
+        
+        self.radius_label = MinimalLabel("Radius: MEDIUM", "normal")
+        layout.addWidget(self.radius_label)
+        
+        # Primitive info (for CREATE brush)
+        self.primitive_label = MinimalLabel("Primitive: CUBE", "normal")
+        layout.addWidget(self.primitive_label)
+        self.primitive_label.hide()  # Hidden by default, shown only for CREATE brush
+        
+        # Additional debug info (legacy)
         self.command_label = MinimalLabel("Tool: idle", "normal")
         layout.addWidget(self.command_label)
         
@@ -269,22 +281,15 @@ class BrushPanel(MinimalFrame):
         self.fingertips_label = MinimalLabel("Fingertips: 0", "normal")
         layout.addWidget(self.fingertips_label)
         
-        # Primitive info (for CREATE brush)
-        self.primitive_label = MinimalLabel("Primitive: CUBE", "normal")
-        layout.addWidget(self.primitive_label)
-        self.primitive_label.hide()  # Hidden by default, shown only for CREATE brush
-        
     def update_brush(self, brush_data: Dict):
         """Update brush display with new data"""
-        command = brush_data.get("active_command", "idle")
-        hand = brush_data.get("active_hand", "none")
-        fingertips = brush_data.get("fingertip_count", 0)
+        # Primary display info (matching Blender viewport)
         active_brush = brush_data.get("active_brush", "DRAW")
+        active_radius = brush_data.get("active_radius", "MEDIUM")
         current_primitive = brush_data.get("current_primitive", "CUBE")
         
-        self.command_label.setText(f"Tool: {command}")
-        self.hand_label.setText(f"Hand: {hand or 'none'}")
-        self.fingertips_label.setText(f"Fingertips: {fingertips}")
+        self.brush_label.setText(f"Brush: {active_brush}")
+        self.radius_label.setText(f"Radius: {active_radius}")
         
         # Show/hide primitive info based on active brush
         if active_brush == "CREATE":
@@ -292,6 +297,15 @@ class BrushPanel(MinimalFrame):
             self.primitive_label.show()
         else:
             self.primitive_label.hide()
+        
+        # Legacy debug info
+        command = brush_data.get("active_command", "idle")
+        hand = brush_data.get("active_hand", "none")
+        fingertips = brush_data.get("fingertip_count", 0)
+        
+        self.command_label.setText(f"Tool: {command}")
+        self.hand_label.setText(f"Hand: {hand or 'none'}")
+        self.fingertips_label.setText(f"Fingertips: {fingertips}")
 
 class BrushIconsPanel(MinimalFrame):
     """Left column panel for brush icons - PHASE 3 REDESIGN"""
@@ -329,11 +343,12 @@ class BrushIconsPanel(MinimalFrame):
         
         # Map brush types to icon filenames
         icon_mapping = {
+            "DRAW": "draw.png",      # Now has icon
+            "CREATE": "create.png",  # Now has icon
             "GRAB": "grab.png",
-            "FLATTEN": "flatten.png", 
-            "INFLATE": "inflate.png",
             "SMOOTH": "soften.png",  # SMOOTH uses soften icon
-            "DRAW": None             # DRAW will use text fallback
+            "INFLATE": "inflate.png",
+            "FLATTEN": "flatten.png"
         }
         
         # Try to load the brush icon
@@ -460,7 +475,7 @@ class ConjureMainWindow(QMainWindow):
         # Set up timer for periodic refresh
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.refresh_data)
-        self.refresh_timer.start(5000)  # Refresh every 5 seconds
+        self.refresh_timer.start(100)  # Refresh every 100ms for real-time gesture response
         
         # Load initial data
         self.refresh_data()
@@ -600,7 +615,7 @@ class ConjureMainWindow(QMainWindow):
     
     def refresh_data(self):
         """Refresh all UI panels with latest data - PHASE 3 SIMPLIFICATION"""
-        print("DEBUG: refresh_data() called")
+        # Reduced debug spam for frequent refresh
         ui_data = self.load_ui_data()
         
         try:
@@ -629,19 +644,15 @@ class ConjureMainWindow(QMainWindow):
             try:
                 from pathlib import Path
                 fingertips_path = Path(__file__).parent.parent / "data" / "input" / "fingertips.json"
-                print(f"DEBUG: Reading from {fingertips_path}")
                 if fingertips_path.exists():
                     import json
                     with open(fingertips_path, 'r', encoding='utf-8') as f:
                         fingertip_data = json.load(f)
                     
-                    print(f"DEBUG: Loaded fingertip data: {fingertip_data}")
-                    
-                    # Read the actual active brush from Blender
+                    # Read the actual active brush, radius, and primitive from Blender
                     active_brush = fingertip_data.get("active_brush", "DRAW")
+                    active_radius = fingertip_data.get("active_radius", "MEDIUM")
                     current_primitive = fingertip_data.get("current_primitive", "CUBE")
-                    print(f"DEBUG: Active brush from file: {active_brush}")
-                    print(f"DEBUG: Current primitive from file: {current_primitive}")
                     
                     # Map system brush names to UI brush names if needed
                     brush_mapping = {
@@ -653,23 +664,22 @@ class ConjureMainWindow(QMainWindow):
                         "FLATTEN": "FLATTEN",
                     }
                     mapped_brush = brush_mapping.get(active_brush.upper(), active_brush.upper())
-                    print(f"DEBUG: Mapped brush: {mapped_brush}")
-                    print(f"DEBUG: Available UI brushes: {list(self.brush_icons_panel.brush_icons.keys())}")
                     
-                    if mapped_brush in self.brush_icons_panel.brush_icons:
-                        print(f"DEBUG: Updating UI to show {mapped_brush} as active")
-                        self.brush_icons_panel.update_active_brush(mapped_brush)
+                    # Only update if the brush actually changed to reduce UI flicker
+                    if mapped_brush != getattr(self, '_last_active_brush', None):
+                        self._last_active_brush = mapped_brush
+                        print(f"🎨 UI: Brush changed to {mapped_brush}")
                         
-                        # Update window title to show primitive info for CREATE brush
-                        if mapped_brush == "CREATE":
-                            self.setWindowTitle(f"CONJURE - {mapped_brush} Brush - Primitive: {current_primitive}")
+                        if mapped_brush in self.brush_icons_panel.brush_icons:
+                            self.brush_icons_panel.update_active_brush(mapped_brush)
+                            
+                            # Update window title to show complete brush info (matching Blender display)
+                            if mapped_brush == "CREATE":
+                                self.setWindowTitle(f"CONJURE - Brush: {mapped_brush} | Radius: {active_radius} | Primitive: {current_primitive}")
+                            else:
+                                self.setWindowTitle(f"CONJURE - Brush: {mapped_brush} | Radius: {active_radius}")
                         else:
-                            self.setWindowTitle(f"CONJURE - {mapped_brush} Brush")
-                    else:
-                        print(f"DEBUG: Brush {mapped_brush} not found in UI brushes")
-                        self.setWindowTitle("CONJURE - Unknown Brush")
-                else:
-                    print(f"DEBUG: Fingertips file does not exist")
+                            self.setWindowTitle("CONJURE - Unknown Brush")
                     
             except Exception as e:
                 print(f"DEBUG: Error reading brush info: {e}")

@@ -305,25 +305,10 @@ def deform_mesh(mesh_obj, finger_positions_3d, initial_volume):
             # Convert back to local space to update the vertex
             v.co = world_matrix_inv @ v_world
 
-    # 4. Volume Preservation
-    # This crucial step prevents the mesh from collapsing on itself.
-    current_volume = bm.calc_volume(signed=True)
-    if initial_volume != 0: # Avoid division by zero
-        volume_ratio = current_volume / initial_volume
-        
-        if volume_ratio < config.VOLUME_LOWER_LIMIT or volume_ratio > config.VOLUME_UPPER_LIMIT:
-            target_ratio = max(config.VOLUME_LOWER_LIMIT, min(volume_ratio, config.VOLUME_UPPER_LIMIT))
-            scale_factor = (target_ratio / volume_ratio)**(1/3)
-            
-            # Calculate the centroid of the mesh to scale from the center
-            centroid = mathutils.Vector()
-            for v in bm.verts:
-                centroid += v.co
-            centroid /= len(bm.verts)
-            
-            # Apply corrective scaling to each vertex
-            for v in bm.verts:
-                v.co = centroid + (v.co - centroid) * scale_factor
+    # 4. Volume Preservation - DEACTIVATED
+    # Note: Volume preservation has been deactivated to prevent unwanted scaling
+    # The mesh is allowed to deform naturally without volume constraints
+    pass
 
     # 5. Write the modified bmesh data back to the mesh
     bm.to_mesh(mesh_obj.data)
@@ -462,24 +447,10 @@ def deform_mesh_with_viscosity(mesh_obj, finger_positions_3d, initial_volume, ve
             # A more robust implementation would handle spaces more carefully.
             bm.verts[v_index].co += displacement
 
-    # --- 3. Volume Preservation ---
-    current_volume = bm.calc_volume(signed=True)
-    if initial_volume != 0:
-        volume_ratio = current_volume / initial_volume
-        if volume_ratio < config.VOLUME_LOWER_LIMIT or volume_ratio > config.VOLUME_UPPER_LIMIT:
-            target_ratio = max(config.VOLUME_LOWER_LIMIT, min(volume_ratio, config.VOLUME_UPPER_LIMIT))
-            # Prevent complex numbers from negative ratios
-            if target_ratio / volume_ratio > 0:
-                scale_factor = (target_ratio / volume_ratio)**(1/3)
-            else:
-                scale_factor = 1.0  # Fallback to no scaling
-                
-            centroid = mathutils.Vector()
-            for v in bm.verts:
-                centroid += v.co
-            centroid /= len(bm.verts)
-            for v in bm.verts:
-                v.co = centroid + (v.co - centroid) * scale_factor
+    # --- 3. Volume Preservation - DEACTIVATED ---
+    # Note: Volume preservation has been deactivated to prevent unwanted scaling
+    # The mesh is allowed to deform naturally without volume constraints
+    pass
 
     # --- 4. Finalize ---
     bm.to_mesh(mesh_obj.data)
@@ -526,6 +497,12 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _create_thumb_pos = None         # Last thumb position for creation
     _create_index_pos = None         # Last index position for creation
     _last_finger_positions = None    # Store last known finger positions for CREATE sticky mode
+    
+    # === TWO-PHASE CREATE STATE ===
+    _create_phase = "NONE"           # "NONE", "SIZE", "POSITION"
+    _create_size_confirmed = 0.5     # Confirmed size from Phase 1
+    _size_start_hands = None         # Initial hand positions when entering size mode
+    _both_hands_active = False       # Whether both hands are currently active
 
     def get_mesh_volume(self, mesh_obj):
         """Calculates the volume of a given mesh object using bmesh."""
@@ -916,7 +893,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
         self.add_to_history()
 
     def draw_ui_text(self, context):
-        """Draws the current brush name on the viewport."""
+        """Draws the current brush name and user prompt on the viewport."""
         font_id = 0  # Default font
         
         # Draw Brush Name
@@ -938,6 +915,109 @@ class ConjureFingertipOperator(bpy.types.Operator):
         except (ReferenceError, AttributeError):
             active_radius = "UNKNOWN"
         blf.draw(font_id, f"Radius: {active_radius}")
+        
+        # Draw Primitive Type (only when in CREATE mode)
+        try:
+            active_brush = config.BRUSH_TYPES[self._current_brush_index]
+            if active_brush == "CREATE":
+                blf.position(font_id, 15, 0, 0)  # Bottom position
+                blf.size(font_id, 20)
+                blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
+                try:
+                    active_primitive = config.PRIMITIVE_TYPES[self._current_primitive_index]
+                except (IndexError, AttributeError):
+                    active_primitive = "UNKNOWN"
+                blf.draw(font_id, f"Primitive: {active_primitive}")
+        except (ReferenceError, AttributeError):
+            pass  # Silently handle any config access errors
+        
+        # Draw User Prompt (centered in bottom half of screen)
+        self.draw_user_prompt(context, font_id)
+    
+    def draw_user_prompt(self, context, font_id):
+        """Draw the user prompt text in the middle column with text wrapping."""
+        try:
+            # Read userPrompt.txt from generated_text (where voice system writes)
+            project_root = Path(__file__).parent.parent.parent.parent
+            prompt_file = project_root / "data" / "generated_text" / "userPrompt.txt"
+            
+            prompt_text = "USER PROMPT: txt"  # Default fallback
+            if prompt_file.exists():
+                try:
+                    with open(prompt_file, 'r', encoding='utf-8') as f:
+                        prompt_content = f.read().strip()
+                    if prompt_content:
+                        prompt_text = prompt_content
+                except Exception as e:
+                    print(f"Error reading userPrompt.txt: {e}")
+            
+            # Get viewport dimensions
+            region = context.region
+            if not region:
+                return
+                
+            viewport_width = region.width
+            viewport_height = region.height
+            
+            # Define middle column (divide screen into 3 columns)
+            column_width = viewport_width / 3
+            middle_column_start = column_width  # Start of middle column
+            middle_column_end = column_width * 2  # End of middle column
+            usable_width = column_width * 0.9  # 90% of column width for padding
+            
+            # Use same font size as brush info for consistency
+            blf.size(font_id, 20)
+            
+            # Wrap text to fit in middle column
+            wrapped_lines = self.wrap_text_to_width(prompt_text, font_id, usable_width)
+            
+            # Calculate starting Y position (bottom half, centered vertically for text block)
+            line_height = 25  # Slightly more than font size for line spacing
+            total_text_height = len(wrapped_lines) * line_height
+            start_y = (viewport_height * 0.25) + (total_text_height / 2)  # Center the text block
+            
+            # Draw each line
+            blf.color(font_id, 1.0, 1.0, 1.0, 1.0)  # White color
+            for i, line in enumerate(wrapped_lines):
+                # Center each line within the middle column
+                line_width, _ = blf.dimensions(font_id, line)
+                x_pos = middle_column_start + (column_width - line_width) / 2
+                y_pos = start_y - (i * line_height)
+                
+                blf.position(font_id, x_pos, y_pos, 0)
+                blf.draw(font_id, line)
+            
+        except Exception as e:
+            print(f"Error drawing user prompt: {e}")
+    
+    def wrap_text_to_width(self, text, font_id, max_width):
+        """Wrap text to fit within the specified width, breaking at word boundaries."""
+        words = text.split()
+        lines = []
+        current_line = ""
+        
+        for word in words:
+            # Test if adding this word would exceed the width
+            test_line = current_line + (" " if current_line else "") + word
+            test_width, _ = blf.dimensions(font_id, test_line)
+            
+            if test_width <= max_width:
+                current_line = test_line
+            else:
+                # If current_line is not empty, finish it and start a new line
+                if current_line:
+                    lines.append(current_line)
+                    current_line = word
+                else:
+                    # Single word is too long, break it
+                    lines.append(word)
+                    current_line = ""
+        
+        # Add the last line if there's content
+        if current_line:
+            lines.append(current_line)
+        
+        return lines
     
     def detect_gesture(self, finger_positions_3d):
         """
@@ -1461,6 +1541,136 @@ class ConjureFingertipOperator(bpy.types.Operator):
         
         return [start_point, point_1_4, point_3_4, end_point]
     
+    # === TWO-PHASE CREATE HELPER METHODS ===
+    
+    def detect_both_hands_active(self, finger_positions_3d):
+        """Check if both hands have index+thumb active"""
+        if len(finger_positions_3d) < 10:
+            return False, None, None, None, None
+            
+        # Left hand: index=1, thumb=0
+        left_thumb = finger_positions_3d[0]
+        left_index = finger_positions_3d[1]
+        
+        # Right hand: index=6, thumb=5  
+        right_thumb = finger_positions_3d[5]
+        right_index = finger_positions_3d[6]
+        
+        # Check if both hands have thumb+index detected
+        left_active = (left_thumb is not None and left_index is not None)
+        right_active = (right_thumb is not None and right_index is not None)
+        
+        both_active = left_active and right_active
+        
+        return both_active, left_thumb, left_index, right_thumb, right_index
+    
+    def calculate_hands_distance(self, left_thumb, left_index, right_thumb, right_index):
+        """Calculate distance between hand centers for size control"""
+        import mathutils
+        
+        # Calculate center of each hand
+        left_center = (mathutils.Vector(left_thumb) + mathutils.Vector(left_index)) / 2
+        right_center = (mathutils.Vector(right_thumb) + mathutils.Vector(right_index)) / 2
+        
+        # Distance between hand centers
+        raw_distance = (right_center - left_center).length
+        
+        # SCALE FACTOR: Multiply by 3.0 to make hand distance more intuitive
+        # Raw distance might be small (0.2-1.0), but we want primitives sized 0.6-3.0+
+        scaled_distance = raw_distance * 3.0
+        
+        print(f"🎯 DISTANCE DEBUG: raw={raw_distance:.3f}, scaled={scaled_distance:.3f}")
+        print(f"   Left center: {left_center}")
+        print(f"   Right center: {right_center}")
+        
+        return scaled_distance, left_center, right_center
+    
+    def start_size_phase(self, context, left_thumb, left_index, right_thumb, right_index):
+        """Start Phase 1: Size definition with both hands"""
+        print("🎯 CREATE Phase 1: SIZE DEFINITION started")
+        self._create_phase = "SIZE"
+        self._both_hands_active = True
+        
+        # Store initial hand positions
+        self._size_start_hands = {
+            'left_thumb': left_thumb.copy(),
+            'left_index': left_index.copy(), 
+            'right_thumb': right_thumb.copy(),
+            'right_index': right_index.copy()
+        }
+        
+        # Calculate initial size and create preview
+        distance, left_center, right_center = self.calculate_hands_distance(left_thumb, left_index, right_thumb, right_index)
+        
+        # Clamp size to reasonable bounds  
+        size = max(0.1, min(distance, 10.0))
+        self._create_size_confirmed = size
+        
+        print(f"🎯 Initial size: {size:.2f} (scaled distance between hands)")
+        
+        # Create preview object at midpoint between hands
+        preview_center = (left_center + right_center) / 2
+        self.create_size_preview(context, preview_center, size)
+    
+    def update_size_phase(self, context, left_thumb, left_index, right_thumb, right_index):
+        """Update Phase 1: Live size adjustment"""
+        distance, left_center, right_center = self.calculate_hands_distance(left_thumb, left_index, right_thumb, right_index)
+        
+        # Clamp size to reasonable bounds
+        size = max(0.1, min(distance, 10.0))
+        self._create_size_confirmed = size
+        
+        # Update preview location and size
+        preview_center = (left_center + right_center) / 2
+        
+        if self._preview_object and self._preview_object.name in bpy.data.objects:
+            # Update existing preview
+            self._preview_object.location = preview_center
+            # Apply uniform scaling based on size
+            self._preview_object.scale = (size, size, size)
+            print(f"🎯 Size updated: {size:.2f} (scale applied: {self._preview_object.scale})")
+        else:
+            # Recreate preview if lost
+            self.create_size_preview(context, preview_center, size)
+    
+    def create_size_preview(self, context, center, size):
+        """Create the size preview object"""
+        # Remove old preview if it exists
+        if self._preview_object and self._preview_object.name in bpy.data.objects:
+            bpy.data.objects.remove(self._preview_object, do_unlink=True)
+        
+        # Create new preview at center with base size
+        primitive_name = self.get_current_primitive_name()
+        self._preview_object = self.create_primitive(context, primitive_name, center, center, is_preview=True)
+        
+        if self._preview_object:
+            # Apply size scaling
+            self._preview_object.scale = (size, size, size)
+            self._preview_object.location = center
+            
+            # Apply selection material for visibility
+            self.apply_selection_material(self._preview_object)
+            print(f"✅ Size preview created: {primitive_name} at {center} with size {size:.2f}")
+    
+    def confirm_size_phase(self, context):
+        """Confirm Phase 1 and transition to Phase 2: Position"""
+        print(f"✅ CREATE Phase 1 CONFIRMED: Size = {self._create_size_confirmed:.2f}")
+        print("🎯 CREATE Phase 2: POSITION started - use right hand thumb+index to position")
+        
+        self._create_phase = "POSITION"
+        self._both_hands_active = False
+        self._is_creating = True  # Keep for compatibility with existing logic
+    
+    def start_position_phase(self, context, thumb_pos, index_pos):
+        """Handle Phase 2: Position control with right hand"""
+        if self._preview_object and self._preview_object.name in bpy.data.objects:
+            # Update position based on right hand
+            new_center = (thumb_pos + index_pos) / 2
+            self._preview_object.location = new_center
+            print(f"🎯 Position updated: {new_center}")
+        else:
+            print("⚠️ No preview object for positioning")
+    
     def create_bezier_curve_from_path(self, context, path_points):
         """Create a smooth bezier curve from a list of 3D points, simplified to exactly 4 control points"""
         if len(path_points) < 2:
@@ -1864,33 +2074,42 @@ class ConjureFingertipOperator(bpy.types.Operator):
             return None
     
     def apply_primitive_rotation(self, obj, thumb_pos, index_pos):
-        """Apply rotation to primitive based on finger direction and wrist rotation"""
-        size_vector = index_pos - thumb_pos
+        """Apply rotation to primitive based on gestureCamera orientation (not finger direction)"""
+        import mathutils
         
-        # Calculate rotation to align object with finger direction
-        if size_vector.length > 0.01:  # Avoid division by zero
-            import mathutils
+        # Get the gestureCamera for orientation reference
+        gesture_camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
+        
+        if gesture_camera:
+            # Use gestureCamera's rotation directly
+            obj.rotation_euler = gesture_camera.rotation_euler.copy()
+            print(f"🔄 Applied gestureCamera rotation to {obj.name}: {obj.rotation_euler}")
+        else:
+            # Fallback: no rotation (keep default orientation)
+            obj.rotation_euler = (0, 0, 0)
+            print(f"⚠️ gestureCamera not found, using default rotation for {obj.name}")
+    
+    def apply_create_remesh(self, obj):
+        """Apply remesh modifier with smooth, octree depth 7 to CREATE primitives."""
+        try:
+            # Add remesh modifier
+            remesh_modifier = obj.modifiers.new(name="Remesh", type='REMESH')
+            remesh_modifier.mode = 'SMOOTH'
+            remesh_modifier.octree_depth = 6
+            remesh_modifier.scale = 0.99
+            remesh_modifier.remove_disconnected = False
+            remesh_modifier.threshold = 1.0
             
-            # Calculate rotation matrix to align with finger direction
-            direction = size_vector.normalized()
-            up_vector = mathutils.Vector((0, 0, 1))
+            print(f"🔧 Added remesh modifier: mode=SMOOTH, octree_depth=7, scale=0.99")
             
-            # If direction is too close to up vector, use different reference
-            if abs(direction.dot(up_vector)) > 0.9:
-                up_vector = mathutils.Vector((0, 1, 0))
+            # Apply the modifier
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.modifier_apply(modifier="Remesh")
             
-            # Create rotation matrix
-            right_vector = direction.cross(up_vector).normalized()
-            actual_up = right_vector.cross(direction).normalized()
+            print(f"✅ Remesh applied successfully to {obj.name}")
             
-            rotation_matrix = mathutils.Matrix((
-                right_vector,
-                actual_up,
-                direction
-            )).transposed()
-            
-            obj.rotation_euler = rotation_matrix.to_euler()
-            print(f"🔄 Applied rotation to {obj.name}")
+        except Exception as e:
+            print(f"❌ Error applying remesh to {obj.name}: {e}")
     
     def batch_remesh_and_boolean_create(self, context, operation='UNION'):
         """Apply boolean operations to all pending create objects"""
@@ -2148,33 +2367,12 @@ class ConjureFingertipOperator(bpy.types.Operator):
             # Update last hand center for the next frame
             self._last_hand_center = current_hand_center
 
-            # Handle CREATE brush "sticky" mode - override command=none when creating
-            active_brush = config.BRUSH_TYPES[self._current_brush_index]
-            if active_brush == "CREATE" and self._is_creating and command == "none":
-                # OVERRIDE: Force command to "deform" when CREATE brush is active
-                # This makes the CREATE brush "sticky" until left hand confirms
-                print("🔄 CREATE: Overriding command=none → deform (sticky mode)")
-                command = "deform"
-                
-                # Check if we have finger positions for updating
-                finger_positions_3d = live_data.get("finger_positions_3d", [])
-                if len(finger_positions_3d) == 0:
-                    # Use last known finger positions if available
-                    if self._last_finger_positions and len(self._last_finger_positions) >= 7:
-                        finger_positions_3d = self._last_finger_positions
-                        live_data["finger_positions_3d"] = finger_positions_3d  # Update live_data
-                        print("🔄 CREATE: Using last known finger positions for sticky mode")
-                        print(f"🔍 DEBUG: Restored finger data, length={len(finger_positions_3d)}")
-                    else:
-                        print("🏗️ CREATE: No finger data - preview remains at last position")
-                        print("🏗️ Touch thumb+index to adjust, or left ring+thumb to confirm")
-                else:
-                    print(f"🔍 DEBUG: Finger data available, length={len(finger_positions_3d)}")
-                    if len(finger_positions_3d) > 6:
-                        print(f"🔍 DEBUG: thumb={finger_positions_3d[5]}, index={finger_positions_3d[6]}")
+            # OLD STICKY MODE DISABLED - Two-phase CREATE system handles state management explicitly
+            # active_brush = config.BRUSH_TYPES[self._current_brush_index]
+            # (Old sticky mode logic removed for cleaner two-phase workflow)
             
             # Handle orbit first (works in any mode including selection)
-            elif command == "orbit":
+            if command == "orbit":
                 camera = bpy.data.objects.get(config.GESTURE_CAMERA_NAME)
                 orbit_delta = live_data.get("orbit_delta", {"x": 0.0, "y": 0.0})
 
@@ -2305,19 +2503,53 @@ class ConjureFingertipOperator(bpy.types.Operator):
                             self.add_draw_point(context, draw_position)
                     
                     elif active_brush == "CREATE":
-                        # CREATE FUNCTIONALITY: Handle primitive creation with index+thumb
-                        thumb_pos = finger_positions_3d[5]
-                        index_pos = finger_positions_3d[6]
-                        print(f"🏗️ CREATE: thumb={thumb_pos}, index={index_pos}, primitive={self.get_current_primitive_name()}")
+                        # TWO-PHASE CREATE FUNCTIONALITY
+                        both_hands, left_thumb, left_index, right_thumb, right_index = self.detect_both_hands_active(finger_positions_3d)
                         
-                        # CREATE LOGIC: Handle real-time primitive preview
-                        if not self._is_creating or not self._preview_object:
-                            print(f"🏗️ Starting new {self.get_current_primitive_name()} creation...")
-                            self.start_creating(context, thumb_pos, index_pos)
-                        else:
-                            # Update primitive preview in real-time - user can adjust as many times as needed
-                            print(f"🔄 Adjusting {self.get_current_primitive_name()} size and rotation...")
-                            self.update_primitive_preview(context, thumb_pos, index_pos)
+                        if self._create_phase == "NONE":
+                            # Not in any phase - check for both hands to start Phase 1
+                            if both_hands:
+                                print("🎯 Both hands detected - starting Phase 1: SIZE")
+                                self.start_size_phase(context, left_thumb, left_index, right_thumb, right_index)
+                            else:
+                                # Reduce debug spam
+                                if not hasattr(self, '_waiting_debug_counter'):
+                                    self._waiting_debug_counter = 0
+                                self._waiting_debug_counter += 1
+                                if self._waiting_debug_counter % 30 == 0:  # Every ~1 second
+                                    print("🔍 CREATE: Waiting for both hands (thumb+index) to start sizing...")
+                                
+                        elif self._create_phase == "SIZE":
+                            # Phase 1: Size definition with both hands
+                            if both_hands:
+                                # Continue size adjustment
+                                self.update_size_phase(context, left_thumb, left_index, right_thumb, right_index)
+                            else:
+                                # Both hands released - confirm size and move to Phase 2
+                                print("🎯 Both hands released - confirming size and starting position phase")
+                                print(f"🔍 TRANSITION DEBUG: Before transition - _create_phase={self._create_phase}")
+                                self.confirm_size_phase(context)
+                                print(f"🔍 TRANSITION DEBUG: After transition - _create_phase={self._create_phase}, _is_creating={self._is_creating}")
+                                
+                        elif self._create_phase == "POSITION":
+                            # Phase 2: Position control with right hand only
+                            right_hand_active = (len(finger_positions_3d) > 6 and 
+                                               finger_positions_3d[5] is not None and 
+                                               finger_positions_3d[6] is not None)
+                            
+                            if right_hand_active:
+                                thumb_pos = finger_positions_3d[5]
+                                index_pos = finger_positions_3d[6]
+                                print(f"🎯 POSITION: thumb={thumb_pos}, index={index_pos}")
+                                self.start_position_phase(context, thumb_pos, index_pos)
+                            else:
+                                # Reduce debug spam for position phase
+                                if not hasattr(self, '_position_debug_counter'):
+                                    self._position_debug_counter = 0
+                                self._position_debug_counter += 1
+                                if self._position_debug_counter % 30 == 0:  # Every ~1 second
+                                    print("🎯 POSITION: Use right hand thumb+index to position primitive")
+                                    print(f"🎯 POSITION DEBUG: Ready for left ring+thumb to confirm placement")
                      
                     else:
                         # OTHER BRUSHES: Standard deformation
@@ -2418,14 +2650,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
                                 "remesh_type": "BLOCKS"
                             }
                         
-                        # Update with current brush
+                        # Update with current brush and radius
                         fingertip_data["active_brush"] = current_brush
+                        fingertip_data["active_radius"] = config.RADIUS_LEVELS[self._current_radius_index]['name'].upper()
                         
                         # Write back to file
                         with open(fingertips_path, 'w') as f:
                             json.dump(fingertip_data, f, indent=2)
                         
-                        print(f"Updated fingertips.json with active_brush: {current_brush}")
+                        print(f"Updated fingertips.json with active_brush: {current_brush}, radius: {fingertip_data['active_radius']}")
                         
                     except Exception as e:
                         print(f"Error updating fingertips.json with brush info: {e}")
@@ -2466,7 +2699,42 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     # Normal radius cycling for other brushes
                     if self._last_command != "cycle_radius":
                         self._current_radius_index = (self._current_radius_index + 1) % len(config.RADIUS_LEVELS)
-                        print(f"Set brush radius to: {config.RADIUS_LEVELS[self._current_radius_index]['name']}")
+                        current_radius = config.RADIUS_LEVELS[self._current_radius_index]['name']
+                        print(f"Set brush radius to: {current_radius}")
+                        
+                        # Update fingertips.json with new radius
+                        try:
+                            project_root = Path(__file__).parent.parent.parent.parent
+                            fingertips_path = project_root / "data" / "input" / "fingertips.json"
+                            
+                            # Read existing data or create default
+                            if fingertips_path.exists():
+                                with open(fingertips_path, 'r') as f:
+                                    fingertip_data = json.load(f)
+                            else:
+                                fingertip_data = {
+                                    "fingers": [{"id": i, "x": 0, "y": 0, "z": 0, "detected": False} for i in range(10)],
+                                    "command": "none",
+                                    "left_hand": None,
+                                    "right_hand": None,
+                                    "orbit_delta": {"x": 0.0, "y": 0.0},
+                                    "anchors": [],
+                                    "scale_axis": "XYZ",
+                                    "remesh_type": "BLOCKS"
+                                }
+                            
+                            # Update with current radius and brush
+                            fingertip_data["active_radius"] = current_radius.upper()
+                            fingertip_data["active_brush"] = config.BRUSH_TYPES[self._current_brush_index]
+                            
+                            # Write back to file
+                            with open(fingertips_path, 'w') as f:
+                                json.dump(fingertip_data, f, indent=2)
+                            
+                            print(f"Updated fingertips.json with radius: {current_radius.upper()}")
+                            
+                        except Exception as e:
+                            print(f"Error updating fingertips.json with radius info: {e}")
 
             elif command == "cycle_primitive":
                 # This is the same as cycle_radius but explicitly for CREATE mode
@@ -2479,17 +2747,28 @@ class ConjureFingertipOperator(bpy.types.Operator):
             elif command == "confirm_placement":
                 # Left hand ring+thumb: Confirm primitive placement
                 active_brush = config.BRUSH_TYPES[self._current_brush_index]
-                print(f"🔍 CONFIRM COMMAND DEBUG: active_brush={active_brush}, _last_command={self._last_command}, _is_creating={self._is_creating}")
+                print(f"🔍 CONFIRM COMMAND DEBUG: active_brush={active_brush}, _last_command={self._last_command}, _create_phase={self._create_phase}")
+                print(f"🔍 CONFIRM STATE: _is_creating={self._is_creating}, _preview_object={self._preview_object is not None}")
                 
                 if active_brush == "CREATE" and self._last_command != "confirm_placement":
-                    if self._is_creating and self._preview_object:
+                    if self._create_phase == "POSITION" and self._preview_object:
                         print("✅ Left hand ring+thumb detected - confirming primitive placement!")
                         primitive_obj = self.confirm_primitive_placement(context)
                         if primitive_obj:
-                            print("🏗️ Primitive confirmed and ready for boolean operations!")
+                            # Automatically apply remesh modifier with smooth octree depth 7
+                            print("🔧 Applying automatic remesh (smooth, octree depth 7)...")
+                            self.apply_create_remesh(primitive_obj)
+                            print("🏗️ Primitive confirmed and remeshed - ready for boolean operations!")
                             print("🏗️ Use left hand index+thumb (UNION) or pinky+thumb (DIFFERENCE) to apply to mesh")
+                            # Reset to NONE phase for next primitive
+                            self._create_phase = "NONE"
+                            self._is_creating = False
+                    elif self._create_phase == "SIZE":
+                        print("⚠️ Still in size phase - release both hands first to enter position phase")
+                    elif self._create_phase == "NONE":
+                        print("⚠️ No primitive active. Start creating with both hands (thumb+index) first.")
                     else:
-                        print("⚠️ No primitive preview to confirm. Start creating with right hand thumb+index first.")
+                        print(f"⚠️ Invalid create phase: {self._create_phase}")
                 elif active_brush != "CREATE":
                     print(f"🔍 CONFIRM COMMAND DEBUG: Ignoring confirm_placement - not in CREATE brush (current: {active_brush})")
                 elif self._last_command == "confirm_placement":
@@ -2620,14 +2899,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     "remesh_type": "BLOCKS"
                 }
             
-            # Set initial brush
+            # Set initial brush and radius
             fingertip_data["active_brush"] = initial_brush
+            fingertip_data["active_radius"] = config.RADIUS_LEVELS[self._current_radius_index]['name'].upper()
             
             # Write to file
             with open(fingertips_path, 'w') as f:
                 json.dump(fingertip_data, f, indent=2)
             
-            print(f"Initialized fingertips.json with active_brush: {initial_brush}")
+            print(f"Initialized fingertips.json with active_brush: {initial_brush}, radius: {fingertip_data['active_radius']}")
             
         except Exception as e:
             print(f"Error initializing fingertips.json with brush info: {e}")

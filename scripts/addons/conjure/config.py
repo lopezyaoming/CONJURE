@@ -50,9 +50,9 @@ ORBIT_SMOOTHING_FACTOR = 0.25
 
 # --- BRUSH SETTINGS ---
 RADIUS_LEVELS = [
-    {'name': 'small',  'finger': 6.0, 'grab': 2.5, 'flatten': 0.75, 'inflate': 0.75},
-    {'name': 'medium', 'finger': 6.0, 'grab': 2.5, 'flatten': 0.75,  'inflate': 1.5},
-    {'name': 'large',  'finger': 6.0, 'grab': 3.0, 'flatten': 3.0,   'inflate': 6.0}
+    {'name': 'small',  'finger': 0.75, 'grab': 2.5, 'flatten': 0.75, 'inflate': 0.75},
+    {'name': 'medium', 'finger': 0.75, 'grab': 2.5, 'flatten': 0.75,  'inflate': 1.5},
+    {'name': 'large',  'finger': 0.75, 'grab': 3.0, 'flatten': 3.0,   'inflate': 6.0}
 ]
 MAX_DISPLACEMENT_PER_FRAME = 0.25
 DEFORM_TIMESTEP = 0.05
