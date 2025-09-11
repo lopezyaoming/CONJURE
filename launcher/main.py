@@ -69,7 +69,7 @@ def select_generation_mode():
     print()
     print("4. DEBUG      - Automated testing mode (serverless + speech input)")
     print("   • Tests all backend agent functions sequentially")
-    print("   • spawn_primitive → generate_flux_mesh → segment_selection → fuse_mesh")
+    print("   • spawn_primitive → generate_flux_mesh → segment_selection → fuse_mesh") 
     print("   • Uses runComfy serverless API for mesh generation")
     print("   • Conversational agent enabled - speak to update prompts contextually")
     print("   • Recursive segmentation loop for comprehensive testing")

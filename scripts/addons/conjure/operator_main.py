@@ -487,6 +487,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
     _draw_release_threshold = 0.3    # Time threshold before confirming release (300ms for MediaPipe noise)
     _draw_noise_filter_timer = 0.0   # Timer for filtering MediaPipe tracking noise
     _draw_noise_threshold = 0.05     # Threshold for noise filtering (50ms)
+    _realtime_preview_curve = None   # Real-time preview curve object
 
     # === CREATE FUNCTIONALITY STATE ===
     _current_primitive_index = 0     # Index in config.PRIMITIVE_TYPES
@@ -1414,11 +1415,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
     # === DRAW FUNCTIONALITY METHODS ===
     
     def start_drawing(self, context, start_position):
-        """Start a new drawing stroke"""
+        """Start a new drawing stroke with real-time preview"""
         self._is_drawing = True
         self._draw_path = [start_position.copy()]
         self._draw_last_position = start_position.copy()
-        print(f"🎨 Started drawing at: {start_position}")
+        
+        # Create real-time preview curve immediately
+        self.create_realtime_preview_curve(context)
+        
+        print(f"🎨 Started drawing with real-time preview at: {start_position}")
     
     def add_draw_point(self, context, new_position):
         """Add a point to the current drawing path"""
@@ -1432,34 +1437,36 @@ class ConjureFingertipOperator(bpy.types.Operator):
             
         self._draw_path.append(new_position.copy())
         self._draw_last_position = new_position.copy()
+        
+        # Update real-time preview curve
+        self.update_realtime_preview_curve(context)
+        
         print(f"🎨 Added draw point: {new_position} (total: {len(self._draw_path)})")
     
     def finish_drawing(self, context):
-        """Complete the drawing stroke and create the curve object"""
+        """Complete the drawing stroke and bake the real-time preview"""
+        print(f"🔍 FINISH_DRAWING DEBUG: _is_drawing={self._is_drawing}, draw_path_length={len(self._draw_path)}, has_preview={self._realtime_preview_curve is not None}")
+        
         if not self._is_drawing or len(self._draw_path) < 2:
             print(f"⚠️ Not enough points to create curve (have {len(self._draw_path)} points, need at least 2)")
             self._is_drawing = False
             self._draw_path = []
+            # Clean up preview if it exists
+            self.cleanup_realtime_preview(context)
             return None
             
-        print(f"🎨 Finishing draw with {len(self._draw_path)} points")
+        print(f"🎨 Finishing draw with {len(self._draw_path)} points - baking real-time preview")
         
-        # Create bezier curve from the path
-        curve_obj = self.create_bezier_curve_from_path(context, self._draw_path)
+        # Bake the real-time preview into final object
+        final_obj = self.bake_realtime_preview(context)
         
-        if curve_obj:
-            print(f"✅ Curve created successfully: {curve_obj.name}")
-            # Apply DRAWbrush GeometryNode modifier to the bezier curve
-            geometry_node_obj = self.apply_drawbrush_geometry_node(curve_obj)
-            if geometry_node_obj:
-                print(f"✅ DRAWbrush GeometryNode applied: {geometry_node_obj.name}")
-                # Add to pending objects for batch processing
-                self._pending_draw_objects.append(geometry_node_obj)
-                print(f"📝 Added to pending objects ({len(self._pending_draw_objects)} total)")
-                self._current_draw_object = geometry_node_obj
-            else:
-                print("❌ Failed to apply DRAWbrush GeometryNode")
-                self._current_draw_object = curve_obj
+        if final_obj:
+            print(f"✅ Real-time preview baked successfully: {final_obj.name}")
+            # Add to pending objects for batch processing
+            self._pending_draw_objects.append(final_obj)
+            print(f"📝 Added to pending objects ({len(self._pending_draw_objects)} total)")
+            print(f"🔍 DEBUG: Pending object names: {[obj.name for obj in self._pending_draw_objects]}")
+            self._current_draw_object = final_obj
         else:
             print("❌ Failed to create curve")
             self._current_draw_object = None
@@ -1470,6 +1477,170 @@ class ConjureFingertipOperator(bpy.types.Operator):
         self._draw_last_position = None
         
         return self._current_draw_object
+    
+    # === REAL-TIME DRAW PREVIEW METHODS ===
+    
+    def create_realtime_preview_curve(self, context):
+        """Create a real-time preview curve that updates as the user draws."""
+        try:
+            # Create a new curve object for real-time preview (matching original DRAWbrush structure)
+            curve_data = bpy.data.curves.new(name="RealtimeDrawPreview", type='CURVE')
+            curve_data.dimensions = '3D'
+            
+            # Apply same basic properties as original DRAWbrush curve
+            try:
+                curve_data.twist_method = 'MINIMUM'
+            except AttributeError:
+                pass
+            
+            try:
+                curve_data.twist_smooth = 0.0
+            except AttributeError:
+                pass
+            
+            curve_data.fill_mode = 'FULL'
+            
+            # Create the curve object
+            self._realtime_preview_curve = bpy.data.objects.new("RealtimeDrawPreview", curve_data)
+            bpy.context.collection.objects.link(self._realtime_preview_curve)
+            
+            # Make it visible and slightly transparent for preview
+            material = bpy.data.materials.new(name="RealtimePreviewMaterial")
+            material.use_nodes = True
+            material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = (0.8, 0.8, 1.0, 0.7)  # Light blue, semi-transparent
+            self._realtime_preview_curve.data.materials.append(material)
+            
+            print("🎨 Created real-time preview curve")
+            
+        except Exception as e:
+            print(f"❌ Error creating real-time preview curve: {e}")
+    
+    def update_realtime_preview_curve(self, context):
+        """Update the real-time preview curve with current path."""
+        if not self._realtime_preview_curve or len(self._draw_path) < 2:
+            return
+            
+        try:
+            # Clear existing splines
+            curve_data = self._realtime_preview_curve.data
+            curve_data.splines.clear()
+            
+            # Create simplified bezier curve from current path
+            simplified_points = self.simplify_path_to_4_points(self._draw_path)
+            
+            # Create bezier spline
+            spline = curve_data.splines.new(type='BEZIER')
+            spline.bezier_points.add(len(simplified_points) - 1)
+            
+            # Set points and handles
+            for i, point in enumerate(simplified_points):
+                bp = spline.bezier_points[i]
+                bp.co = point
+                bp.handle_left_type = 'AUTO'
+                bp.handle_right_type = 'AUTO'
+            
+            # Apply minimal curve properties - DRAWbrush GeometryNode will handle the geometry
+            curve_data.fill_mode = 'FULL'
+            # Don't set extrude/bevel here - DRAWbrush GeometryNode creates the variable thickness
+            
+            # Update the object (Blender 4.x compatible)
+            bpy.context.view_layer.update()
+            
+            # Apply DRAWbrush GeometryNodes - but only once when first created
+            if not any(mod.name == "DRAWbrush" for mod in self._realtime_preview_curve.modifiers):
+                self.apply_realtime_geometry_preview()
+            
+        except Exception as e:
+            print(f"❌ Error updating real-time preview: {e}")
+    
+    def apply_realtime_geometry_preview(self):
+        """Apply GeometryNodes modifier to real-time preview for live strip visualization."""
+        try:
+            if not self._realtime_preview_curve:
+                return
+                
+            # Check if DRAWbrush GeometryNode modifier already exists
+            existing_modifier = None
+            for modifier in self._realtime_preview_curve.modifiers:
+                if modifier.name == "DRAWbrush":
+                    existing_modifier = modifier
+                    break
+            
+            # Apply DRAWbrush GeometryNode modifier if not exists
+            if not existing_modifier:
+                drawbrush_node_group = bpy.data.node_groups.get("DRAWbrush")
+                if drawbrush_node_group:
+                    modifier = self._realtime_preview_curve.modifiers.new(name="DRAWbrush", type='NODES')
+                    modifier.node_group = drawbrush_node_group
+                    print("🎨 Applied DRAWbrush GeometryNodes to real-time preview")
+                    print(f"🔍 DRAWbrush should create variable thickness from {len(self._draw_path)} bezier points")
+                else:
+                    print("⚠️ DRAWbrush node group not found - using fallback curve properties")
+                    # Fallback to basic curve properties if DRAWbrush not available
+                    curve_data = self._realtime_preview_curve.data
+                    curve_data.extrude = 0.01
+                    curve_data.bevel_depth = 0.12
+                    curve_data.bevel_resolution = 6
+                    curve_data.use_fill_caps = True
+            
+        except Exception as e:
+            print(f"❌ Error applying real-time geometry preview: {e}")
+    
+    def bake_realtime_preview(self, context):
+        """Bake the real-time preview into a final mesh object."""
+        try:
+            print(f"🔍 BAKE_PREVIEW DEBUG: Starting bake process...")
+            print(f"🔍 BAKE_PREVIEW DEBUG: _realtime_preview_curve = {self._realtime_preview_curve}")
+            
+            if not self._realtime_preview_curve:
+                print("❌ No real-time preview to bake")
+                return None
+            
+            if self._realtime_preview_curve.name not in bpy.data.objects:
+                print("❌ Real-time preview curve no longer exists in scene")
+                return None
+            
+            # Select the preview curve and make it active
+            bpy.context.view_layer.objects.active = self._realtime_preview_curve
+            bpy.ops.object.select_all(action='DESELECT')
+            self._realtime_preview_curve.select_set(True)
+            
+            # SIMPLE: Just convert to mesh immediately
+            print("   🔧 Converting curve to mesh (simple & clean)...")
+            bpy.ops.object.convert(target='MESH')
+            print("   ✅ Converted to mesh successfully")
+            
+            # Apply selection material
+            self.apply_selection_material(self._realtime_preview_curve)
+            
+            print("✅ Real-time preview baked successfully")
+            
+            # Rename to final object name
+            final_name = f"DrawCurve_{len(self._pending_draw_objects)+1:03d}"
+            self._realtime_preview_curve.name = final_name
+            
+            # Return the baked object and clear preview reference
+            baked_obj = self._realtime_preview_curve
+            self._realtime_preview_curve = None
+            
+            return baked_obj
+            
+        except Exception as e:
+            print(f"❌ Error baking real-time preview: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def cleanup_realtime_preview(self, context):
+        """Clean up the real-time preview curve if drawing is cancelled."""
+        try:
+            if self._realtime_preview_curve:
+                # Remove the preview object
+                bpy.data.objects.remove(self._realtime_preview_curve, do_unlink=True)
+                self._realtime_preview_curve = None
+                print("🧹 Cleaned up real-time preview")
+        except Exception as e:
+            print(f"❌ Error cleaning up real-time preview: {e}")
     
     def simplify_path_to_4_points(self, path_points):
         """Simplify a path to exactly 4 control points: start, 1/4, 3/4, end with smooth interpolation"""
@@ -1846,71 +2017,74 @@ class ConjureFingertipOperator(bpy.types.Operator):
     
     
     def batch_remesh_and_boolean(self, context, operation='UNION'):
-        """Batch process all pending draw objects: remesh then boolean operation"""
+        """
+        EXTREMELY SIMPLE: Join all stripes → Remesh 7 → Boolean Union
+        """
         if not self._pending_draw_objects:
             print("⚠️ No pending draw objects to process")
             return
             
-        print(f"🔧 Starting batch processing of {len(self._pending_draw_objects)} objects for {operation}...")
+        print(f"🔧 SIMPLE: Processing {len(self._pending_draw_objects)} stripes - join → remesh 7 → union")
         
         mesh_obj = bpy.data.objects.get(config.DEFORM_OBJ_NAME)
         if not mesh_obj:
             print("❌ Main mesh object not found!")
             return
-            
-        processed_objects = []
         
-        for i, draw_obj in enumerate(self._pending_draw_objects):
-            if not draw_obj or draw_obj.name not in bpy.data.objects:
-                print(f"⚠️ Object {i+1} no longer exists, skipping...")
-                continue
+        try:
+            # Step 1: Join all stripes into one object
+            if len(self._pending_draw_objects) == 1:
+                combined_obj = self._pending_draw_objects[0]
+                print(f"✅ Single stripe - using {combined_obj.name}")
+            else:
+                print(f"🔧 Joining {len(self._pending_draw_objects)} stripes...")
                 
-            print(f"🔧 Processing object {i+1}/{len(self._pending_draw_objects)}: {draw_obj.name}")
+                # Select all draw objects
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in self._pending_draw_objects:
+                    obj.select_set(True)
+                
+                # Make first object active
+                bpy.context.view_layer.objects.active = self._pending_draw_objects[0]
+                
+                # Join all selected objects
+                bpy.ops.object.join()
+                combined_obj = bpy.context.active_object
+                print(f"   ✅ All stripes joined into {combined_obj.name}")
             
-            try:
-                # Apply additional remesh to ensure clean topology
-                print(f"   🔧 Adding remesh modifier...")
-                remesh_mod = draw_obj.modifiers.new(name="BatchRemesh", type='REMESH')
-                remesh_mod.mode = 'SMOOTH'
-                remesh_mod.octree_depth = 6  # Reduced from 8 to 6 for DRAW brush
-                remesh_mod.scale = 0.9
-                remesh_mod.use_remove_disconnected = False  # Don't remove disconnected as requested
-                remesh_mod.threshold = 1.0
-                
-                # Apply the remesh modifier
-                bpy.context.view_layer.objects.active = draw_obj
-                bpy.ops.object.modifier_apply(modifier="BatchRemesh")
-                print(f"   ✅ Remesh applied to {draw_obj.name}")
-                
-                # Apply boolean operation to main mesh
-                print(f"   🔧 Applying {operation} boolean...")
-                bool_mod = mesh_obj.modifiers.new(name=f"Boolean_{operation}_{i}", type='BOOLEAN')
-                bool_mod.operation = operation
-                bool_mod.object = draw_obj
-                
-                # Apply the boolean modifier
-                bpy.context.view_layer.objects.active = mesh_obj
-                bpy.ops.object.modifier_apply(modifier=bool_mod.name)
-                print(f"   ✅ Boolean {operation} applied")
-                
-                processed_objects.append(draw_obj.name)
-                
-            except Exception as e:
-                print(f"   ❌ Error processing {draw_obj.name}: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        # Clean up processed objects
-        for draw_obj in self._pending_draw_objects:
-            if draw_obj and draw_obj.name in bpy.data.objects:
-                bpy.data.objects.remove(draw_obj, do_unlink=True)
+            # Step 2: Remesh with octree depth 7
+            print(f"🔧 Applying remesh (octree depth 7)...")
+            remesh_mod = combined_obj.modifiers.new(name="Remesh", type='REMESH')
+            remesh_mod.mode = 'SMOOTH'
+            remesh_mod.octree_depth = 7
+            remesh_mod.scale = 0.99
+            
+            bpy.context.view_layer.objects.active = combined_obj
+            bpy.ops.object.modifier_apply(modifier="Remesh")
+            print(f"   ✅ Remesh applied")
+            
+            # Step 3: Boolean union with main mesh
+            print(f"🔧 Boolean union with main mesh...")
+            bool_mod = mesh_obj.modifiers.new(name="Union", type='BOOLEAN')
+            bool_mod.operation = 'UNION'
+            bool_mod.object = combined_obj
+            
+            bpy.context.view_layer.objects.active = mesh_obj
+            bpy.ops.object.modifier_apply(modifier="Union")
+            print(f"   ✅ Boolean union applied")
+            
+            # Step 4: Clean up - remove the combined object
+            bpy.data.objects.remove(combined_obj, do_unlink=True)
+            print(f"   ✅ Temporary object removed")
+            
+        except Exception as e:
+            print(f"❌ Error in simple workflow: {e}")
+            import traceback
+            traceback.print_exc()
         
         # Clear pending objects list
         self._pending_draw_objects.clear()
-        
-        operation_text = "ADDED TO" if operation == 'UNION' else "SUBTRACTED FROM"
-        print(f"✅ Batch complete: {len(processed_objects)} objects {operation_text} main mesh")
-        print(f"   Processed: {', '.join(processed_objects)}")
+        print(f"✅ SIMPLE COMPLETE: All stripes joined → remeshed → added to mesh")
     
     def apply_boolean_operation(self, context, draw_obj, operation='UNION'):
         """Apply boolean operation between draw object and main mesh"""
@@ -2323,21 +2497,7 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     marker_obj.hide_viewport = False
                     marker_obj.hide_render = False
                     
-                    # Debug: Check if show_in_front is actually working
-                    if i == 0 and hasattr(marker_obj, 'show_in_front'):  # Only print for first finger to avoid spam
-                        print(f"🔍 MARKER DEBUG: show_in_front = {marker_obj.show_in_front}, location = {marker_obj.location}")
-                        if hasattr(marker_obj, 'display_type'):
-                            print(f"🔍 MARKER DEBUG: display_type = {marker_obj.display_type}")
-                        if hasattr(marker_obj, 'material_slots') and len(marker_obj.material_slots) > 0:
-                            print(f"🔍 MARKER DEBUG: has materials = {len(marker_obj.material_slots)}")
-                        
-                        # Check viewport shading mode
-                        for area in bpy.context.screen.areas:
-                            if area.type == 'VIEW_3D':
-                                for space in area.spaces:
-                                    if space.type == 'VIEW_3D':
-                                        print(f"🔍 VIEWPORT DEBUG: shading_type = {space.shading.type}")
-                                        break
+                    # Marker visibility configured properly
                 
                 else:
                     # --- FINGER IS MISSING ---
@@ -2421,10 +2581,18 @@ class ConjureFingertipOperator(bpy.types.Operator):
             # Check if we're currently drawing and handle finger release detection
             active_brush = config.BRUSH_TYPES[self._current_brush_index]
             if active_brush == "DRAW" and self._is_drawing:
-                # Check if fingers are still present in the data
-                fingers_present = (len(finger_positions_3d) > 6 and 
-                                 finger_positions_3d[5] is not None and 
-                                 finger_positions_3d[6] is not None)
+                # Check if fingers are still present in the data (use same logic as main detection)
+                # Left hand: indices 0 (thumb) and 1 (index)
+                # Right hand: indices 5 (thumb) and 6 (index)
+                has_left_thumb_index = (len(finger_positions_3d) > 1 and 
+                                      finger_positions_3d[0] is not None and 
+                                      finger_positions_3d[1] is not None)
+                has_right_thumb_index = (len(finger_positions_3d) > 6 and 
+                                       finger_positions_3d[5] is not None and 
+                                       finger_positions_3d[6] is not None)
+                fingers_present = has_left_thumb_index or has_right_thumb_index
+                
+                print(f"🔍 DRAW RELEASE DEBUG: fingers_present={fingers_present}, command={command}, left={has_left_thumb_index}, right={has_right_thumb_index}")
 
                 if not fingers_present or command != "deform":
                     # Start or continue the release timer
@@ -2465,10 +2633,16 @@ class ConjureFingertipOperator(bpy.types.Operator):
                 if len(finger_positions_3d) >= 7:
                     self._last_finger_positions = finger_positions_3d.copy()
                 
-                # Check if we have valid thumb and index finger positions (indices 5 and 6)
-                has_thumb_index = (len(finger_positions_3d) > 6 and 
-                                 finger_positions_3d[5] is not None and 
-                                 finger_positions_3d[6] is not None)
+                # Check if we have valid thumb and index finger positions 
+                # Left hand: indices 0 (thumb) and 1 (index)
+                # Right hand: indices 5 (thumb) and 6 (index)
+                has_left_thumb_index = (len(finger_positions_3d) > 1 and 
+                                      finger_positions_3d[0] is not None and 
+                                      finger_positions_3d[1] is not None)
+                has_right_thumb_index = (len(finger_positions_3d) > 6 and 
+                                       finger_positions_3d[5] is not None and 
+                                       finger_positions_3d[6] is not None)
+                has_thumb_index = has_left_thumb_index or has_right_thumb_index
                 
                 active_brush = config.BRUSH_TYPES[self._current_brush_index]
                 
@@ -2484,14 +2658,25 @@ class ConjureFingertipOperator(bpy.types.Operator):
                     self._last_has_thumb_index = has_thumb_index
                 
                 if has_thumb_index:
-                    # FINGERS DETECTED - Handle drawing or deformation
-                    deform_points = [finger_positions_3d[5], finger_positions_3d[6]]
+                    # FINGERS DETECTED - Determine which hand is active and get correct finger positions
+                    if has_right_thumb_index:
+                        # Use right hand fingers
+                        thumb_pos = finger_positions_3d[5]
+                        index_pos = finger_positions_3d[6]
+                        hand_side = "RIGHT"
+                    else:
+                        # Use left hand fingers
+                        thumb_pos = finger_positions_3d[0]
+                        index_pos = finger_positions_3d[1]
+                        hand_side = "LEFT"
+                    
+                    deform_points = [thumb_pos, index_pos]
                     
                     if active_brush == "DRAW":
-                        # DRAW FUNCTIONALITY: Handle drawing with index+thumb
+                        # DRAW FUNCTIONALITY: Handle drawing with index+thumb from either hand
                         # Calculate midpoint between thumb and index for draw position
-                        draw_position = (finger_positions_3d[5] + finger_positions_3d[6]) / 2
-                        print(f"🎨 DRAW: thumb={finger_positions_3d[5]}, index={finger_positions_3d[6]}, midpoint={draw_position}")
+                        draw_position = (thumb_pos + index_pos) / 2
+                        print(f"🎨 DRAW ({hand_side}): thumb={thumb_pos}, index={index_pos}, midpoint={draw_position}")
                         
                         # DRAW LOGIC: Always prioritize drawing over clicking
                         if not self._is_drawing:
@@ -2605,23 +2790,13 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
             elif command == "boolean_union":
                 if self._last_command != "boolean_union": # Trigger only once per gesture
-                    print("🖱️ Left hand index+thumb detected - UNION operation!")
+                    print("🖱️ Left hand index+thumb detected - SIMPLE UNION!")
+                    print(f"🔍 DEBUG: _pending_draw_objects count: {len(self._pending_draw_objects)}")
                     if self._pending_draw_objects:
+                        print(f"🎨 SIMPLE: Processing {len(self._pending_draw_objects)} stripes...")
                         self.batch_remesh_and_boolean(context, 'UNION')
-                    elif self._pending_create_objects:
-                        self.batch_remesh_and_boolean_create(context, 'UNION')
                     else:
-                        print("⚠️ No pending draw or create objects for boolean union")
-                        
-            elif command == "boolean_difference":
-                if self._last_command != "boolean_difference": # Trigger only once per gesture
-                    print("🖱️ Left hand pinky+thumb detected - DIFFERENCE operation!")
-                    if self._pending_draw_objects:
-                        self.batch_remesh_and_boolean(context, 'DIFFERENCE')
-                    elif self._pending_create_objects:
-                        self.batch_remesh_and_boolean_create(context, 'DIFFERENCE')
-                    else:
-                        print("⚠️ No pending draw or create objects for boolean difference")
+                        print("⚠️ No stripes to process - draw some first!")
                     
             elif command == "cycle_brush":
                 if self._last_command != "cycle_brush": # Trigger only once per gesture
