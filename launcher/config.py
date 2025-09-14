@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 # Generation Mode Configuration
-GENERATION_MODE = "local"  # Can be "local" (huggingface), "cloud" (serverless), "serverless", or "cloud_legacy"
+GENERATION_MODE = "local"  # Can be "local" (huggingface), "local_comfyui", "serverless", "cloud", or "cloud_legacy"
 
 # RunComfy Serverless Configuration
 RUNCOMFY_API_TOKEN = os.getenv("RUNCOMFY_API_TOKEN", "78356331-a9ec-49c2-a412-59140b32b9b3")

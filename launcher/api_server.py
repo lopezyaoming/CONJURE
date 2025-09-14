@@ -691,6 +691,57 @@ async def generate_flux_mesh_unified():
         print(f"🔍 Full traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error in serverless generation: {str(e)}")
 
+@app.post("/local_comfyui/flux_mesh_unified", response_model=APIResponse)
+async def generate_flux_mesh_local_comfyui():
+    """Execute unified FLUX + 3D mesh generation using local ComfyUI server."""
+    try:
+        print(f"🖥️ LOCAL COMFYUI UNIFIED API: Request received")
+        
+        # Get local ComfyUI generation service
+        generation_service = get_generation_service("local_comfyui")
+        
+        print(f"🔧 LOCAL COMFYUI UNIFIED: Starting unified FLUX + 3D generation...")
+        
+        # Execute unified generation (reads from CONJURE data automatically)
+        result = generation_service.generate_flux_mesh()
+        
+        if result["success"]:
+            print(f"✅ LOCAL COMFYUI UNIFIED: Generation completed successfully!")
+            print(f"   FLUX image: {result.get('flux_image', 'N/A')}")
+            print(f"   3D mesh: {result.get('mesh_model', 'N/A')}")
+            
+            # Trigger mesh import if we have a mesh result
+            mesh_path = result.get('mesh_model')
+            if mesh_path and Path(mesh_path).exists():
+                global state_manager
+                if state_manager:
+                    state_manager.update_state({
+                        "command": "import_and_process_mesh",
+                        "mesh_path": mesh_path,
+                        "min_volume_threshold": 0.001
+                    })
+                    print(f"✅ LOCAL COMFYUI UNIFIED: Triggered mesh import for {mesh_path}")
+            
+            return APIResponse(
+                success=True,
+                message="Local ComfyUI unified generation completed successfully",
+                data={
+                    "flux_image_path": result.get('flux_image'),
+                    "mesh_model_path": result.get('mesh_model'),
+                    "prompt_id": result.get('prompt_id')
+                }
+            )
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            print(f"❌ LOCAL COMFYUI UNIFIED: Generation failed: {error_msg}")
+            raise HTTPException(status_code=500, detail=f"Local ComfyUI generation failed: {error_msg}")
+            
+    except Exception as e:
+        print(f"❌ LOCAL COMFYUI UNIFIED API ERROR: {e}")
+        import traceback
+        print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error in local ComfyUI generation: {str(e)}")
+
 @app.post("/blender/import_mesh", response_model=APIResponse)
 async def import_mesh(request: MeshImportRequest):
     """Import and process mesh from generation results (PartPacker local or RunComfy cloud).

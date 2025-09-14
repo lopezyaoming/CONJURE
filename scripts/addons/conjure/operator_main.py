@@ -60,6 +60,140 @@ class CONJURE_PT_control_panel(bpy.types.Panel):
         else:
             box.operator("conjure.auto_refresh_render", text="Start Auto-Refresh", icon='PLAY')
             box.label(text="Click to enable automatic rendering", icon='INFO')
+        
+        # Add separator
+        layout.separator()
+        
+        # Force import controls
+        import_box = layout.box()
+        import_box.label(text="Mesh Import", icon='IMPORT')
+        import_box.operator("conjure.force_import_last_mesh", text="Force Import Last Mesh", icon='MESH_DATA')
+        import_box.label(text="Import latest generated mesh", icon='INFO')
+
+class CONJURE_OT_force_import_last_mesh(bpy.types.Operator):
+    """Force import the last detected mesh file and trigger segment selection"""
+    bl_idname = "conjure.force_import_last_mesh"
+    bl_label = "Force Import Last Mesh"
+    
+    def execute(self, context):
+        print("🔄 Force importing last detected mesh...")
+        
+        try:
+            # Find the latest mesh file in the expected directory
+            from pathlib import Path
+            project_root = Path(__file__).parent.parent.parent.parent
+            mesh_dir = project_root / "data" / "generated_models" / "partpacker_results"
+            
+            if not mesh_dir.exists():
+                self.report({'ERROR'}, "Mesh directory does not exist")
+                print(f"❌ Mesh directory not found: {mesh_dir}")
+                return {'CANCELLED'}
+            
+            # Look for partpacker_result_0.glb (primary) or any .glb file
+            mesh_file = mesh_dir / "partpacker_result_0.glb"
+            
+            if not mesh_file.exists():
+                # Look for any .glb files in the directory
+                glb_files = list(mesh_dir.glob("*.glb"))
+                if glb_files:
+                    # Get the most recent one
+                    mesh_file = max(glb_files, key=lambda p: p.stat().st_mtime)
+                    print(f"📄 Using most recent GLB: {mesh_file.name}")
+                else:
+                    self.report({'ERROR'}, "No mesh files found in directory")
+                    print(f"❌ No GLB files found in: {mesh_dir}")
+                    return {'CANCELLED'}
+            
+            if not mesh_file.exists():
+                self.report({'ERROR'}, f"Mesh file not found: {mesh_file.name}")
+                print(f"❌ Mesh file not found: {mesh_file}")
+                return {'CANCELLED'}
+            
+            print(f"✅ Found mesh file: {mesh_file}")
+            
+            # Trigger the import via the state system (same as automatic detection)
+            try:
+                import httpx
+            except ImportError:
+                # Fallback to urllib if httpx is not available
+                import urllib.request
+                import urllib.parse
+                import json
+                
+                data = json.dumps({
+                    "mesh_path": str(mesh_file),
+                    "min_volume_threshold": 0.001
+                }).encode('utf-8')
+                
+                req = urllib.request.Request(
+                    "http://127.0.0.1:8000/blender/import_mesh",
+                    data=data,
+                    headers={'Content-Type': 'application/json'}
+                )
+                
+                try:
+                    with urllib.request.urlopen(req, timeout=30.0) as response:
+                        result = json.loads(response.read().decode('utf-8'))
+                        response_status = response.status
+                except Exception as e:
+                    error_msg = str(e)
+                    if "404" in error_msg or "Not Found" in error_msg:
+                        self.report({'ERROR'}, "API server not running. Start CONJURE launcher first.")
+                        print("❌ FORCE IMPORT: API server (127.0.0.1:8000) not running")
+                        print("💡 SOLUTION: Run the CONJURE launcher (launcher/main.py) to start the API server")
+                    else:
+                        self.report({'ERROR'}, f"API request failed: {error_msg}")
+                        print(f"❌ API request error: {e}")
+                    return {'CANCELLED'}
+            else:
+                # Use httpx if available
+                import json
+                
+                response = httpx.post(
+                    "http://127.0.0.1:8000/blender/import_mesh",
+                    json={
+                        "mesh_path": str(mesh_file),
+                        "min_volume_threshold": 0.001
+                    },
+                    timeout=30.0
+                )
+                result = response.json()
+                response_status = response.status_code
+            
+            if response_status == 200:
+                if result.get("success", False):
+                    self.report({'INFO'}, f"Successfully imported mesh: {mesh_file.name}")
+                    print(f"✅ Force import successful: {mesh_file.name}")
+                    print("🎯 Mesh import and segment selection triggered")
+                else:
+                    error_msg = result.get("error", "Unknown error")
+                    self.report({'ERROR'}, f"Import failed: {error_msg}")
+                    print(f"❌ Import API failed: {error_msg}")
+                    return {'CANCELLED'}
+            else:
+                if response_status == 404:
+                    self.report({'ERROR'}, "API server not running. Start CONJURE launcher first.")
+                    print("❌ FORCE IMPORT: API server (127.0.0.1:8000) not running")
+                    print("💡 SOLUTION: Run the CONJURE launcher (launcher/main.py) to start the API server")
+                else:
+                    self.report({'ERROR'}, f"API call failed: {response_status}")
+                    print(f"❌ API call failed with status: {response_status}")
+                return {'CANCELLED'}
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "Connection refused" in error_msg or "ConnectTimeout" in error_msg:
+                self.report({'ERROR'}, "Cannot connect to API server. Start CONJURE launcher first.")
+                print("❌ FORCE IMPORT: Cannot connect to API server (127.0.0.1:8000)")
+                print("💡 SOLUTION: Run the CONJURE launcher (launcher/main.py) to start the API server")
+            else:
+                self.report({'ERROR'}, f"Error during force import: {error_msg}")
+                print(f"❌ Force import error: {e}")
+                import traceback
+                print(f"🔍 Traceback: {traceback.format_exc()}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
 
 class CONJURE_OT_stop_operator(bpy.types.Operator):
     """A simple operator that sets a flag to signal the modal operator to stop."""
@@ -588,9 +722,15 @@ class ConjureFingertipOperator(bpy.types.Operator):
         new_obj.hide_select = False    # Selectable
         print("✅ Mesh is now visible for GestureCamera rendering")
 
-        # --- 5. Recalculate Initial Volume for Deformation ---
+        # --- 5. Recalculate Initial Volume and Reset Velocities for Deformation ---
         self._initial_volume = self.get_mesh_volume(new_obj)
-        print(f"Set initial volume for new mesh: {self._initial_volume}")
+        # Reset vertex velocities for the new mesh
+        import bmesh
+        bm = bmesh.new()
+        bm.from_mesh(new_obj.data)
+        self._vertex_velocities = {v.index: mathutils.Vector((0,0,0)) for v in bm.verts}
+        bm.free()
+        print(f"🔧 Set deformation properties - Volume: {self._initial_volume}, Vertices: {len(self._vertex_velocities)}")
 
     def check_for_state_commands(self, context):
         """
@@ -888,6 +1028,16 @@ class ConjureFingertipOperator(bpy.types.Operator):
         new_obj.name = "Mesh"
         
         print(f"✅ Spawned {primitive_type} as 'Mesh'")
+        
+        # Recalculate initial volume for deformation system
+        self._initial_volume = self.get_mesh_volume(new_obj)
+        # Reset vertex velocities for the new mesh
+        import bmesh
+        bm = bmesh.new()
+        bm.from_mesh(new_obj.data)
+        self._vertex_velocities = {v.index: mathutils.Vector((0,0,0)) for v in bm.verts}
+        bm.free()
+        print(f"🔧 Updated deformation properties - Volume: {self._initial_volume}, Vertices: {len(self._vertex_velocities)}")
         
         # Clear the history since we have a new starting point
         self.mesh_history.clear()
@@ -2790,13 +2940,49 @@ class ConjureFingertipOperator(bpy.types.Operator):
 
             elif command == "boolean_union":
                 if self._last_command != "boolean_union": # Trigger only once per gesture
+                    active_brush = config.BRUSH_TYPES[self._current_brush_index]
                     print("🖱️ Left hand index+thumb detected - SIMPLE UNION!")
-                    print(f"🔍 DEBUG: _pending_draw_objects count: {len(self._pending_draw_objects)}")
-                    if self._pending_draw_objects:
-                        print(f"🎨 SIMPLE: Processing {len(self._pending_draw_objects)} stripes...")
-                        self.batch_remesh_and_boolean(context, 'UNION')
+                    
+                    if active_brush == "DRAW":
+                        print(f"🔍 DEBUG: _pending_draw_objects count: {len(self._pending_draw_objects)}")
+                        if self._pending_draw_objects:
+                            print(f"🎨 SIMPLE: Processing {len(self._pending_draw_objects)} stripes...")
+                            self.batch_remesh_and_boolean(context, 'UNION')
+                        else:
+                            print("⚠️ No stripes to process - draw some first!")
+                            
+                    elif active_brush == "CREATE":
+                        print(f"🔍 DEBUG: _pending_create_objects count: {len(self._pending_create_objects)}")
+                        if self._pending_create_objects:
+                            print(f"🏗️ SIMPLE: Processing {len(self._pending_create_objects)} primitives...")
+                            self.batch_remesh_and_boolean_create(context, 'UNION')
+                        else:
+                            print("⚠️ No primitives to process - create some first!")
                     else:
-                        print("⚠️ No stripes to process - draw some first!")
+                        print(f"⚠️ UNION not supported for brush: {active_brush}")
+                    
+            elif command == "boolean_difference":
+                if self._last_command != "boolean_difference": # Trigger only once per gesture
+                    active_brush = config.BRUSH_TYPES[self._current_brush_index]
+                    print("🖱️ Left hand pinky+thumb detected - SIMPLE DIFFERENCE!")
+                    
+                    if active_brush == "DRAW":
+                        print(f"🔍 DEBUG: _pending_draw_objects count: {len(self._pending_draw_objects)}")
+                        if self._pending_draw_objects:
+                            print(f"🎨 SIMPLE: Processing {len(self._pending_draw_objects)} stripes...")
+                            self.batch_remesh_and_boolean(context, 'DIFFERENCE')
+                        else:
+                            print("⚠️ No stripes to process - draw some first!")
+                            
+                    elif active_brush == "CREATE":
+                        print(f"🔍 DEBUG: _pending_create_objects count: {len(self._pending_create_objects)}")
+                        if self._pending_create_objects:
+                            print(f"🏗️ SIMPLE: Processing {len(self._pending_create_objects)} primitives...")
+                            self.batch_remesh_and_boolean_create(context, 'DIFFERENCE')
+                        else:
+                            print("⚠️ No primitives to process - create some first!")
+                    else:
+                        print(f"⚠️ DIFFERENCE not supported for brush: {active_brush}")
                     
             elif command == "cycle_brush":
                 if self._last_command != "cycle_brush": # Trigger only once per gesture
@@ -3262,7 +3448,9 @@ class CONJURE_OT_stop_auto_refresh(bpy.types.Operator):
 
 
 classes = (
+    CONJURE_PT_control_panel,
     ConjureFingertipOperator,
+    CONJURE_OT_force_import_last_mesh,
     CONJURE_OT_stop_operator,
     CONJURE_OT_auto_refresh_render,
     CONJURE_OT_stop_auto_refresh,

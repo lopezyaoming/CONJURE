@@ -3,6 +3,7 @@ Generation Services Interface
 
 This module provides abstract interfaces for different generation backends:
 - LocalGenerationService (HuggingFace mode): Uses HuggingFace models (FLUX, PartPacker)
+- LocalComfyUIService: Uses local ComfyUI server on localhost:8188
 - CloudGenerationService: Uses runComfy cloud services (to be implemented)
 """
 
@@ -436,5 +437,9 @@ def get_generation_service(mode: str = "local") -> GenerationService:
     elif mode == "cloud_legacy":
         # Legacy server-based cloud service
         return CloudGenerationService_Legacy()
+    elif mode == "local_comfyui":
+        # Local ComfyUI server service
+        from launcher.local_comfyui_service import LocalComfyUIService
+        return LocalComfyUIService()
     else:
-        raise ValueError(f"Unknown generation mode: {mode}. Use 'local', 'cloud', 'serverless', or 'cloud_legacy'.")
+        raise ValueError(f"Unknown generation mode: {mode}. Use 'local', 'cloud', 'serverless', 'cloud_legacy', or 'local_comfyui'.")

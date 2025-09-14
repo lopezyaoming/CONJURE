@@ -392,8 +392,9 @@ class CONJURE_OT_import_and_process_mesh(bpy.types.Operator):
         bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
         placeholder = bpy.context.active_object
         placeholder.name = "Mesh"
-        placeholder.hide_viewport = True  # Hidden by default
-        print("📍 Created placeholder 'Mesh' cube object (2x2x2 units) for alignment reference")
+        placeholder.hide_viewport = True  # Hidden from viewport
+        placeholder.hide_render = True   # Hidden from renders - fixes invisible box issue
+        print("📍 Created placeholder 'Mesh' cube object (2x2x2 units) for alignment reference (hidden from renders)")
     
     def enter_selection_mode(self):
         """Enter segment selection mode and update state"""
@@ -577,6 +578,9 @@ class CONJURE_OT_fuse_mesh(bpy.types.Operator):
         # Start with the largest segment (seg_1)
         target_obj = segment_objects[0]
         target_obj.name = "Mesh"  # Rename to main mesh
+        
+        # Recalculate mesh properties for deformation system
+        self.recalculate_mesh_properties_for_deformation(target_obj)
         
         # Boolean union each subsequent segment
         for i, source_obj in enumerate(segment_objects[1:], 2):
@@ -764,6 +768,9 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
                 confirmed_segment.name = "Mesh"
                 print(f"🏷️ Renamed {old_name} to 'Mesh'")
                 
+                # Step 5.5: Recalculate mesh properties for deformation system
+                self.recalculate_mesh_properties_for_deformation(confirmed_segment)
+                
                 # Step 6: Apply remesh modifier for polycount control (target: 12500 faces max)
                 print("🔧 Applying remesh modifier for polycount control...")
                 self.apply_remesh_modifier(confirmed_segment)
@@ -824,7 +831,7 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
             # Add new remesh modifier
             remesh_modifier = mesh_obj.modifiers.new(name="RemeshPolycount", type='REMESH')
             remesh_modifier.mode = 'SMOOTH'  # Smooth remesh type
-            remesh_modifier.octree_depth = 6  # Resolution level 6 for good balance
+            remesh_modifier.octree_depth = 7  # Resolution level 7 for higher quality smooth remesh
             remesh_modifier.use_remove_disconnected = False  # Keep all parts
             
             # Apply the modifier
@@ -844,6 +851,59 @@ class CONJURE_OT_exit_selection_mode(bpy.types.Operator):
                 
         except Exception as e:
             print(f"❌ Error applying remesh modifier: {e}")
+    
+    def recalculate_mesh_properties_for_deformation(self, mesh_obj):
+        """Recalculate mesh properties for the deformation system"""
+        try:
+            # Find the active ConjureFingertipOperator instance
+            operator_instance = None
+            for area in bpy.context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    for space in area.spaces:
+                        if space.type == 'VIEW_3D':
+                            # Check if operator is running by looking for modal handlers
+                            if hasattr(bpy.context.window_manager, 'modal_handler_add'):
+                                # Try to find the operator instance through the active operators
+                                break
+            
+            # Calculate mesh properties directly using bmesh
+            import bmesh
+            import mathutils
+            
+            if not mesh_obj or not mesh_obj.data:
+                print("⚠️ Cannot recalculate properties: invalid mesh object")
+                return
+                
+            bm = bmesh.new()
+            bm.from_mesh(mesh_obj.data)
+            volume = bm.calc_volume(signed=True)
+            vertex_count = len(bm.verts)
+            
+            # Initialize vertex velocities
+            vertex_velocities = {v.index: mathutils.Vector((0,0,0)) for v in bm.verts}
+            bm.free()
+            
+            print(f"🔧 Recalculated mesh properties for deformation:")
+            print(f"   Volume: {volume}")
+            print(f"   Vertices: {vertex_count}")
+            
+            # Store properties on the mesh object for the operator to access
+            mesh_obj["_conjure_volume"] = volume
+            mesh_obj["_conjure_vertex_count"] = vertex_count
+            mesh_obj["_conjure_vertex_velocities"] = str(vertex_velocities)  # Store as string
+            
+            # Try to update the operator instance if we can find it
+            # Look for the operator in the current context
+            for operator in bpy.context.window_manager.operators:
+                if hasattr(operator, 'bl_idname') and operator.bl_idname == 'conjure.fingertip_operator':
+                    if hasattr(operator, '_initial_volume'):
+                        operator._initial_volume = volume
+                        operator._vertex_velocities = vertex_velocities
+                        print("✅ Updated operator deformation properties")
+                        break
+            
+        except Exception as e:
+            print(f"❌ Error recalculating mesh properties: {e}")
     
     def restore_original_material(self, mesh_obj):
         """Restore the original mesh material instead of selection material"""

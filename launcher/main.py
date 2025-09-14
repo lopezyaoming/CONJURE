@@ -74,11 +74,18 @@ def select_generation_mode():
     print("   • Conversational agent enabled - speak to update prompts contextually")
     print("   • Recursive segmentation loop for comprehensive testing")
     print()
+    print("5. LOCAL      - Use local ComfyUI server (fastest, requires setup)")
+    print("   • 🖥️ Direct connection to your local ComfyUI instance")
+    print("   • ⚡ No network delays, no per-use costs")
+    print("   • 🔧 Uses local models (SDXL + PartPacker)")
+    print("   • 📋 Requires: ComfyUI running on localhost:8188")
+    print("   • 🎯 Same data flow: userPrompt.txt + render.png → flux.png + .glb")
+    print()
     print("="*60)
     
     while True:
         try:
-            choice = input("Enter your choice (1-4, or HUGGINGFACE/SERVERLESS/CLOUD/DEBUG): ").strip()
+            choice = input("Enter your choice (1-5, or HUGGINGFACE/SERVERLESS/CLOUD/DEBUG/LOCAL): ").strip()
             
             if choice == "1" or choice.lower() == "huggingface":
                 selected_mode = "local"  # Keep internal mode as "local" for backward compatibility
@@ -99,8 +106,13 @@ def select_generation_mode():
                 print(f"✅ Selected: DEBUG mode (automated testing)")
                 print("🔬 DEBUG: Will test all backend agent functions automatically using serverless")
                 break
+            elif choice == "5" or choice.lower() == "local":
+                selected_mode = "local_comfyui"
+                print(f"✅ Selected: LOCAL mode (local ComfyUI server)")
+                print("🖥️ LOCAL: Direct connection to localhost:8188 - ensure ComfyUI is running!")
+                break
             else:
-                print("❌ Invalid choice. Please enter '1' for HUGGINGFACE, '2' for SERVERLESS, '3' for CLOUD, or '4' for DEBUG.")
+                print("❌ Invalid choice. Please enter '1' for HUGGINGFACE, '2' for SERVERLESS, '3' for CLOUD, '4' for DEBUG, or '5' for LOCAL.")
                 continue
                 
         except KeyboardInterrupt:
@@ -343,6 +355,9 @@ class ConjureApp:
             self._force_generate_flux_mesh()
             self.demo_flux_triggered = True
             self.last_flux_trigger_time = time.time()
+            # Reset backup mesh flag to allow detection of new generation results
+            if hasattr(self, '_processed_backup_mesh'):
+                delattr(self, '_processed_backup_mesh')
         
         # After mesh import: immediate segment_selection
         if self.last_mesh_import_time is not None:
@@ -449,19 +464,27 @@ class ConjureApp:
             pass
 
     def _check_for_completed_meshes(self):
-        """🎬 BACKUP: Check for newly generated mesh files and trigger import if needed"""
+        """🎬 BACKUP: Check for newly generated mesh files and trigger import if needed
+        Only runs after a workflow has been triggered to avoid importing old meshes at startup"""
         try:
+            # Only check for backup imports if we've already triggered a generation this session
+            if not hasattr(self, 'last_flux_trigger_time') or self.last_flux_trigger_time is None:
+                return  # No generation triggered yet, skip backup import
+                
             mesh_dir = self.project_root / "data" / "generated_models" / "partpacker_results"
             if mesh_dir.exists():
                 # Look for the most recent partpacker_result_0.glb file
                 mesh_file = mesh_dir / "partpacker_result_0.glb"
                 if mesh_file.exists():
-                    # Check if this is a new file (modified in last 2 minutes)
+                    # Check if this is a new file (modified after our last generation trigger)
                     import time
-                    file_age = time.time() - mesh_file.stat().st_mtime
+                    file_mtime = mesh_file.stat().st_mtime
+                    generation_start_time = self.last_flux_trigger_time
                     
-                    if file_age < 120 and not hasattr(self, '_processed_backup_mesh'):  # 2 minutes
-                        print("🎬 BACKUP DETECTION: Found fresh mesh file, triggering import and segment selection!")
+                    # Only import if file was modified AFTER we triggered generation
+                    if (file_mtime > generation_start_time and 
+                        not hasattr(self, '_processed_backup_mesh')):
+                        print("🎬 BACKUP DETECTION: Found fresh mesh file created after generation trigger!")
                         
                         # Mark as processed to avoid repeated triggers
                         self._processed_backup_mesh = True
@@ -488,8 +511,8 @@ class ConjureApp:
                                     self.last_mesh_import_time = time.time()
                                 else:
                                     print(f"❌ BACKUP: Import API failed with {response.status_code}")
-                                    # FUCK IT - FORCE SEGMENT SELECTION ANYWAY
-                                    print("🎬 FUCK IT - FORCING SEGMENT SELECTION ANYWAY!")
+                                    # FORCE SEGMENT SELECTION ANYWAY
+                                    print("🎬 FORCING SEGMENT SELECTION ANYWAY!")
                                     self._force_segment_selection()
                         except Exception as e:
                             print(f"❌ BACKUP: Import failed: {e}")
@@ -816,6 +839,7 @@ class ConjureApp:
     def handle_flux_pipeline_request(self, state_data):
         """
         Handle the complete FLUX1.DEPTH -> PartPacker -> Import pipeline
+        Routes to appropriate generation service based on mode
         """
         prompt = state_data.get("flux_prompt", "")
         seed = state_data.get("flux_seed", 0)
@@ -825,42 +849,70 @@ class ConjureApp:
         print(f"📝 Prompt: {prompt}")
         print(f"🎲 Seed: {seed}")
         print(f"🔍 Min volume threshold: {min_volume_threshold}")
+        print(f"🔧 Generation mode: {self.generation_mode}")
         
         try:
-            # Step 1: Generate FLUX1.DEPTH image
-            print("🎨 Step 1: Generating FLUX1.DEPTH image...")
-            print("📡 DEBUG: About to call FLUX1.DEPTH API...")
-            flux_result = self.call_flux_depth_api(prompt, seed)
-            if not flux_result:
-                print("❌ FLUX1.DEPTH generation failed")
-                self.reset_state_file({"flux_pipeline_status": "failed"})
-                return
-            
-            flux_image_path = flux_result["image_path"]
-            print(f"✅ FLUX1.DEPTH completed: {flux_image_path}")
-            
-            # Step 2: Generate 3D model with PartPacker
-            print("🏗️ Step 2: Generating 3D model with PartPacker...")
-            print("📡 DEBUG: About to call PartPacker API...")
-            partpacker_result = self.call_partpacker_api(flux_image_path, seed)
-            if not partpacker_result:
-                print("❌ PartPacker generation failed")
-                self.reset_state_file({"flux_pipeline_status": "failed"})
-                return
-            
-            model_path = partpacker_result["model_path"]
-            print(f"✅ PartPacker completed: {model_path}")
-            
-            # Step 3: Import mesh into Blender
-            print("📦 Step 3: Importing mesh into Blender...")
-            print("📡 DEBUG: About to call mesh import API...")
-            import_result = self.call_mesh_import_api(model_path, min_volume_threshold)
-            if not import_result:
-                print("❌ Mesh import failed")
-                self.reset_state_file({"flux_pipeline_status": "failed"})
-                return
-            
-            print("✅ Mesh import completed")
+            # Route to appropriate generation service based on mode
+            if self.generation_mode == "local_comfyui":
+                # LOCAL COMFYUI: Use unified local ComfyUI workflow
+                print("🖥️ Using LOCAL ComfyUI unified workflow...")
+                success = self.call_local_comfyui_unified_api()
+                if success:
+                    print("✅ Local ComfyUI generation completed")
+                else:
+                    print("❌ Local ComfyUI generation failed")
+                    self.reset_state_file({"flux_pipeline_status": "failed"})
+                    return
+                    
+            elif self.generation_mode in ["serverless", "cloud_legacy"]:
+                # SERVERLESS/CLOUD: Use unified workflow
+                print(f"☁️ Using {self.generation_mode.upper()} unified workflow...")
+                success = self.call_serverless_unified_api()
+                if success:
+                    print(f"✅ {self.generation_mode.upper()} generation completed")
+                else:
+                    print(f"❌ {self.generation_mode.upper()} generation failed")
+                    self.reset_state_file({"flux_pipeline_status": "failed"})
+                    return
+                    
+            else:
+                # LOCAL (HuggingFace): Use separate step pipeline
+                print("🤗 Using HuggingFace separate step pipeline...")
+                
+                # Step 1: Generate FLUX1.DEPTH image
+                print("🎨 Step 1: Generating FLUX1.DEPTH image...")
+                print("📡 DEBUG: About to call FLUX1.DEPTH API...")
+                flux_result = self.call_flux_depth_api(prompt, seed)
+                if not flux_result:
+                    print("❌ FLUX1.DEPTH generation failed")
+                    self.reset_state_file({"flux_pipeline_status": "failed"})
+                    return
+                
+                flux_image_path = flux_result["image_path"]
+                print(f"✅ FLUX1.DEPTH completed: {flux_image_path}")
+                
+                # Step 2: Generate 3D model with PartPacker
+                print("🏗️ Step 2: Generating 3D model with PartPacker...")
+                print("📡 DEBUG: About to call PartPacker API...")
+                partpacker_result = self.call_partpacker_api(flux_image_path, seed)
+                if not partpacker_result:
+                    print("❌ PartPacker generation failed")
+                    self.reset_state_file({"flux_pipeline_status": "failed"})
+                    return
+                
+                model_path = partpacker_result["model_path"]
+                print(f"✅ PartPacker completed: {model_path}")
+                
+                # Step 3: Import mesh into Blender
+                print("📦 Step 3: Importing mesh into Blender...")
+                print("📡 DEBUG: About to call mesh import API...")
+                import_result = self.call_mesh_import_api(model_path, min_volume_threshold)
+                if not import_result:
+                    print("❌ Mesh import failed")
+                    self.reset_state_file({"flux_pipeline_status": "failed"})
+                    return
+                
+                print("✅ Mesh import completed")
             
             # 🎬 DEMO AUTOMATION: Record mesh import time for segment selection trigger
             self.last_mesh_import_time = time.time()
@@ -978,6 +1030,66 @@ class ConjureApp:
             import traceback
             print(f"🔍 Full traceback:\n{traceback.format_exc()}")
             return None
+    
+    def call_local_comfyui_unified_api(self):
+        """Call the Local ComfyUI unified API for complete FLUX + 3D generation"""
+        print("📡 DEBUG: Local ComfyUI unified API call starting...")
+        try:
+            import httpx
+            
+            print("🌐 DEBUG: Making HTTP request to Local ComfyUI API server...")
+            with httpx.Client(timeout=600.0) as client:  # 10-minute timeout for complete generation
+                response = client.post("http://127.0.0.1:8000/local_comfyui/flux_mesh_unified")
+                print(f"📶 DEBUG: HTTP response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"📄 DEBUG: Response data: {result}")
+                    if result["success"]:
+                        print("✅ DEBUG: Local ComfyUI unified API call successful!")
+                        return True
+                    else:
+                        print(f"❌ Local ComfyUI API error: {result['message']}")
+                        return False
+                else:
+                    print(f"❌ HTTP error {response.status_code}: {response.text}")
+                    return False
+                    
+        except Exception as e:
+            print(f"❌ Error calling Local ComfyUI unified API: {e}")
+            import traceback
+            print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+            return False
+    
+    def call_serverless_unified_api(self):
+        """Call the Serverless unified API for complete FLUX + 3D generation"""
+        print("📡 DEBUG: Serverless unified API call starting...")
+        try:
+            import httpx
+            
+            print("🌐 DEBUG: Making HTTP request to Serverless API server...")
+            with httpx.Client(timeout=600.0) as client:  # 10-minute timeout for complete generation
+                response = client.post("http://127.0.0.1:8000/serverless/flux_mesh_unified")
+                print(f"📶 DEBUG: HTTP response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"📄 DEBUG: Response data: {result}")
+                    if result["success"]:
+                        print("✅ DEBUG: Serverless unified API call successful!")
+                        return True
+                    else:
+                        print(f"❌ Serverless API error: {result['message']}")
+                        return False
+                else:
+                    print(f"❌ HTTP error {response.status_code}: {response.text}")
+                    return False
+                    
+        except Exception as e:
+            print(f"❌ Error calling Serverless unified API: {e}")
+            import traceback
+            print(f"🔍 Full traceback:\n{traceback.format_exc()}")
+            return False
     
     def call_mesh_import_api(self, mesh_path, min_volume_threshold):
         """Call the mesh import API via our FastAPI server"""
